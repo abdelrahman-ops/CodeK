@@ -24,20 +24,24 @@ import { auditRoutes } from './modules/audit/audit.routes.js';
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes.js';
 
 export async function buildApp() {
+  const isVercel = process.env.VERCEL === '1';
+  const usePrettyLogger = env.NODE_ENV === 'development' && !isVercel;
+
   const app = Fastify({
-    logger: {
-      level: env.NODE_ENV === 'test' ? 'silent' : 'info',
-      transport:
-        env.NODE_ENV === 'development'
-          ? {
-              target: 'pino-pretty',
-              options: {
-                translateTime: 'HH:MM:ss Z',
-                ignore: 'pid,hostname'
-              }
+    logger: usePrettyLogger
+      ? {
+          level: 'info',
+          transport: {
+            target: 'pino-pretty',
+            options: {
+              translateTime: 'HH:MM:ss Z',
+              ignore: 'pid,hostname'
             }
-          : undefined
-    }
+          }
+        }
+      : {
+          level: env.NODE_ENV === 'test' ? 'silent' : 'info'
+        }
   });
 
   // Global Error Handler
