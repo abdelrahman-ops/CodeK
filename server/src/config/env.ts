@@ -25,18 +25,7 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional().transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
   SMTP_PASS: z.string().optional().transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
   SMTP_FROM: z.string().optional().default('"CodeK Academy" <no-reply@codek.local>')
-}).refine(
-  (data) => {
-    if (data.NODE_ENV === 'production' && data.CORS_ORIGIN === '*') {
-      return false;
-    }
-    return true;
-  },
-  {
-    message: 'In production mode, CORS_ORIGIN must be explicitly set to your frontend domain (cannot be "*")',
-    path: ['CORS_ORIGIN']
-  }
-);
+});
 
 const parseEnv = () => {
   const result = envSchema.safeParse(process.env);
