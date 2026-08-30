@@ -1,5 +1,5 @@
 import { prisma } from '../../db/prisma.js';
-import { ListStudentsQuery, UpdateStudentInput } from './student.schema.js';
+import { ListStudentsQuery, UpdateStudentInput, ResetStudentPasswordInput } from './student.schema.js';
 import { ForbiddenError, NotFoundError } from '../../common/errors/app-error.js';
 import { AttendanceStatus, Role, SubmissionStatus, TaskType } from '@prisma/client';
 import { createAuditLog } from '../audit/audit.service.js';
@@ -312,12 +312,9 @@ export async function deleteStudent(studentId: string, actorUserId?: string) {
 
   return { success: true };
 }
-
-import { ListStudentsQuery, UpdateStudentInput, ResetStudentPasswordInput } from './student.schema.js';
-
 export async function resetStudentPassword(
   studentId: string,
-  input: ResetStudentPasswordInput = {},
+  input: Partial<ResetStudentPasswordInput> = {},
   actorUserId?: string
 ) {
   const student = await prisma.student.findUnique({

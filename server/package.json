@@ -4,8 +4,9 @@
   "description": "Backend API for CodeK an Egyptian Programming Academy Platform",
   "main": "dist/server.js",
   "scripts": {
+    "postinstall": "prisma generate",
     "dev": "tsx watch src/server.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/server.js",
     "test": "vitest run --fileParallelism=false",
     "test:watch": "vitest",
