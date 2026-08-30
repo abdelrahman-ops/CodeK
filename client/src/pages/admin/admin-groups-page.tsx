@@ -1,0 +1,187 @@
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '../../lib/api/client.js';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { Presentation, Plus, Users, Clock, AlertTriangle, ChevronRight } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card.js';
+import { Button } from '../../components/ui/button.js';
+import { Input } from '../../components/ui/input.js';
+import { Badge } from '../../components/ui/badge.js';
+import { Dialog } from '../../components/ui/dialog.js';
+import { CardSkeleton } from '../../components/ui/skeleton.js';
+import { useToast } from '../../components/ui/toast.js';
+import { localizeText } from '../../lib/i18n-helpers.js';
+
+export function AdminGroupsPage() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [scheduleInfo, setScheduleInfo] = useState('');
+  const [whatsappGroupUrl, setWhatsappGroupUrl] = useState('');
+  const [maxCapacity, setMaxCapacity] = useState(20);
+
+  const { data: groups, isLoading } = useQuery({
+    queryKey: ['groups'],
+    queryFn: async () => (await api.groups.list()).data.data
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => (await api.groups.create(data)).data.data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      setIsCreateModalOpen(false);
+      setName('');
+      setDescription('');
+      setScheduleInfo('');
+      setWhatsappGroupUrl('');
+      toast.success(t('common.success'));
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  const handleCreateGroup = (e: React.FormEvent) => {
+    e.preventDefault();
+    createMutation.mutate({
+      name,
+      description: description.trim() || undefined,
+      scheduleInfo: scheduleInfo.trim() || undefined,
+      whatsappGroupUrl: whatsappGroupUrl.trim() || undefined,
+      maxCapacity
+    });
+  };
+
+  if (isLoading) return <CardSkeleton />;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+            <Presentation className="w-7 h-7 text-brand-600 dark:text-brand-400" />
+            <span>{t('nav.groups')}</span>
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {t('groups.subtitle')}
+          </p>
+        </div>
+
+        <Button onClick={() => setIsCreateModalOpen(true)}>
+          <Plus className="w-4 h-4" />
+          <span>{t('groups.createGroup')}</span>
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {groups?.map((group) => {
+          const studentCount = group._count?.enrollments || 0;
+          const isNearCapacity = studentCount >= group.maxCapacity;
+
+          return (
+            <Card
+              key={group.id}
+              onClick={() => navigate(`/admin/groups/${group.id}`)}
+              className="p-6 flex flex-col justify-between gap-4 cursor-pointer hover:border-brand-500/60 dark:hover:border-brand-500/60 transition-all hover:shadow-md border-slate-200/80 dark:border-slate-800/80"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="w-10 h-10 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+                    <Presentation className="w-5 h-5" />
+                  </div>
+                  <Badge variant={isNearCapacity ? 'danger' : 'primary'}>
+                    {studentCount} / {group.maxCapacity} {t('roles.student')}
+                  </Badge>
+                </div>
+
+                <div>
+                  <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100 flex items-center justify-between">
+                    <span>{localizeText(group.name)}</span>
+                    <ChevronRight className="w-4 h-4 text-slate-400 rtl:rotate-180" />
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">{localizeText(group.description)}</p>
+                </div>
+
+                {group.scheduleInfo && (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                    <Clock className="w-3.5 h-3.5 text-brand-500" />
+                    <span>{localizeText(group.scheduleInfo)}</span>
+                  </div>
+                )}
+              </div>
+
+              {isNearCapacity && (
+                <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{t('groups.capacity')}</span>
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Create Group Modal */}
+      <Dialog
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        title={t('groups.createGroup')}
+        maxWidth="md"
+      >
+        <form onSubmit={handleCreateGroup} className="space-y-4 py-2">
+          <Input
+            label={t('groups.groupName')}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+          />
+
+          <Input
+            label={t('groups.schedule')}
+            value={scheduleInfo}
+            onChange={(e) => setScheduleInfo(e.target.value)}
+          />
+
+          <Input
+            label={t('groups.description')}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+
+          <Input
+            label={t('groups.whatsappGroupUrl') || 'WhatsApp Group Invite Link'}
+            type="url"
+            placeholder="https://chat.whatsapp.com/..."
+            value={whatsappGroupUrl}
+            onChange={(e) => setWhatsappGroupUrl(e.target.value)}
+          />
+
+          <Input
+            label={t('groups.maxCapacity')}
+            type="number"
+            value={maxCapacity}
+            onChange={(e) => setMaxCapacity(Number(e.target.value))}
+            min={1}
+            max={50}
+            required
+          />
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={() => setIsCreateModalOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" isLoading={createMutation.isPending}>
+              {t('groups.createGroup')}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+    </div>
+  );
+}

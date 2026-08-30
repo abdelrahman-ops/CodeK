@@ -1,0 +1,536 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  STUDENT
+  PARENT
+}
+
+enum RelationshipType {
+  FATHER
+  MOTHER
+  GUARDIAN
+  OTHER
+}
+
+enum SessionStatus {
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+}
+
+enum CurriculumType {
+  OFFICIAL_EB
+  ACADEMY
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum TaskType {
+  DAILY_TASK
+  CHALLENGE
+  PROJECT
+  WEEKLY_CHALLENGE
+}
+
+enum SubmissionStatus {
+  PENDING
+  REVIEWED
+  APPROVED
+  NEEDS_REVISION
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  SHORT_ANSWER
+}
+
+enum XPSourceType {
+  ATTENDANCE
+  TASK
+  CHALLENGE
+  PROJECT
+  EXAM
+  ACHIEVEMENT
+  MANUAL
+}
+
+enum LeaderboardStatus {
+  ACTIVE
+  FINALIZED
+}
+
+enum AuthTokenType {
+  PARENT_INVITE
+  PASSWORD_RESET
+  ADMIN_LOGIN_OTP
+}
+
+enum PaymentStatus {
+  PAID
+  UNPAID
+}
+
+enum NotificationType {
+  INFO
+  LESSON_UNLOCKED
+  TASK_ASSIGNED
+  TASK_REVIEWED
+  ACHIEVEMENT_UNLOCKED
+  EXAM_AVAILABLE
+  EXAM_RESULT
+  LEADERBOARD_FINALIZED
+  PAYMENT_REMINDER
+}
+
+model User {
+  id                 String          @id @default(uuid())
+  loginId            String          @unique // e.g. "ADM-001", "STU-1001", "PAR-2001"
+  email              String?         @unique
+  phone              String?
+  passwordHash       String
+  mustChangePassword Boolean         @default(true) // Enforces first-login credential update
+  role               Role            @default(STUDENT)
+  firstName          String
+  lastName           String
+  avatarUrl          String?
+  isActive           Boolean         @default(true)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  student            Student?
+  parent             Parent?
+  authTokens         AuthToken[]
+  refreshTokens      RefreshToken[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]      @relation("ActorAuditLogs")
+
+  @@index([role, isActive])
+  @@index([phone])
+}
+
+model Student {
+  id               String                 @id @default(uuid())
+  userId           String                 @unique
+  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentCode              String                 @unique // Human-readable e.g. "STU-1001"
+  anonymousLeaderboardCode String?                // Anonymized code for competition privacy
+  programmingLevel         Difficulty             @default(BEGINNER)
+  schoolName       String?
+  dateOfBirth      DateTime?
+  totalXp          Int                    @default(0)
+  currentStreak    Int                    @default(0)
+  lastActiveDate   DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  enrollments      GroupEnrollment[]
+  attendances      Attendance[]
+  submissions      Submission[]
+  examAttempts     ExamAttempt[]
+  xpTransactions   XPTransaction[]
+  achievements     StudentAchievement[]
+  leaderboardRows  MonthlyLeaderboardEntry[]
+  parents          ParentStudent[]
+  payments         Payment[]
+
+  @@index([totalXp])
+}
+
+model Parent {
+  id               String          @id @default(uuid())
+  userId           String          @unique
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentCode       String          @unique // Human-readable e.g. "PAR-2001"
+  preferredChannel String          @default("WHATSAPP") // "WHATSAPP", "SMS", "EMAIL"
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  children         ParentStudent[]
+}
+
+model ParentStudent {
+  id           String           @id @default(uuid())
+  parentId     String
+  parent       Parent           @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  studentId    String
+  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  relationship RelationshipType @default(GUARDIAN)
+  isPrimary    Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @default(now()) @updatedAt
+
+  @@unique([parentId, studentId])
+  @@index([studentId])
+}
+
+model AuthToken {
+  id        String        @id @default(uuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String        @unique // Hashed token (SHA-256)
+  type      AuthTokenType
+  attempts  Int           @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime      @default(now())
+
+  @@index([userId, type])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique // Hashed refresh token (SHA-256)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Group {
+  id               String            @id @default(uuid())
+  name             String            @unique // e.g. "Group A"
+  description      String?
+  scheduleInfo     String?           // e.g. "Saturday 5:00 PM"
+  whatsappGroupUrl String?           // e.g. "https://chat.whatsapp.com/..."
+  maxCapacity      Int               @default(20)
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  enrollments     GroupEnrollment[]
+  sessions        Session[]
+  taskAssignments TaskAssignment[]
+  exams           Exam[]
+}
+
+model GroupEnrollment {
+  id        String    @id @default(uuid())
+  studentId String
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  groupId   String
+  group     Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+  isActive  Boolean   @default(true)
+
+  @@index([studentId, isActive])
+  @@index([groupId, isActive])
+  @@unique([studentId, groupId, startedAt])
+}
+
+model Session {
+  id             String          @id @default(uuid())
+  groupId        String
+  group          Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sessionNumber  Int
+  date           DateTime
+  startTime      String          // "17:00"
+  endTime        String          // "18:30"
+  status         SessionStatus   @default(SCHEDULED)
+  tokenHash      String?         @unique // SHA-256 hash of QR token
+  tokenExpiresAt DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  attendances    Attendance[]
+  sessionLessons SessionLesson[]
+
+  @@unique([groupId, sessionNumber])
+  @@index([groupId, date, status])
+}
+
+model Attendance {
+  id                 String           @id @default(uuid())
+  sessionId          String
+  session            Session          @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  studentId          String
+  student            Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status             AttendanceStatus @default(PRESENT)
+  isManual           Boolean          @default(false)
+  studentConfirmedAt DateTime?
+  adminConfirmedAt   DateTime?
+  notes              String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([sessionId, studentId])
+  @@index([studentId, status])
+  @@index([sessionId, status])
+}
+
+model Curriculum {
+  id          String         @id @default(uuid())
+  title       String
+  description String?
+  type        CurriculumType @default(OFFICIAL_EB)
+  track       String?        // "Fundamentals", "Python", "AI", "Web"
+  isPublished Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  lessons     Lesson[]
+  exams       Exam[]
+}
+
+model Lesson {
+  id                       String          @id @default(uuid())
+  curriculumId             String
+  curriculum               Curriculum      @relation(fields: [curriculumId], references: [id], onDelete: Cascade)
+  title                    String
+  description              String?
+  content                  String          // Full markdown
+  difficulty               Difficulty      @default(BEGINNER)
+  estimatedDurationMinutes Int             @default(45)
+  order                    Int             @default(1)
+  isPublished              Boolean         @default(true)
+  externalResourceUrl      String?
+  externalResourceTitle    String?
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+
+  sessionLessons           SessionLesson[]
+  tasks                    Task[]
+}
+
+model SessionLesson {
+  id        String   @id @default(uuid())
+  sessionId String
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  lessonId  String
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  order     Int      @default(1)
+
+  @@unique([sessionId, lessonId])
+}
+
+model Task {
+  id                       String           @id @default(uuid())
+  lessonId                 String?
+  lesson                   Lesson?          @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  title                    String
+  description              String
+  instructions             String
+  taskType                 TaskType         @default(DAILY_TASK)
+  difficulty               Difficulty       @default(BEGINNER)
+  estimatedDurationMinutes Int              @default(45)
+  xpReward                 Int              @default(30)
+  isPublished              Boolean          @default(true)
+  createdAt                DateTime         @default(now())
+  updatedAt                DateTime         @updatedAt
+
+  assignments              TaskAssignment[]
+  submissions              Submission[]
+}
+
+model TaskAssignment {
+  id          String    @id @default(uuid())
+  taskId      String
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  groupId     String
+  group       Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  availableAt DateTime  @default(now())
+  dueDate     DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@unique([taskId, groupId])
+}
+
+model Submission {
+  id          String           @id @default(uuid())
+  taskId      String
+  task        Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  content     String?          // Text answer / solution
+  fileUrl     String?
+  githubUrl   String?
+  status      SubmissionStatus @default(PENDING)
+  feedback    String?
+  submittedAt DateTime         @default(now())
+  reviewedAt  DateTime?
+
+  @@unique([taskId, studentId])
+  @@index([studentId, status])
+}
+
+model Exam {
+  id              String         @id @default(uuid())
+  title           String
+  description     String?
+  curriculumId    String?
+  curriculum      Curriculum?    @relation(fields: [curriculumId], references: [id], onDelete: SetNull)
+  groupId         String?
+  group           Group?         @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  startsAt        DateTime
+  endsAt          DateTime
+  durationMinutes Int            @default(45)
+  totalMarks      Int            @default(100)
+  xpReward        Int            @default(100)
+  isPublished     Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  questions       ExamQuestion[]
+  attempts        ExamAttempt[]
+}
+
+model ExamQuestion {
+  id            String       @id @default(uuid())
+  examId        String
+  exam          Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  questionText  String
+  questionType  QuestionType @default(MULTIPLE_CHOICE)
+  options       String?      // JSON array of options for multiple choice
+  correctAnswer String?      // Target answer / key
+  marks         Int          @default(5)
+  order         Int          @default(1)
+
+  @@index([examId, order])
+}
+
+model ExamAttempt {
+  id          String   @id @default(uuid())
+  examId      String
+  exam        Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId   String
+  student     Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  answers     String   // JSON string of answers
+  score       Int      @default(0)
+  percentage  Float    @default(0.0)
+  xpEarned    Int      @default(0)
+  submittedAt DateTime @default(now())
+
+  @@unique([examId, studentId])
+}
+
+model XPTransaction {
+  id         String       @id @default(uuid())
+  studentId  String
+  student    Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amount     Int
+  reason     String
+  sourceType XPSourceType
+  sourceId   String?      // e.g. taskId, sessionId, examAttemptId, achievementId
+  createdAt  DateTime     @default(now())
+
+  @@unique([studentId, sourceType, sourceId])
+  @@index([studentId, createdAt])
+}
+
+model Achievement {
+  id          String               @id @default(uuid())
+  code        String               @unique
+  name        String
+  description String
+  icon        String               // Emoji or icon key
+  xpReward    Int                  @default(50)
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  students    StudentAchievement[]
+}
+
+model StudentAchievement {
+  id            String      @id @default(uuid())
+  studentId     String
+  student       Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  achievementId String
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+  unlockedAt    DateTime    @default(now())
+
+  @@unique([studentId, achievementId])
+}
+
+model MonthlyLeaderboard {
+  id         String                    @id @default(uuid())
+  year       Int
+  month      Int                       // 1 - 12
+  status     LeaderboardStatus         @default(ACTIVE)
+  revealDate DateTime?
+  createdAt  DateTime                  @default(now())
+  updatedAt  DateTime                  @updatedAt
+
+  entries    MonthlyLeaderboardEntry[]
+
+  @@unique([year, month])
+}
+
+model MonthlyLeaderboardEntry {
+  id            String             @id @default(uuid())
+  leaderboardId String
+  leaderboard   MonthlyLeaderboard @relation(fields: [leaderboardId], references: [id], onDelete: Cascade)
+  studentId     String
+  student       Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  rank          Int
+  monthlyXp     Int
+  anonymousCode String
+  createdAt     DateTime           @default(now())
+
+  @@unique([leaderboardId, studentId])
+  @@index([leaderboardId, rank])
+}
+
+model Payment {
+  id        String        @id @default(uuid())
+  studentId String
+  student   Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  year      Int
+  month     Int           // 1 - 12
+  amount    Int           // EGP amount (e.g. 250)
+  status    PaymentStatus @default(UNPAID)
+  paidAt    DateTime?
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([studentId, year, month])
+  @@index([year, month, status])
+  @@index([studentId, status])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      NotificationType @default(INFO)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  actorUserId String?
+  actor       User?    @relation("ActorAuditLogs", fields: [actorUserId], references: [id], onDelete: SetNull)
+  action      String   // e.g. "LOGIN", "ATTENDANCE_MARKED", "PAYMENT_MARKED_PAID"
+  entityType  String   // e.g. "User", "Session", "Task", "Payment", "Exam"
+  entityId    String?
+  metadata    String?  // JSON string containing non-sensitive details
+  createdAt   DateTime @default(now())
+
+  @@index([action, createdAt])
+  @@index([entityType, entityId])
+}
