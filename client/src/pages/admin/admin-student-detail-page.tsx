@@ -14,7 +14,14 @@ import {
   Phone,
   School,
   Award,
-  Trash2
+  Trash2,
+  Users,
+  UserPlus,
+  UserMinus,
+  Edit,
+  Clock,
+  KeyRound,
+  ShieldAlert
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card.js';
 import { Avatar } from '../../components/ui/avatar.js';
@@ -23,11 +30,11 @@ import { Progress } from '../../components/ui/progress.js';
 import { Button } from '../../components/ui/button.js';
 import { Dialog } from '../../components/ui/dialog.js';
 import { Input } from '../../components/ui/input.js';
+import { Select } from '../../components/ui/select.js';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog.js';
 import { StudentCredentialsModal, StudentCredentialsData } from '../../components/students/student-credentials-modal.js';
 import { CardSkeleton } from '../../components/ui/skeleton.js';
 import { useToast } from '../../components/ui/toast.js';
-import { KeyRound, ShieldAlert } from 'lucide-react';
 import { localizeText, formatStatus, formatStreak, formatCurrency, formatDate } from '../../lib/i18n-helpers.js';
 
 export function AdminStudentDetailPage() {
@@ -44,6 +51,10 @@ export function AdminStudentDetailPage() {
   const [mustChangePassword, setMustChangePassword] = useState(true);
   const [credentialsData, setCredentialsData] = useState<StudentCredentialsData | null>(null);
 
+  const [isChangeGroupOpen, setIsChangeGroupOpen] = useState(false);
+  const [selectedNewGroupId, setSelectedNewGroupId] = useState('');
+  const [groupToRemoveId, setGroupToRemoveId] = useState<string | null>(null);
+
   const { data: student, isLoading } = useQuery({
     queryKey: ['adminStudentDetail', id],
     queryFn: async () => {
@@ -53,6 +64,11 @@ export function AdminStudentDetailPage() {
     enabled: Boolean(id)
   });
 
+  const { data: groups } = useQuery({
+    queryKey: ['groups'],
+    queryFn: async () => (await api.groups.list()).data.data
+  });
+
   const { data: progress } = useQuery({
     queryKey: ['adminStudentProgress', id],
     queryFn: async () => {
@@ -60,6 +76,41 @@ export function AdminStudentDetailPage() {
       return (await api.students.getProgress(id)).data.data;
     },
     enabled: Boolean(id)
+  });
+
+  const changeGroupMutation = useMutation({
+    mutationFn: async (targetGroupId: string) => {
+      if (!id) return;
+      return (await api.groups.enroll(targetGroupId, id)).data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminStudentDetail', id] });
+      queryClient.invalidateQueries({ queryKey: ['adminStudents'] });
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      setIsChangeGroupOpen(false);
+      setSelectedNewGroupId('');
+      toast.success(t('groups.groupChangedSuccess') || 'Student group updated successfully');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  const removeGroupMutation = useMutation({
+    mutationFn: async (targetGroupId: string) => {
+      if (!id) return;
+      return (await api.groups.removeStudent(targetGroupId, id)).data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminStudentDetail', id] });
+      queryClient.invalidateQueries({ queryKey: ['adminStudents'] });
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      setGroupToRemoveId(null);
+      toast.success(t('common.success'));
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
   });
 
   const deleteMutation = useMutation({
@@ -223,26 +274,72 @@ export function AdminStudentDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Enrollments & Class Info */}
         <Card className="p-6 space-y-4 border-slate-200/80 dark:border-slate-800/80">
-          <h3 className="font-black text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <CalendarCheck2 className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-            <span>{t('groups.enrolledGroups')}</span>
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-black text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <CalendarCheck2 className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+              <span>{t('groups.group')}</span>
+            </h3>
+
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const active = enrollments.find((e: any) => e.isActive);
+                setSelectedNewGroupId(active?.groupId || '');
+                setIsChangeGroupOpen(true);
+              }}
+              className="gap-1.5 text-xs font-bold"
+            >
+              <Edit className="w-3.5 h-3.5" />
+              <span>{enrollments.some((e: any) => e.isActive) ? t('groups.changeGroup') : t('groups.assignGroup')}</span>
+            </Button>
+          </div>
 
           <div className="space-y-2">
             {enrollments.length > 0 ? (
               enrollments.map((e: any) => (
-                <div key={e.id} className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-sm text-slate-900 dark:text-slate-100">{localizeText(e.group.name)}</div>
-                    <div className="text-xs text-slate-500">{localizeText(e.group.scheduleInfo) || t('common.noSchedule')}</div>
+                <div key={e.id} className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 flex items-center justify-between gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate">{localizeText(e.group.name)}</span>
+                      <Badge variant={e.isActive ? 'success' : 'secondary'} size="sm">
+                        {e.isActive ? t('common.active') : t('common.archived')}
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-slate-500 flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-brand-500" />
+                      <span>{localizeText(e.group.scheduleInfo) || t('common.noSchedule')}</span>
+                    </div>
                   </div>
-                  <Badge variant={e.isActive ? 'success' : 'secondary'} size="sm">
-                    {e.isActive ? t('common.active') : t('common.archived')}
-                  </Badge>
+
+                  {e.isActive && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setGroupToRemoveId(e.groupId)}
+                      className="text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 p-1.5 h-auto text-xs"
+                      title={t('groups.removeFromGroup')}
+                    >
+                      <UserMinus className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               ))
             ) : (
-              <div className="text-xs text-slate-400 py-4 text-center">{t('common.noData')}</div>
+              <div className="text-xs text-slate-400 py-6 text-center space-y-2">
+                <p>{t('groups.noGroupAssigned')}</p>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setSelectedNewGroupId('');
+                    setIsChangeGroupOpen(true);
+                  }}
+                  className="gap-1.5 text-xs mx-auto"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>{t('groups.assignGroup')}</span>
+                </Button>
+              </div>
             )}
           </div>
         </Card>
@@ -385,6 +482,71 @@ export function AdminStudentDetailPage() {
         onClose={() => setCredentialsData(null)}
         data={credentialsData}
         title={t('students.newCredentialsTitle') || 'New Temporary Credentials'}
+      />
+
+      {/* Change / Assign Group Modal */}
+      <Dialog
+        isOpen={isChangeGroupOpen}
+        onClose={() => setIsChangeGroupOpen(false)}
+        title={t('groups.changeGroup')}
+        maxWidth="md"
+      >
+        <div className="space-y-4 py-2">
+          <p className="text-xs text-slate-500">
+            {t('students.subtitle')}
+          </p>
+
+          <Select
+            label={t('groups.group')}
+            value={selectedNewGroupId}
+            onChange={(e) => setSelectedNewGroupId(e.target.value)}
+            options={[
+              { value: '', label: `-- ${t('groups.selectStudent')} --` },
+              ...(groups?.map((g) => {
+                const count = g._count?.enrollments || 0;
+                return {
+                  value: g.id,
+                  label: `${localizeText(g.name)} ${g.scheduleInfo ? `• ${g.scheduleInfo}` : ''} (${count}/${g.maxCapacity})`
+                };
+              }) || [])
+            ]}
+          />
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsChangeGroupOpen(false)}
+              disabled={changeGroupMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              disabled={!selectedNewGroupId || changeGroupMutation.isPending}
+              isLoading={changeGroupMutation.isPending}
+              onClick={() => changeGroupMutation.mutate(selectedNewGroupId)}
+            >
+              <Users className="w-4 h-4" />
+              <span>{t('common.confirm')}</span>
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Remove from Group Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={Boolean(groupToRemoveId)}
+        onClose={() => setGroupToRemoveId(null)}
+        onConfirm={() => {
+          if (groupToRemoveId) {
+            removeGroupMutation.mutate(groupToRemoveId);
+          }
+        }}
+        title={t('groups.removeFromGroup')}
+        description={t('groups.confirmDelete')}
+        isLoading={removeGroupMutation.isPending}
+        isDestructive={true}
       />
 
       {/* Confirm Delete Dialog */}

@@ -208,7 +208,8 @@
     "temporarySecurityNotice": "Temporary Credentials Security",
     "temporarySecurityDesc": "This temporary password is only shown now and is not stored in plaintext. The student will be required to choose a new password upon first login.",
     "newCredentialsTitle": "New Student Credentials",
-    "name": "Student Name"
+    "name": "Student Name",
+    "streak": "Daily Streak"
   },
   "groups": {
     "title": "Class Groups",
@@ -219,14 +220,37 @@
     "deleteGroup": "Delete Group",
     "confirmDelete": "Are you sure you want to delete group",
     "groupName": "Group Name",
-    "schedule": "Schedule",
+    "schedule": "Room Schedule",
     "scheduleInfo": "Schedule Info (e.g. Saturday 5:00 PM)",
     "description": "Description",
+    "noDescription": "No group description",
+    "enrolledStudents": "Enrolled Students",
+    "capacity": "Capacity",
+    "days": "Session Days",
+    "timeSlot": "Time Slot",
+    "fromTime": "From",
+    "toTime": "To",
+    "addTimeSlot": "Add Time Slot",
+    "selectedDays": "Selected Days",
+    "changeGroup": "Change Group",
+    "currentGroup": "Current Group",
+    "assignGroup": "Assign Group",
+    "removeFromGroup": "Remove from Group",
+    "noGroupAssigned": "Not assigned to any group currently",
+    "groupChangedSuccess": "Student group updated successfully",
     "maxCapacity": "Max Capacity",
     "addStudent": "Add Student to Group",
     "selectStudent": "Select Student",
     "whatsappGroup": "WhatsApp Group",
     "whatsappGroupUrl": "WhatsApp Group Invite Link"
+  },
+  "gamification": {
+    "xp": "XP Points",
+    "streak": "Daily Streak",
+    "level": "Level",
+    "rank": "Rank",
+    "badges": "Badges & Achievements",
+    "leaderboard": "Leaderboard"
   },
   "parents": {
     "title": "Parent Portal",

@@ -24,6 +24,7 @@ import { Avatar } from '../../components/ui/avatar.js';
 import { Select } from '../../components/ui/select.js';
 import { Dialog } from '../../components/ui/dialog.js';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog.js';
+import { GroupSchedulePicker } from '../../components/groups/group-schedule-picker.js';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/table.js';
 import { CardSkeleton, TableSkeleton } from '../../components/ui/skeleton.js';
 import { useToast } from '../../components/ui/toast.js';
@@ -294,11 +295,9 @@ export function AdminGroupDetailPage() {
             onChange={(e) => setEditName(e.target.value)}
             required
           />
-          <Input
-            label={t('groups.scheduleInfo')}
+          <GroupSchedulePicker
             value={editScheduleInfo}
-            onChange={(e) => setEditScheduleInfo(e.target.value)}
-            placeholder="e.g. Saturday 5:00 PM"
+            onChange={setEditScheduleInfo}
           />
           <Input
             label={t('groups.whatsappGroupUrl') || 'WhatsApp Group Invite Link'}

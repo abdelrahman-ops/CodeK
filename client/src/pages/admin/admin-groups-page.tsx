@@ -9,6 +9,7 @@ import { Button } from '../../components/ui/button.js';
 import { Input } from '../../components/ui/input.js';
 import { Badge } from '../../components/ui/badge.js';
 import { Dialog } from '../../components/ui/dialog.js';
+import { GroupSchedulePicker } from '../../components/groups/group-schedule-picker.js';
 import { CardSkeleton } from '../../components/ui/skeleton.js';
 import { useToast } from '../../components/ui/toast.js';
 import { localizeText } from '../../lib/i18n-helpers.js';
@@ -142,10 +143,9 @@ export function AdminGroupsPage() {
             required
           />
 
-          <Input
-            label={t('groups.schedule')}
+          <GroupSchedulePicker
             value={scheduleInfo}
-            onChange={(e) => setScheduleInfo(e.target.value)}
+            onChange={setScheduleInfo}
           />
 
           <Input
