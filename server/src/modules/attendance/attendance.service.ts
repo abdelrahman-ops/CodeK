@@ -279,9 +279,12 @@ export async function getSessionAttendanceList(sessionId: string) {
     const student = e.student;
     const att = attendanceMap.get(student.id);
 
+    const studentName = `${student.user.firstName || ''} ${student.user.lastName || ''}`.trim() || student.studentCode;
+
     return {
       studentId: student.id,
       studentCode: student.studentCode,
+      studentName,
       firstName: student.user.firstName,
       lastName: student.user.lastName,
       avatarUrl: student.user.avatarUrl,
