@@ -138,4 +138,4 @@ The web application will be live at `http://localhost:5173`.
 
 ## 📜 License
 
-Private & Proprietary — Developed for CodeK Academy.
+This project is licensed under the [MIT License](LICENSE).
