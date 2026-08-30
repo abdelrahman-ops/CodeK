@@ -48,7 +48,15 @@ export async function buildApp() {
   await registerSwagger(app);
   await registerRateLimit(app);
 
-  // Health Check
+  // Root Welcome & Health Check
+  app.get('/', async () => ({
+    name: 'CodeK Academy API',
+    version: '1.0.0',
+    status: 'online',
+    health: '/health',
+    docs: '/docs'
+  }));
+
   app.get('/health', async () => ({
     status: 'healthy',
     timestamp: new Date().toISOString(),
@@ -81,3 +89,14 @@ export async function buildApp() {
 
   return app;
 }
+
+let serverlessAppInstance: any = null;
+
+export default async function handler(req: any, res: any) {
+  if (!serverlessAppInstance) {
+    serverlessAppInstance = await buildApp();
+    await serverlessAppInstance.ready();
+  }
+  serverlessAppInstance.server.emit('request', req, res);
+}
+
