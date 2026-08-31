@@ -99,6 +99,16 @@ enum NotificationType {
   PAYMENT_REMINDER
 }
 
+enum RegistrationStatus {
+  PENDING
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  WAITLISTED
+  EXPIRED
+  ARCHIVED
+}
+
 model User {
   id                 String          @id @default(uuid())
   loginId            String          @unique // e.g. "ADM-001", "STU-1001", "PAR-2001"
@@ -120,6 +130,7 @@ model User {
   refreshTokens      RefreshToken[]
   notifications      Notification[]
   auditLogs          AuditLog[]      @relation("ActorAuditLogs")
+  reviewedRegistrations StudentRegistration[] @relation("ReviewedRegistrations")
 
   @@index([role, isActive])
   @@index([phone])
@@ -149,6 +160,7 @@ model Student {
   leaderboardRows  MonthlyLeaderboardEntry[]
   parents          ParentStudent[]
   payments         Payment[]
+  registration     StudentRegistration?
 
   @@index([totalXp])
 }
@@ -180,18 +192,27 @@ model ParentStudent {
   @@index([studentId])
 }
 
+enum OtpStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+  INVALIDATED
+}
+
 model AuthToken {
   id        String        @id @default(uuid())
   userId    String
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash String        @unique // Hashed token (SHA-256)
   type      AuthTokenType
+  status    OtpStatus     @default(PENDING)
   attempts  Int           @default(0)
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime      @default(now())
 
   @@index([userId, type])
+  @@index([userId, type, status])
 }
 
 model RefreshToken {
@@ -218,8 +239,26 @@ model Group {
 
   enrollments     GroupEnrollment[]
   sessions        Session[]
+  schedules       GroupSchedule[]
   taskAssignments TaskAssignment[]
   exams           Exam[]
+  preferredRegistrations StudentRegistration[] @relation("PreferredGroupRegistrations")
+}
+
+model GroupSchedule {
+  id        String   @id @default(uuid())
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  dayOfWeek Int      // 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday
+  startTime String   // e.g. "16:00"
+  endTime   String   // e.g. "17:30"
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([groupId, dayOfWeek])
+  @@index([groupId, isActive])
+  @@index([dayOfWeek, isActive])
 }
 
 model GroupEnrollment {
@@ -534,3 +573,59 @@ model AuditLog {
   @@index([action, createdAt])
   @@index([entityType, entityId])
 }
+
+model StudentRegistration {
+  id                 String             @id @default(uuid())
+  registrationCode   String             @unique // Human-readable e.g. "REG-7K42M"
+
+  firstName          String
+  lastName           String
+  phone              String             // Normalized phone e.g. "+201012345678"
+  whatsappPhone      String?
+  email              String?
+
+  dateOfBirth        DateTime?
+  schoolName         String?
+  grade              String?
+  programmingLevel   Difficulty         @default(BEGINNER)
+  previousExperience String?
+  motivation         String?
+
+  preferredDays      String?
+  preferredTimes     String?
+  preferredGroupId   String?
+  preferredGroup     Group?             @relation("PreferredGroupRegistrations", fields: [preferredGroupId], references: [id], onDelete: SetNull)
+
+  parentName         String?
+  parentPhone        String?
+  parentRelationship RelationshipType?
+
+  status             RegistrationStatus @default(PENDING)
+
+  adminNotes         String?
+  rejectionReason    String?
+
+  reviewedAt         DateTime?
+  reviewedByUserId   String?
+  reviewedByUser     User?              @relation("ReviewedRegistrations", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+
+  createdStudentId   String?            @unique
+  createdStudent     Student?           @relation(fields: [createdStudentId], references: [id], onDelete: SetNull)
+
+  clientIp           String?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([status, createdAt])
+  @@index([phone])
+}
+
+model RegistrationSetting {
+  id               String    @id @default("default")
+  isOpen           Boolean   @default(true)
+  startDate        DateTime?
+  endDate          DateTime?
+  maxRegistrations Int?
+  updatedAt        DateTime  @updatedAt
+}
+

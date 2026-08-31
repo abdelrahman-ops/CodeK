@@ -63,11 +63,21 @@ export interface ParentStudentLink {
   student: StudentProfile & { user: User };
 }
 
+export interface GroupSchedule {
+  id?: string;
+  groupId?: string;
+  dayOfWeek: number; // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime: string; // "16:00"
+  endTime: string;   // "17:30"
+  isActive?: boolean;
+}
+
 export interface Group {
   id: string;
   name: string;
   description?: string | null;
   scheduleInfo?: string | null;
+  schedules?: GroupSchedule[];
   whatsappGroupUrl?: string | null;
   maxCapacity: number;
   isActive: boolean;
@@ -514,6 +524,28 @@ export interface ParentDashboardData {
   recentNotifications: NotificationItem[];
 }
 
+export interface TodayScheduleGroup {
+  groupId: string;
+  groupName: string;
+  description?: string | null;
+  enrolledStudentsCount: number;
+  targetDate: string;
+  dayOfWeek: number;
+  schedule: {
+    id: string;
+    startTime: string;
+    endTime: string;
+  } | null;
+  nextSessionNumber: number;
+  existingSession: {
+    id: string;
+    sessionNumber: number;
+    startTime: string;
+    endTime: string;
+    status: SessionStatus;
+  } | null;
+}
+
 export interface AdminDashboardData {
   overview: {
     totalStudents: number;
@@ -523,6 +555,7 @@ export interface AdminDashboardData {
     activeExamsCount: number;
   };
   financialSummary: PaymentSummary;
+  todayScheduledGroups?: TodayScheduleGroup[];
   upcomingOrActiveSessions: {
     id: string;
     sessionNumber: number;
@@ -568,4 +601,133 @@ export interface ResetStudentPasswordResponse {
   groupSchedule?: string | null;
   whatsappGroupUrl?: string | null;
 }
+
+export type RegistrationStatus =
+  | 'PENDING'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'REJECTED'
+  | 'WAITLISTED'
+  | 'EXPIRED'
+  | 'ARCHIVED';
+
+export type RelationshipType = 'FATHER' | 'MOTHER' | 'GUARDIAN' | 'OTHER';
+
+export interface StudentRegistration {
+  id: string;
+  registrationCode: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  whatsappPhone?: string | null;
+  email?: string | null;
+  dateOfBirth?: string | null;
+  schoolName?: string | null;
+  grade?: string | null;
+  programmingLevel: Difficulty;
+  previousExperience?: string | null;
+  motivation?: string | null;
+  preferredDays?: string | null;
+  preferredTimes?: string | null;
+  preferredGroupId?: string | null;
+  preferredGroup?: { id: string; name: string; scheduleInfo?: string | null } | null;
+  parentName?: string | null;
+  parentPhone?: string | null;
+  parentRelationship?: RelationshipType | null;
+  status: RegistrationStatus;
+  adminNotes?: string | null;
+  rejectionReason?: string | null;
+  reviewedAt?: string | null;
+  reviewedByUserId?: string | null;
+  reviewedByUser?: { id: string; firstName: string; lastName: string; email?: string } | null;
+  createdStudentId?: string | null;
+  createdStudent?: { id: string; studentCode: string; user: { loginId: string } } | null;
+  clientIp?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublicGroupOption {
+  id: string;
+  name: string;
+  description?: string | null;
+  scheduleInfo?: string | null;
+  scheduleSummaryAr: string;
+  scheduleSummaryEn: string;
+  schedules: {
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+  }[];
+  maxCapacity: number;
+  enrolledCount: number;
+  isFull: boolean;
+}
+
+export interface PublicRegistrationStatus {
+  isOpen: boolean;
+  closedReason?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  maxRegistrations?: number | null;
+  currentRegistrationsCount: number;
+  remainingCapacity?: number | null;
+  groups?: PublicGroupOption[];
+}
+
+export interface RegistrationSetting {
+  id: string;
+  isOpen: boolean;
+  startDate?: string | null;
+  endDate?: string | null;
+  maxRegistrations?: number | null;
+  updatedAt?: string;
+}
+
+export interface ListAdminRegistrationsResponse {
+  data: StudentRegistration[];
+  counts: {
+    ALL: number;
+    PENDING: number;
+    UNDER_REVIEW: number;
+    APPROVED: number;
+    REJECTED: number;
+    WAITLISTED: number;
+    EXPIRED: number;
+    ARCHIVED: number;
+  };
+  settings?: RegistrationSetting | null;
+  meta?: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+export interface ApproveRegistrationResponse {
+  registration: StudentRegistration;
+  user: {
+    id: string;
+    loginId: string;
+    firstName: string;
+    lastName: string;
+    phone?: string | null;
+  };
+  student: {
+    id: string;
+    studentCode: string;
+  };
+  credentials: {
+    loginId: string;
+    temporaryPassword: string;
+    studentCode: string;
+  };
+  whatsappOnboarding: {
+    messageText: string;
+    whatsappUrl: string;
+    normalizedPhone: string;
+  };
+}
+
 

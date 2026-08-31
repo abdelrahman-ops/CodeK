@@ -223,7 +223,7 @@ export function AdminTasksPage() {
             label={t('tasks.instructions')}
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
-            placeholder="Step by step instructions for the student..."
+            placeholder={t('tasks.instructionsPlaceholder')}
             rows={3}
           />
 
@@ -323,6 +323,7 @@ export function AdminTasksPage() {
             label={t('tasks.instructions')}
             value={instructions}
             onChange={(e) => setInstructions(e.target.value)}
+            placeholder={t('tasks.instructionsPlaceholder')}
             rows={3}
           />
 

@@ -501,7 +501,7 @@ export function AdminStudentDetailPage() {
             value={selectedNewGroupId}
             onChange={(e) => setSelectedNewGroupId(e.target.value)}
             options={[
-              { value: '', label: `-- ${t('groups.selectStudent')} --` },
+              { value: '', label: `-- ${t('groups.selectGroup')} --` },
               ...(groups?.map((g) => {
                 const count = g._count?.enrollments || 0;
                 return {

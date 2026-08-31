@@ -18,6 +18,7 @@ import {
   Settings,
   Presentation,
   FileCheck2,
+  FileText,
   History,
   Send,
   Users,
@@ -112,6 +113,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     {
       labelKey: 'nav.groupAcademic',
       items: [
+        { to: '/admin/registrations', labelKey: 'nav.registrations', icon: FileText },
         { to: '/admin/students', labelKey: 'nav.students', icon: Users },
         { to: '/admin/groups', labelKey: 'nav.groups', icon: Presentation },
         { to: '/admin/parents', labelKey: 'nav.parents', icon: Users2 },

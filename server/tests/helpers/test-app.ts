@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/app.js';
 import { env } from '../../src/config/env.js';
+import { prisma } from '../../src/db/prisma.js';
 
 let app: FastifyInstance | null = null;
 
@@ -13,6 +14,16 @@ export async function getTestApp(): Promise<FastifyInstance> {
 }
 
 export async function loginAdmin(testApp: FastifyInstance): Promise<string> {
+  // Invalidate any existing pending OTP tokens for tests to avoid reuse with missing raw OTP
+  const adminUser = await prisma.user.findFirst({
+    where: { loginId: env.ADMIN_LOGIN_ID || 'ADM-001' }
+  });
+  if (adminUser) {
+    await prisma.authToken.deleteMany({
+      where: { userId: adminUser.id, type: 'ADMIN_LOGIN_OTP' }
+    });
+  }
+
   const loginRes = await testApp.inject({
     method: 'POST',
     url: '/api/v1/auth/login',

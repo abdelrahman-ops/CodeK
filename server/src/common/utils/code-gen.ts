@@ -25,3 +25,7 @@ export function generateAdminCode(): string {
 export function generateAnonymousCode(): string {
   return `CODE-${randomChars(4)}`;
 }
+
+export function generateRegistrationCode(): string {
+  return `REG-${randomChars(5)}`;
+}

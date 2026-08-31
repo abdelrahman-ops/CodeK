@@ -21,6 +21,28 @@ export async function sessionRoutes(app: FastifyInstance) {
     }
   );
 
+  // Today schedule query (Admin & Auth users)
+  app.get(
+    '/today-schedule',
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      const { date } = z.object({ date: z.string().optional() }).parse(request.query);
+      const schedule = await sessionService.getTodayScheduledGroups(date);
+      return reply.send({ data: schedule });
+    }
+  );
+
+  // Get next session number for group
+  app.get(
+    '/next-number/:groupId',
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      const { groupId } = z.object({ groupId: z.string().uuid() }).parse(request.params);
+      const nextSessionNumber = await sessionService.getNextSessionNumber(groupId);
+      return reply.send({ data: { groupId, nextSessionNumber } });
+    }
+  );
+
   // List sessions
   app.get(
     '/',

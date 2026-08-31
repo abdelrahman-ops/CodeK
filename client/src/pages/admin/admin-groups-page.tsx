@@ -23,7 +23,7 @@ export function AdminGroupsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [scheduleInfo, setScheduleInfo] = useState('');
+  const [schedules, setSchedules] = useState<any[]>([]);
   const [whatsappGroupUrl, setWhatsappGroupUrl] = useState('');
   const [maxCapacity, setMaxCapacity] = useState(20);
 
@@ -39,7 +39,7 @@ export function AdminGroupsPage() {
       setIsCreateModalOpen(false);
       setName('');
       setDescription('');
-      setScheduleInfo('');
+      setSchedules([]);
       setWhatsappGroupUrl('');
       toast.success(t('common.success'));
     },
@@ -53,7 +53,7 @@ export function AdminGroupsPage() {
     createMutation.mutate({
       name,
       description: description.trim() || undefined,
-      scheduleInfo: scheduleInfo.trim() || undefined,
+      schedules: schedules.length > 0 ? schedules : undefined,
       whatsappGroupUrl: whatsappGroupUrl.trim() || undefined,
       maxCapacity
     });
@@ -144,8 +144,8 @@ export function AdminGroupsPage() {
           />
 
           <GroupSchedulePicker
-            value={scheduleInfo}
-            onChange={setScheduleInfo}
+            schedules={schedules}
+            onChange={setSchedules}
           />
 
           <Input

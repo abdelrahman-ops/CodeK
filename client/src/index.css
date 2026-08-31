@@ -132,6 +132,10 @@ body[data-accent="monochrome"] {
     font-family: 'Cairo', 'Tajawal', system-ui, -apple-system, sans-serif;
   }
 
+  .font-brand {
+    font-family: 'Eczar', serif;
+  }
+
   /* Custom Scrollbar */
   ::-webkit-scrollbar {
     width: 6px;

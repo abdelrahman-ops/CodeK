@@ -4,6 +4,14 @@ import { BadRequestError, ForbiddenError, NotFoundError } from '../../common/err
 import { createAuditLog } from '../audit/audit.service.js';
 import { Role } from '@prisma/client';
 
+const DAY_NAMES_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+function generateScheduleInfo(schedules: { dayOfWeek: number; startTime: string; endTime: string }[]): string | undefined {
+  if (!schedules || schedules.length === 0) return undefined;
+  const sorted = [...schedules].sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  return sorted.map((s) => `${DAY_NAMES_EN[s.dayOfWeek]} ${s.startTime}-${s.endTime}`).join(', ');
+}
+
 export async function createGroup(input: CreateGroupInput, actorUserId?: string) {
   const existing = await prisma.group.findUnique({
     where: { name: input.name }
@@ -13,14 +21,40 @@ export async function createGroup(input: CreateGroupInput, actorUserId?: string)
     throw new BadRequestError(`Group with name "${input.name}" already exists`);
   }
 
+  if (input.schedules && input.schedules.length > 0) {
+    const days = input.schedules.map((s) => s.dayOfWeek);
+    if (new Set(days).size !== days.length) {
+      throw new BadRequestError('Duplicate day of week in group schedule payload');
+    }
+  }
+
+  const computedScheduleInfo = input.schedules && input.schedules.length > 0
+    ? generateScheduleInfo(input.schedules)
+    : input.scheduleInfo;
+
   const group = await prisma.group.create({
     data: {
       name: input.name,
       description: input.description,
-      scheduleInfo: input.scheduleInfo,
+      scheduleInfo: computedScheduleInfo,
       whatsappGroupUrl: input.whatsappGroupUrl || null,
       maxCapacity: input.maxCapacity,
-      isActive: input.isActive
+      isActive: input.isActive,
+      schedules: input.schedules && input.schedules.length > 0
+        ? {
+            create: input.schedules.map((s) => ({
+              dayOfWeek: s.dayOfWeek,
+              startTime: s.startTime,
+              endTime: s.endTime,
+              isActive: s.isActive ?? true
+            }))
+          }
+        : undefined
+    },
+    include: {
+      schedules: {
+        orderBy: { dayOfWeek: 'asc' }
+      }
     }
   });
 
@@ -42,6 +76,10 @@ export async function listGroups(query: ListGroupsQuery) {
     where,
     orderBy: { name: 'asc' },
     include: {
+      schedules: {
+        where: { isActive: true },
+        orderBy: { dayOfWeek: 'asc' }
+      },
       _count: {
         select: {
           enrollments: { where: { isActive: true } },
@@ -56,6 +94,9 @@ export async function getGroupById(groupId: string, user: { userId: string; role
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     include: {
+      schedules: {
+        orderBy: { dayOfWeek: 'asc' }
+      },
       enrollments: {
         where: { isActive: true },
         include: {
@@ -109,6 +150,7 @@ export async function getGroupById(groupId: string, user: { userId: string; role
       name: group.name,
       description: group.description,
       scheduleInfo: group.scheduleInfo,
+      schedules: group.schedules,
       whatsappGroupUrl: group.whatsappGroupUrl,
       maxCapacity: group.maxCapacity,
       members: group.enrollments.map((e: any) => {
@@ -138,27 +180,63 @@ export async function updateGroup(groupId: string, input: UpdateGroupInput, acto
     throw new NotFoundError('Group not found');
   }
 
-  const updated = await prisma.group.update({
-    where: { id: groupId },
-    data: {
-      name: input.name,
-      description: input.description !== undefined ? input.description : undefined,
-      scheduleInfo: input.scheduleInfo !== undefined ? input.scheduleInfo : undefined,
-      whatsappGroupUrl: input.whatsappGroupUrl !== undefined ? (input.whatsappGroupUrl || null) : undefined,
-      maxCapacity: input.maxCapacity,
-      isActive: input.isActive
+  if (input.schedules && input.schedules.length > 0) {
+    const days = input.schedules.map((s) => s.dayOfWeek);
+    if (new Set(days).size !== days.length) {
+      throw new BadRequestError('Duplicate day of week in group schedule payload');
     }
-  });
+  }
 
-  await createAuditLog({
-    actorUserId,
-    action: 'GROUP_UPDATED',
-    entityType: 'Group',
-    entityId: groupId,
-    metadata: { changed: input }
-  });
+  let updatedScheduleInfo = input.scheduleInfo !== undefined ? input.scheduleInfo : undefined;
 
-  return updated;
+  return prisma.$transaction(async (tx) => {
+    if (input.schedules !== undefined) {
+      updatedScheduleInfo = generateScheduleInfo(input.schedules) ?? (input.scheduleInfo || null);
+
+      await tx.groupSchedule.deleteMany({
+        where: { groupId }
+      });
+
+      if (input.schedules.length > 0) {
+        await tx.groupSchedule.createMany({
+          data: input.schedules.map((s) => ({
+            groupId,
+            dayOfWeek: s.dayOfWeek,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            isActive: s.isActive ?? true
+          }))
+        });
+      }
+    }
+
+    const updated = await tx.group.update({
+      where: { id: groupId },
+      data: {
+        name: input.name,
+        description: input.description !== undefined ? input.description : undefined,
+        scheduleInfo: updatedScheduleInfo,
+        whatsappGroupUrl: input.whatsappGroupUrl !== undefined ? (input.whatsappGroupUrl || null) : undefined,
+        maxCapacity: input.maxCapacity,
+        isActive: input.isActive
+      },
+      include: {
+        schedules: {
+          orderBy: { dayOfWeek: 'asc' }
+        }
+      }
+    });
+
+    await createAuditLog({
+      actorUserId,
+      action: 'GROUP_UPDATED',
+      entityType: 'Group',
+      entityId: groupId,
+      metadata: { changed: input }
+    });
+
+    return updated;
+  });
 }
 
 export async function enrollStudentInGroup(groupId: string, studentId: string, actorUserId?: string) {

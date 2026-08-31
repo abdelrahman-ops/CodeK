@@ -92,7 +92,7 @@ export function AdminGroupDetailPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
-  const [editScheduleInfo, setEditScheduleInfo] = useState('');
+  const [editSchedules, setEditSchedules] = useState<any[]>([]);
   const [editWhatsappGroupUrl, setEditWhatsappGroupUrl] = useState('');
   const [editMaxCapacity, setEditMaxCapacity] = useState(20);
 
@@ -131,7 +131,7 @@ export function AdminGroupDetailPage() {
     if (!group) return;
     setEditName(group.name);
     setEditDescription(group.description || '');
-    setEditScheduleInfo(group.scheduleInfo || '');
+    setEditSchedules(group.schedules || []);
     setEditWhatsappGroupUrl(group.whatsappGroupUrl || '');
     setEditMaxCapacity(group.maxCapacity || 20);
     setIsEditModalOpen(true);
@@ -142,7 +142,7 @@ export function AdminGroupDetailPage() {
     updateMutation.mutate({
       name: editName,
       description: editDescription.trim() || undefined,
-      scheduleInfo: editScheduleInfo.trim() || undefined,
+      schedules: editSchedules.length > 0 ? editSchedules : undefined,
       whatsappGroupUrl: editWhatsappGroupUrl.trim() || undefined,
       maxCapacity: Number(editMaxCapacity)
     });
@@ -296,8 +296,8 @@ export function AdminGroupDetailPage() {
             required
           />
           <GroupSchedulePicker
-            value={editScheduleInfo}
-            onChange={setEditScheduleInfo}
+            schedules={editSchedules}
+            onChange={setEditSchedules}
           />
           <Input
             label={t('groups.whatsappGroupUrl') || 'WhatsApp Group Invite Link'}

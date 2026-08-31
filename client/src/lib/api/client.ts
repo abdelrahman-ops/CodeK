@@ -20,7 +20,12 @@ import {
   AttendanceRosterItem,
   ClassmatePeer,
   LoginResponse,
-  ResetStudentPasswordResponse
+  ResetStudentPasswordResponse,
+  StudentRegistration,
+  PublicRegistrationStatus,
+  RegistrationSetting,
+  ListAdminRegistrationsResponse,
+  ApproveRegistrationResponse
 } from '../../types/api.js';
 
 const baseURL = (import.meta as any).env?.VITE_API_URL || '/api/v1';
@@ -174,6 +179,8 @@ export const api = {
   },
   sessions: {
     list: (params?: { groupId?: string; status?: string }) => apiClient.get<ApiResponse<Session[]>>('/sessions', { params }),
+    getTodaySchedule: (date?: string) => apiClient.get<ApiResponse<any[]>>('/sessions/today-schedule', { params: { date } }),
+    getNextNumber: (groupId: string) => apiClient.get<ApiResponse<{ groupId: string; nextSessionNumber: number }>>(`/sessions/next-number/${groupId}`),
     getById: (id: string) => apiClient.get<ApiResponse<Session & { hasActiveToken?: boolean }>>(`/sessions/${id}`),
     create: (data: any) => apiClient.post<ApiResponse<Session>>('/sessions', data),
     update: (id: string, data: any) => apiClient.patch<ApiResponse<Session>>(`/sessions/${id}`, data),
@@ -299,5 +306,19 @@ export const api = {
   audit: {
     list: (params?: { action?: string; entityType?: string; page?: number; limit?: number }) =>
       apiClient.get<ApiResponse<AuditLogItem[]>>('/audit-logs', { params })
+  },
+  registrations: {
+    getPublicStatus: () => apiClient.get<ApiResponse<PublicRegistrationStatus>>('/public/registration-status'),
+    submitPublic: (data: any) => apiClient.post<ApiResponse<StudentRegistration>>('/public/registrations', data),
+    listAdmin: (params?: { search?: string; status?: string; page?: number; limit?: number }) =>
+      apiClient.get<ListAdminRegistrationsResponse>('/admin/registrations', { params }),
+    getAdminSettings: () => apiClient.get<ApiResponse<PublicRegistrationStatus>>('/admin/registrations/settings'),
+    updateAdminSettings: (data: { isOpen?: boolean; startDate?: string | null; endDate?: string | null; maxRegistrations?: number | null }) =>
+      apiClient.patch<ApiResponse<RegistrationSetting>>('/admin/registrations/settings', data),
+    getAdminById: (id: string) => apiClient.get<ApiResponse<StudentRegistration>>(`/admin/registrations/${id}`),
+    updateAdmin: (id: string, data: { adminNotes?: string | null; rejectionReason?: string | null; status?: string }) =>
+      apiClient.patch<ApiResponse<StudentRegistration>>(`/admin/registrations/${id}`, data),
+    approve: (id: string, data?: { groupId?: string | null; adminNotes?: string | null }) =>
+      apiClient.post<ApiResponse<ApproveRegistrationResponse>>(`/admin/registrations/${id}/approve`, data || {})
   }
 };

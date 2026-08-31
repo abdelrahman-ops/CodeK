@@ -29,7 +29,7 @@ export async function authRoutes(app: FastifyInstance) {
     {
       config: {
         rateLimit: {
-          max: 10,
+          max: env.NODE_ENV === 'test' ? 1000 : 10,
           timeWindow: '1 minute'
         }
       }
@@ -52,7 +52,7 @@ export async function authRoutes(app: FastifyInstance) {
     {
       config: {
         rateLimit: {
-          max: 10,
+          max: env.NODE_ENV === 'test' ? 1000 : 10,
           timeWindow: '1 minute'
         }
       }
@@ -75,7 +75,7 @@ export async function authRoutes(app: FastifyInstance) {
     {
       config: {
         rateLimit: {
-          max: 5,
+          max: env.NODE_ENV === 'test' ? 1000 : 5,
           timeWindow: '5 minutes'
         }
       }

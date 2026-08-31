@@ -35,6 +35,7 @@ export default {
         }
       },
       fontFamily: {
+        brand: ['Eczar', 'serif'],
         sans: ['Inter', 'Cairo', 'system-ui', 'sans-serif'],
         arabic: ['Cairo', 'Tajawal', 'sans-serif'],
         mono: ['Fira Code', 'JetBrains Mono', 'monospace'],

@@ -155,11 +155,15 @@ export function formatStatus(status: string | null | undefined): string {
     LATE: { ar: 'متأخر', en: 'Late' },
     EXCUSED: { ar: 'معذور', en: 'Excused' },
 
-    // Submissions
+    // Submissions & Registrations
     PENDING: { ar: 'قيد المراجعة', en: 'Pending Review' },
-    APPROVED: { ar: 'تم الاعتماد', en: 'Approved' },
+    UNDER_REVIEW: { ar: 'قيد التدقيق', en: 'Under Review' },
+    APPROVED: { ar: 'مقبول', en: 'Approved' },
     NEEDS_REVISION: { ar: 'يحتاج تعديل', en: 'Needs Revision' },
     REJECTED: { ar: 'مرفوض', en: 'Rejected' },
+    WAITLISTED: { ar: 'قائمة الانتظار', en: 'Waitlisted' },
+    EXPIRED: { ar: 'منتهي الصلاحية', en: 'Expired' },
+    ARCHIVED: { ar: 'مؤرشف', en: 'Archived' },
 
     // Payments
     PAID: { ar: 'تم السداد', en: 'Paid' },
@@ -192,6 +196,8 @@ export function formatStatus(status: string | null | undefined): string {
     // Tasks & Questions
     DAILY_TASK: { ar: 'واجب يومي', en: 'Daily Task' },
     DAILY_HOMEWORK: { ar: 'واجب يومي', en: 'Daily Homework' },
+    CHALLENGE: { ar: 'تحدي', en: 'Challenge' },
+    PROJECT: { ar: 'مشروع', en: 'Project' },
     WEEKLY_CHALLENGE: { ar: 'تحدي أسبوعي', en: 'Weekly Challenge' },
     CAPSTONE_PROJECT: { ar: 'مشروع تخرج', en: 'Capstone Project' },
     MULTIPLE_CHOICE: { ar: 'اختيار من متعدد', en: 'Multiple Choice' },

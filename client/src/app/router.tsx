@@ -42,8 +42,15 @@ import { AdminLeaderboardPage } from '../pages/admin/admin-leaderboard-page.js';
 import { AdminPaymentsPage } from '../pages/admin/admin-payments-page.js';
 import { AdminNotificationsPage } from '../pages/admin/admin-notifications-page.js';
 import { AdminAuditLogsPage } from '../pages/admin/admin-audit-logs-page.js';
+import { PublicRegistrationPage } from '../pages/public/public-registration-page.js';
+import { AdminRegistrationsPage } from '../pages/admin/admin-registrations-page.js';
+import { AdminRegistrationDetailPage } from '../pages/admin/admin-registration-detail-page.js';
 
 export const router = createBrowserRouter([
+  // Standalone Public Registration
+  { path: '/register', element: <PublicRegistrationPage /> },
+  { path: '/student-registration', element: <PublicRegistrationPage /> },
+
   // Public / Auth Routes
   {
     element: <AuthLayout />,
@@ -94,6 +101,8 @@ export const router = createBrowserRouter([
     element: <AdminLayout />,
     children: [
       { index: true, element: <AdminDashboardPage /> },
+      { path: 'registrations', element: <AdminRegistrationsPage /> },
+      { path: 'registrations/:id', element: <AdminRegistrationDetailPage /> },
       { path: 'students', element: <AdminStudentsPage /> },
       { path: 'students/:id', element: <AdminStudentDetailPage /> },
       { path: 'parents', element: <AdminParentsPage /> },

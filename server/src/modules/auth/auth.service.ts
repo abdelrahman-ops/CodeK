@@ -80,55 +80,117 @@ export async function login(input: LoginInput) {
 
   // 1. ADMIN 2FA FLOW: If user is ADMIN, require Email OTP verification
   if (user.role === Role.ADMIN) {
-    const rawOtp = generateNumericOtp(6);
-    const hashedOtp = hashToken(rawOtp);
-
-    // Set 5-minute expiry for OTP
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
-
-    // Clean up expired OTPs for this admin
-    await prisma.authToken.deleteMany({
-      where: {
-        userId: user.id,
-        type: AuthTokenType.ADMIN_LOGIN_OTP,
-        expiresAt: { lt: new Date() }
-      }
-    });
-
-    // Save hashed OTP in database
-    const tokenRecord = await prisma.authToken.create({
-      data: {
-        userId: user.id,
-        tokenHash: hashedOtp,
-        type: AuthTokenType.ADMIN_LOGIN_OTP,
-        expiresAt,
-        attempts: 0
-      }
-    });
-
-    // Generate short-lived (5m) 2FA session token bound to this OTP record
-    const tempToken = sign2FATempToken(user.id, user.role, tokenRecord.id);
-
-    // Send OTP via Email Service
+    const now = new Date();
     const recipientEmail = user.email || env.ADMIN_EMAIL || 'admin@codek.local';
     const adminName = `${user.firstName} ${user.lastName}`.trim();
-    await emailService.sendAdminLoginOtp(recipientEmail, rawOtp, adminName);
+    const isTest = env.NODE_ENV === 'test';
+
+    // Execute check and challenge creation inside an interactive Prisma transaction to prevent race conditions
+    const tokenResult = await prisma.$transaction(async (tx) => {
+      // Lock user record for update to prevent concurrent race conditions
+      await tx.$executeRaw`SELECT id FROM "User" WHERE id = ${user.id} FOR UPDATE`;
+
+      // Find any existing active, unexpired, pending OTP challenge for this user
+      const existingChallenge = await tx.authToken.findFirst({
+        where: {
+          userId: user.id,
+          type: AuthTokenType.ADMIN_LOGIN_OTP,
+          status: 'PENDING',
+          expiresAt: { gt: now }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      if (existingChallenge) {
+        const cooldownMs = 30 * 1000;
+        const timeSinceCreation = now.getTime() - existingChallenge.createdAt.getTime();
+
+        if (timeSinceCreation < cooldownMs) {
+          return { reuse: true, record: existingChallenge, rawOtp: isTest ? '123456' : undefined };
+        } else {
+          await tx.authToken.updateMany({
+            where: {
+              userId: user.id,
+              type: AuthTokenType.ADMIN_LOGIN_OTP,
+              status: 'PENDING'
+            },
+            data: { status: 'INVALIDATED' }
+          });
+        }
+      }
+
+      await tx.authToken.updateMany({
+        where: {
+          userId: user.id,
+          type: AuthTokenType.ADMIN_LOGIN_OTP,
+          expiresAt: { lt: now },
+          status: 'PENDING'
+        },
+        data: { status: 'EXPIRED' }
+      });
+
+      const rawOtp = generateNumericOtp(6);
+      const hashedOtp = hashToken(rawOtp);
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+      const newRecord = await tx.authToken.create({
+        data: {
+          userId: user.id,
+          tokenHash: hashedOtp,
+          type: AuthTokenType.ADMIN_LOGIN_OTP,
+          status: 'PENDING',
+          expiresAt,
+          attempts: 0
+        }
+      });
+
+      return { reuse: false, record: newRecord, rawOtp };
+    });
+
+    if (tokenResult.reuse) {
+      await createAuditLog({
+        actorUserId: user.id,
+        action: 'OTP_RESEND_BLOCKED',
+        entityType: 'User',
+        entityId: user.id,
+        metadata: { reason: 'COOLDOWN_ACTIVE', challengeId: tokenResult.record.id }
+      });
+
+      const tempToken = sign2FATempToken(user.id, user.role, tokenResult.record.id);
+      return {
+        requires2FA: true,
+        tempToken,
+        emailMasked: maskEmail(recipientEmail),
+        devOtp: isTest ? '123456' : undefined
+      };
+    }
+
+    const tempToken = sign2FATempToken(user.id, user.role, tokenResult.record.id);
+
+    // Send OTP via Email Service
+    await emailService.sendAdminLoginOtp(recipientEmail, tokenResult.rawOtp!, adminName);
 
     await createAuditLog({
       actorUserId: user.id,
-      action: 'ADMIN_2FA_REQUESTED',
+      action: 'OTP_REQUESTED',
       entityType: 'User',
       entityId: user.id,
-      metadata: { email: maskEmail(recipientEmail) }
+      metadata: { email: maskEmail(recipientEmail), challengeId: tokenResult.record.id }
     });
 
-    const isTest = env.NODE_ENV === 'test';
+    await createAuditLog({
+      actorUserId: user.id,
+      action: 'OTP_EMAIL_SENT',
+      entityType: 'User',
+      entityId: user.id,
+      metadata: { email: maskEmail(recipientEmail), challengeId: tokenResult.record.id }
+    });
 
     return {
       requires2FA: true,
       tempToken,
       emailMasked: maskEmail(recipientEmail),
-      devOtp: isTest ? rawOtp : undefined
+      devOtp: isTest ? tokenResult.rawOtp : undefined
     };
   }
 
@@ -195,6 +257,8 @@ export async function verifyAdminOtp(input: VerifyAdminOtpInput) {
     throw new UnauthorizedError('Unauthorized 2FA verification');
   }
 
+  const now = new Date();
+
   // 2. Find active OTP token record
   const tokenRecord = decoded.otpId
     ? await prisma.authToken.findUnique({
@@ -212,7 +276,7 @@ export async function verifyAdminOtp(input: VerifyAdminOtpInput) {
         where: {
           userId: decoded.userId,
           type: AuthTokenType.ADMIN_LOGIN_OTP,
-          usedAt: null
+          status: 'PENDING'
         },
         orderBy: { createdAt: 'desc' },
         include: {
@@ -225,25 +289,45 @@ export async function verifyAdminOtp(input: VerifyAdminOtpInput) {
         }
       });
 
-  if (!tokenRecord || tokenRecord.usedAt !== null) {
+  if (!tokenRecord || tokenRecord.status !== 'PENDING' || tokenRecord.usedAt !== null) {
+    await createAuditLog({
+      actorUserId: decoded.userId,
+      action: 'OTP_REJECTED',
+      entityType: 'User',
+      entityId: decoded.userId,
+      metadata: { reason: 'INVALID_OR_EXPIRED_SESSION' }
+    });
     throw new BadRequestError('Invalid or expired verification session. Please log in again.');
   }
 
   // 3. Check expiration
-  if (tokenRecord.expiresAt < new Date()) {
-    await prisma.authToken.delete({ where: { id: tokenRecord.id } });
+  if (tokenRecord.expiresAt < now) {
+    await prisma.authToken.updateMany({
+      where: { id: tokenRecord.id },
+      data: { status: 'EXPIRED' }
+    });
+    await createAuditLog({
+      actorUserId: decoded.userId,
+      action: 'OTP_EXPIRED',
+      entityType: 'User',
+      entityId: decoded.userId,
+      metadata: { challengeId: tokenRecord.id }
+    });
     throw new BadRequestError('Verification code has expired. Please request a new code.');
   }
 
   // 4. Check max attempts brute-force protection (Max 5 attempts)
   if (tokenRecord.attempts >= 5) {
-    await prisma.authToken.delete({ where: { id: tokenRecord.id } });
+    await prisma.authToken.updateMany({
+      where: { id: tokenRecord.id },
+      data: { status: 'INVALIDATED' }
+    });
     await createAuditLog({
       actorUserId: decoded.userId,
-      action: 'ADMIN_2FA_FAILED',
+      action: 'OTP_REJECTED',
       entityType: 'User',
       entityId: decoded.userId,
-      metadata: { reason: 'TOO_MANY_ATTEMPTS' }
+      metadata: { reason: 'TOO_MANY_ATTEMPTS', challengeId: tokenRecord.id }
     });
     throw new BadRequestError('Too many failed attempts. Verification code has been invalidated. Please log in again.');
   }
@@ -251,20 +335,28 @@ export async function verifyAdminOtp(input: VerifyAdminOtpInput) {
   // 5. Verify hashed OTP
   const hashedInput = hashToken(otpCode.trim());
   if (hashedInput !== tokenRecord.tokenHash) {
-    const updated = await prisma.authToken.update({
+    await prisma.authToken.updateMany({
       where: { id: tokenRecord.id },
       data: { attempts: { increment: 1 } }
     });
 
+    const attemptsCount = tokenRecord.attempts + 1;
+    if (attemptsCount >= 5) {
+      await prisma.authToken.updateMany({
+        where: { id: tokenRecord.id },
+        data: { status: 'INVALIDATED' }
+      });
+    }
+
     await createAuditLog({
       actorUserId: decoded.userId,
-      action: 'ADMIN_2FA_FAILED',
+      action: 'OTP_REJECTED',
       entityType: 'User',
       entityId: decoded.userId,
-      metadata: { attempts: updated.attempts }
+      metadata: { attempts: attemptsCount, challengeId: tokenRecord.id }
     });
 
-    const remaining = 5 - updated.attempts;
+    const remaining = 5 - attemptsCount;
     throw new BadRequestError(
       remaining > 0
         ? `Invalid verification code. ${remaining} attempt(s) remaining.`
@@ -272,13 +364,24 @@ export async function verifyAdminOtp(input: VerifyAdminOtpInput) {
     );
   }
 
-  // 6. Mark OTP as used
-  await prisma.authToken.update({
+  // 6. Mark OTP as VERIFIED
+  await prisma.authToken.updateMany({
     where: { id: tokenRecord.id },
-    data: { usedAt: new Date() }
+    data: {
+      status: 'VERIFIED',
+      usedAt: now
+    }
   });
 
   const user = tokenRecord.user;
+
+  await createAuditLog({
+    actorUserId: user.id,
+    action: 'OTP_VERIFIED',
+    entityType: 'User',
+    entityId: user.id,
+    metadata: { challengeId: tokenRecord.id }
+  });
 
   // 7. Issue authenticated session tokens
   const payload: TokenPayload = {
@@ -350,27 +453,37 @@ export async function resendAdminOtp(input: ResendAdminOtpInput) {
     throw new UnauthorizedError('Unauthorized');
   }
 
-  // Enforce 30-second cooldown between requests
+  const now = new Date();
+
+  // Enforce 30-second cooldown between requests from latest creation
   const recentToken = await prisma.authToken.findFirst({
     where: {
       userId: user.id,
       type: AuthTokenType.ADMIN_LOGIN_OTP,
-      usedAt: null,
-      createdAt: { gt: new Date(Date.now() - 30 * 1000) }
+      status: 'PENDING',
+      createdAt: { gt: new Date(now.getTime() - 30 * 1000) }
     }
   });
 
   if (recentToken) {
+    await createAuditLog({
+      actorUserId: user.id,
+      action: 'OTP_RESEND_BLOCKED',
+      entityType: 'User',
+      entityId: user.id,
+      metadata: { reason: 'COOLDOWN_ACTIVE', challengeId: recentToken.id }
+    });
     throw new BadRequestError('Please wait a moment before requesting another verification code');
   }
 
-  // Invalidate old OTPs
-  await prisma.authToken.deleteMany({
+  // Invalidate old pending OTPs
+  await prisma.authToken.updateMany({
     where: {
       userId: user.id,
       type: AuthTokenType.ADMIN_LOGIN_OTP,
-      usedAt: null
-    }
+      status: 'PENDING'
+    },
+    data: { status: 'INVALIDATED' }
   });
 
   const rawOtp = generateNumericOtp(6);
@@ -382,6 +495,7 @@ export async function resendAdminOtp(input: ResendAdminOtpInput) {
       userId: user.id,
       tokenHash: hashedOtp,
       type: AuthTokenType.ADMIN_LOGIN_OTP,
+      status: 'PENDING',
       expiresAt,
       attempts: 0
     }
@@ -393,10 +507,18 @@ export async function resendAdminOtp(input: ResendAdminOtpInput) {
 
   await createAuditLog({
     actorUserId: user.id,
-    action: 'ADMIN_2FA_REQUESTED',
+    action: 'OTP_REQUESTED',
     entityType: 'User',
     entityId: user.id,
-    metadata: { resend: true, email: maskEmail(recipientEmail) }
+    metadata: { resend: true, email: maskEmail(recipientEmail), challengeId: newRecord.id }
+  });
+
+  await createAuditLog({
+    actorUserId: user.id,
+    action: 'OTP_EMAIL_SENT',
+    entityType: 'User',
+    entityId: user.id,
+    metadata: { resend: true, email: maskEmail(recipientEmail), challengeId: newRecord.id }
   });
 
   const newTempToken = sign2FATempToken(user.id, user.role, newRecord.id);

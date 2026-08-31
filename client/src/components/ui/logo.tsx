@@ -1,6 +1,5 @@
 import React from 'react';
 import { cn } from '../../lib/utils.js';
-import { useTranslation } from 'react-i18next';
 
 export function Logo({
   className,
@@ -15,8 +14,6 @@ export function Logo({
   iconOnly?: boolean;
   forceShowTextOnMobile?: boolean;
 }) {
-  const { t } = useTranslation();
-
   const iconSizes = {
     sm: 'w-7 h-7',
     md: 'w-9 h-9',
@@ -24,35 +21,36 @@ export function Logo({
   };
 
   const textSizes = {
-    sm: 'text-sm font-black',
-    md: 'text-base font-black',
-    lg: 'text-xl font-black'
+    sm: 'text-base font-black',
+    md: 'text-lg font-black',
+    lg: 'text-2xl font-black'
   };
 
   return (
     <div className={cn('inline-flex items-center gap-2.5 select-none', className)}>
       <div
         className={cn(
-          'relative flex items-center justify-center rounded-xl p-1.5 shadow-md shadow-brand-500/20 shrink-0',
+          'relative flex items-center justify-center rounded-xl p-1.5 shadow-md shadow-brand-500/20 shrink-0 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80',
           iconSizes[size]
         )}
       >
         <img
           src="/favicon.svg"
-          alt="Egyptian Programming Academy"
-          className="w-full h-full object-contain filter"
+          alt="CodeK"
+          className="w-full h-full object-contain filter drop-shadow-sm"
         />
       </div>
 
       {showText && !iconOnly && (
         <span
           className={cn(
-            'tracking-tight text-slate-900 dark:text-slate-100 font-bold',
-            forceShowTextOnMobile ? 'inline' : 'hidden sm:inline',
+            'tracking-tight font-brand font-black select-none inline-flex items-baseline',
+            forceShowTextOnMobile ? 'inline-flex' : 'hidden sm:inline-flex',
             textSizes[size]
           )}
         >
-          {t('common.appName')}
+          <span className="text-[#4f46e5] dark:text-[#818cf8]">Code</span>
+          <span className="text-[#f97316] dark:text-[#fb923c]">K</span>
         </span>
       )}
     </div>

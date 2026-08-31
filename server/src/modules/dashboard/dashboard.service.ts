@@ -305,6 +305,7 @@ export async function getAdminDashboard() {
     totalParents,
     totalGroups,
     activeSessions,
+    todayScheduledGroups,
     pendingSubmissionsCount,
     activeExamsCount,
     paymentSummary,
@@ -324,6 +325,10 @@ export async function getAdminDashboard() {
         _count: { select: { attendances: { where: { status: 'PRESENT' } } } }
       }
     }),
+    (async () => {
+      const { getTodayScheduledGroups } = await import('../sessions/session.service.js');
+      return getTodayScheduledGroups();
+    })(),
     prisma.submission.count({
       where: { status: SubmissionStatus.PENDING }
     }),
@@ -351,6 +356,7 @@ export async function getAdminDashboard() {
       activeExamsCount
     },
     financialSummary: paymentSummary,
+    todayScheduledGroups,
     upcomingOrActiveSessions: activeSessions.map((s) => ({
       id: s.id,
       sessionNumber: s.sessionNumber,

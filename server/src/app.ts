@@ -22,6 +22,7 @@ import { paymentRoutes } from './modules/payments/payment.routes.js';
 import { notificationRoutes } from './modules/notifications/notification.routes.js';
 import { auditRoutes } from './modules/audit/audit.routes.js';
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes.js';
+import { registrationRoutes } from './modules/registrations/registration.routes.js';
 
 export async function buildApp() {
   const isVercel = process.env.VERCEL === '1';
@@ -87,6 +88,7 @@ export async function buildApp() {
       await v1.register(notificationRoutes, { prefix: '/notifications' });
       await v1.register(auditRoutes, { prefix: '/audit-logs' });
       await v1.register(dashboardRoutes, { prefix: '/dashboard' });
+      await v1.register(registrationRoutes);
     },
     { prefix: '/api/v1' }
   );

@@ -5,27 +5,174 @@ import { BadRequestError, NotFoundError } from '../../common/errors/app-error.js
 import { createAuditLog } from '../audit/audit.service.js';
 import { SessionStatus } from '@prisma/client';
 
+export async function getNextSessionNumber(groupId: string): Promise<number> {
+  const lastSession = await prisma.session.findFirst({
+    where: { groupId },
+    orderBy: { sessionNumber: 'desc' }
+  });
+  return (lastSession?.sessionNumber ?? 0) + 1;
+}
+
+export async function getTodayScheduledGroups(targetDateStr?: string) {
+  const targetDate = targetDateStr ? new Date(targetDateStr) : new Date();
+  const dayOfWeek = targetDate.getDay(); // 0=Sunday...6=Saturday
+
+  const yyyy = targetDate.getFullYear();
+  const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+  const dd = String(targetDate.getDate()).padStart(2, '0');
+  const dateIsoString = `${yyyy}-${mm}-${dd}`;
+
+  const startOfDay = new Date(targetDate);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(targetDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const activeGroups = await prisma.group.findMany({
+    where: {
+      isActive: true,
+      schedules: {
+        some: {
+          dayOfWeek,
+          isActive: true
+        }
+      }
+    },
+    include: {
+      schedules: {
+        where: { dayOfWeek, isActive: true }
+      },
+      sessions: {
+        where: {
+          date: {
+            gte: startOfDay,
+            lte: endOfDay
+          }
+        },
+        orderBy: { sessionNumber: 'desc' }
+      },
+      _count: {
+        select: {
+          enrollments: { where: { isActive: true } }
+        }
+      }
+    },
+    orderBy: { name: 'asc' }
+  });
+
+  return Promise.all(
+    activeGroups.map(async (g) => {
+      const schedule = g.schedules[0];
+      const existingSession = g.sessions[0] || null;
+      const nextSessionNumber = await getNextSessionNumber(g.id);
+
+      return {
+        groupId: g.id,
+        groupName: g.name,
+        description: g.description,
+        enrolledStudentsCount: g._count.enrollments,
+        targetDate: dateIsoString,
+        dayOfWeek,
+        schedule: schedule
+          ? {
+              id: schedule.id,
+              startTime: schedule.startTime,
+              endTime: schedule.endTime
+            }
+          : null,
+        nextSessionNumber,
+        existingSession: existingSession
+          ? {
+              id: existingSession.id,
+              sessionNumber: existingSession.sessionNumber,
+              startTime: existingSession.startTime,
+              endTime: existingSession.endTime,
+              status: existingSession.status
+            }
+          : null
+      };
+    })
+  );
+}
+
 export async function createSession(input: CreateSessionInput, actorUserId?: string) {
-  const existing = await prisma.session.findUnique({
+  const group = await prisma.group.findUnique({
+    where: { id: input.groupId },
+    include: {
+      schedules: { where: { isActive: true } }
+    }
+  });
+
+  if (!group) {
+    throw new NotFoundError('Group not found');
+  }
+
+  if (!group.isActive) {
+    throw new BadRequestError('Cannot create a session for an inactive group');
+  }
+
+  const sessionDate = input.date ? new Date(input.date) : new Date();
+  if (isNaN(sessionDate.getTime())) {
+    throw new BadRequestError('Invalid date provided');
+  }
+
+  const dayOfWeek = sessionDate.getDay();
+  const scheduleForDay = group.schedules.find((s) => s.dayOfWeek === dayOfWeek);
+
+  if (!input.isOverride && !scheduleForDay) {
+    throw new BadRequestError(`Group "${group.name}" does not have a recurring schedule on day of week ${dayOfWeek}`);
+  }
+
+  const startTime = input.startTime || scheduleForDay?.startTime;
+  const endTime = input.endTime || scheduleForDay?.endTime;
+
+  if (!startTime || !endTime) {
+    throw new BadRequestError('Start time and end time are required');
+  }
+
+  if (startTime >= endTime) {
+    throw new BadRequestError('Start time must be strictly before end time');
+  }
+
+  const sessionNumber = input.sessionNumber || (await getNextSessionNumber(input.groupId));
+
+  const existingNumber = await prisma.session.findUnique({
     where: {
       groupId_sessionNumber: {
         groupId: input.groupId,
-        sessionNumber: input.sessionNumber
+        sessionNumber
       }
     }
   });
 
-  if (existing) {
-    throw new BadRequestError(`Session #${input.sessionNumber} already exists for this group`);
+  if (existingNumber) {
+    throw new BadRequestError(`Session #${sessionNumber} already exists for group "${group.name}"`);
+  }
+
+  const startOfDay = new Date(sessionDate);
+  startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(sessionDate);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const duplicateSession = await prisma.session.findFirst({
+    where: {
+      groupId: input.groupId,
+      date: { gte: startOfDay, lte: endOfDay },
+      startTime,
+      status: { in: [SessionStatus.SCHEDULED, SessionStatus.ACTIVE, SessionStatus.COMPLETED] }
+    }
+  });
+
+  if (duplicateSession) {
+    throw new BadRequestError(`A session for "${group.name}" at ${startTime} on this date already exists`);
   }
 
   const session = await prisma.session.create({
     data: {
       groupId: input.groupId,
-      sessionNumber: input.sessionNumber,
-      date: new Date(input.date),
-      startTime: input.startTime,
-      endTime: input.endTime,
+      sessionNumber,
+      date: sessionDate,
+      startTime,
+      endTime,
       status: input.status,
       sessionLessons: input.lessonIds && input.lessonIds.length > 0
         ? {
@@ -47,7 +194,7 @@ export async function createSession(input: CreateSessionInput, actorUserId?: str
     action: 'SESSION_CREATED',
     entityType: 'Session',
     entityId: session.id,
-    metadata: { groupId: input.groupId, sessionNumber: input.sessionNumber }
+    metadata: { groupId: input.groupId, sessionNumber }
   });
 
   return session;
