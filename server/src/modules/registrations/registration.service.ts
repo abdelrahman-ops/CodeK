@@ -17,6 +17,18 @@ import {
 import { generateTempPassword, hashPassword } from '../../common/utils/crypto.js';
 import { createAuditLog } from '../audit/audit.service.js';
 
+function formatTime12h(timeStr: string, isArabic = false): string {
+  if (!timeStr) return '';
+  const [hStr, mStr] = timeStr.split(':');
+  let h = parseInt(hStr, 10);
+  const m = mStr || '00';
+  if (isNaN(h)) return timeStr;
+  const isPM = h >= 12;
+  h = h % 12;
+  if (h === 0) h = 12;
+  return isArabic ? `${h}:${m} ${isPM ? 'م' : 'ص'}` : `${h}:${m} ${isPM ? 'PM' : 'AM'}`;
+}
+
 export async function getPublicRegistrationStatus() {
   const setting = await prisma.registrationSetting.findUnique({
     where: { id: 'default' }
@@ -133,18 +145,6 @@ export async function getPublicRegistrationStatus() {
 
   const dayNamesAr = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
   const dayNamesEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-  function formatTime12h(timeStr: string, isArabic = false): string {
-    if (!timeStr) return '';
-    const [hStr, mStr] = timeStr.split(':');
-    let h = parseInt(hStr, 10);
-    const m = mStr || '00';
-    if (isNaN(h)) return timeStr;
-    const isPM = h >= 12;
-    h = h % 12;
-    if (h === 0) h = 12;
-    return isArabic ? `${h}:${m} ${isPM ? 'م' : 'ص'}` : `${h}:${m} ${isPM ? 'PM' : 'AM'}`;
-  }
 
   const groups = activeGroups.map((g) => {
     const scheduleSummaryAr = g.schedules.length > 0
