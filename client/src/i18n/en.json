@@ -145,7 +145,13 @@
     "otpResentSuccess": "A new verification code has been sent",
     "otpResendFailed": "Failed to resend code",
     "invalidOtp": "Invalid or expired verification code",
-    "temporaryPassword": "Temporary Password"
+    "temporaryPassword": "Temporary Password",
+    "noAccount": "New Student?",
+    "registerHere": "Apply for Admission",
+    "alreadyRegistered": "Already have an account?",
+    "loginHere": "Sign In",
+    "applyTitle": "Apply to Join CodeK Academy",
+    "applySubtitle": "Fill in your details. We will contact you via WhatsApp for your first session."
   },
   "dashboard": {
     "commandCenter": "Academy Command Center",

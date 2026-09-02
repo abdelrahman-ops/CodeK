@@ -25,24 +25,144 @@ export interface ScheduleSlot {
 }
 
 /**
- * Format 24h time ("16:00") into 12h localized string ("04:00 م" / "4:00 PM")
+ * Format 24h time ("16:00") into 12h localized string ("4:00 م" / "4:00 PM")
  */
-export function formatTime12h(timeStr: string, isArabic = true): string {
+export function formatTime12h(timeStr: string | null | undefined, isArabic = false): string {
   if (!timeStr) return '';
-  const [hStr, mStr] = timeStr.split(':');
-  let h = parseInt(hStr, 10);
-  const m = mStr || '00';
-  if (isNaN(h)) return timeStr;
+  const clean = timeStr.trim();
+  if (!clean.includes(':')) return clean;
 
+  // Extract hour & minute
+  const match = clean.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM|am|pm|ص|م))?$/i);
+  if (!match) return clean;
+
+  let h = parseInt(match[1], 10);
+  const m = match[2];
+  const existingPeriod = match[3];
+
+  if (isNaN(h)) return clean;
+
+  // If period is already present (e.g. "4:00 PM" or "4:00 م")
+  if (existingPeriod) {
+    const isPM = /م|pm/i.test(existingPeriod);
+    if (isArabic) {
+      return `${h}:${m} ${isPM ? 'م' : 'ص'}`;
+    }
+    return `${h}:${m} ${isPM ? 'PM' : 'AM'}`;
+  }
+
+  // 24-hour conversion
   const isPM = h >= 12;
   h = h % 12;
   if (h === 0) h = 12;
 
-  const paddedH = h < 10 ? `0${h}` : `${h}`;
   if (isArabic) {
-    return `${paddedH}:${m} ${isPM ? 'م' : 'ص'}`;
+    return `${h}:${m} ${isPM ? 'م' : 'ص'}`;
   }
   return `${h}:${m} ${isPM ? 'PM' : 'AM'}`;
+}
+
+/**
+ * Format any schedule text string (e.g. "Saturday 16:00-17:30") to 12h format ("Saturday 4:00 PM - 5:30 PM" or "السبت 4:00 م - 5:30 م")
+ */
+export function formatScheduleText(text: string | null | undefined, isArabic = false): string {
+  if (!text) return '';
+  let result = text.trim();
+
+  // 1. Replace 24h time ranges: e.g. "16:00-17:30" or "16:00 - 17:30" or "04:00-05:30"
+  result = result.replace(/(\b\d{1,2}:\d{2}\b)\s*[-–—]\s*(\b\d{1,2}:\d{2}\b)(?:\s*(AM|PM|am|pm|ص|م))?/g, (_match, t1, t2, period) => {
+    if (period) {
+      return `${formatTime12h(`${t1} ${period}`, isArabic)} - ${formatTime12h(`${t2} ${period}`, isArabic)}`;
+    }
+    return `${formatTime12h(t1, isArabic)} - ${formatTime12h(t2, isArabic)}`;
+  });
+
+  // 2. Replace standalone 24h times: e.g. "at 16:00" -> "at 4:00 PM" (if not already followed by AM/PM/م/ص)
+  result = result.replace(/(\b\d{1,2}:\d{2}\b)(?!\s*(?:AM|PM|am|pm|ص|م|\s*[-–—]))/g, (_match, t) => {
+    return formatTime12h(t, isArabic);
+  });
+
+  // 3. Localize day names & punctuation
+  if (isArabic) {
+    result = result
+      .replace(/\bSaturday\b/gi, 'السبت')
+      .replace(/\bSunday\b/gi, 'الأحد')
+      .replace(/\bMonday\b/gi, 'الاثنين')
+      .replace(/\bTuesday\b/gi, 'الثلاثاء')
+      .replace(/\bWednesday\b/gi, 'الأربعاء')
+      .replace(/\bThursday\b/gi, 'الخميس')
+      .replace(/\bFriday\b/gi, 'الجمعة')
+      .replace(/\bAM\b/gi, 'ص')
+      .replace(/\bPM\b/gi, 'م')
+      .replace(/,\s*/g, ' ، ');
+  } else {
+    result = result
+      .replace(/السبت/g, 'Saturday')
+      .replace(/الأحد/g, 'Sunday')
+      .replace(/الإثنين|الاثنين/g, 'Monday')
+      .replace(/الثلاثاء/g, 'Tuesday')
+      .replace(/الأربعاء/g, 'Wednesday')
+      .replace(/الخميس/g, 'Thursday')
+      .replace(/الجمعة/g, 'Friday')
+      .replace(/\s*م\b/g, ' PM')
+      .replace(/\s*ص\b/g, ' AM')
+      .replace(/،\s*/g, ', ');
+  }
+
+  return result;
+}
+
+/**
+ * Build human-readable formatted string from structured group schedule list in 12h
+ */
+export function formatScheduleFromList(
+  schedules?: { dayOfWeek: number; startTime: string; endTime: string }[] | null,
+  isArabic = false
+): string {
+  if (!schedules || schedules.length === 0) return '';
+  const sorted = [...schedules].sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+
+  // If all days have identical hours, group them
+  const firstTime = `${sorted[0].startTime}-${sorted[0].endTime}`;
+  const allSameTime = sorted.every((s) => `${s.startTime}-${s.endTime}` === firstTime);
+
+  if (allSameTime && sorted.length > 1) {
+    const days = sorted
+      .map((s) => {
+        const dayObj = DAYS_OF_WEEK.find((d) => d.dayIndex === s.dayOfWeek);
+        return dayObj ? (isArabic ? dayObj.ar : dayObj.en) : '';
+      })
+      .filter(Boolean);
+
+    const joinedDays = isArabic ? days.join('، ') : days.join(', ');
+    const fromFmt = formatTime12h(sorted[0].startTime, isArabic);
+    const toFmt = formatTime12h(sorted[0].endTime, isArabic);
+    return `${joinedDays} ${fromFmt} - ${toFmt}`;
+  }
+
+  return sorted
+    .map((s) => {
+      const dayObj = DAYS_OF_WEEK.find((d) => d.dayIndex === s.dayOfWeek);
+      const dayName = dayObj ? (isArabic ? dayObj.ar : dayObj.en) : '';
+      const fromFmt = formatTime12h(s.startTime, isArabic);
+      const toFmt = formatTime12h(s.endTime, isArabic);
+      return `${dayName} ${fromFmt} - ${toFmt}`;
+    })
+    .join(isArabic ? ' ، ' : ', ');
+}
+
+/**
+ * Format schedule display resolving from schedules array or fallback scheduleInfo string
+ */
+export function formatScheduleDisplay(
+  schedules?: { dayOfWeek: number; startTime: string; endTime: string }[] | null,
+  fallbackScheduleInfo?: string | null,
+  isArabic = false
+): string {
+  if (schedules && schedules.length > 0) {
+    return formatScheduleFromList(schedules, isArabic);
+  }
+  return formatScheduleText(fallbackScheduleInfo, isArabic);
 }
 
 /**
@@ -65,7 +185,7 @@ export function formatScheduleString(
   const fromFormatted = formatTime12h(fromTime, isArabic);
   const toFormatted = formatTime12h(toTime, isArabic);
 
-  return `${daysJoined} (${fromFormatted} - ${toFormatted})`;
+  return `${daysJoined} ${fromFormatted} - ${toFormatted}`;
 }
 
 /**
@@ -77,8 +197,8 @@ export function parseScheduleSlots(scheduleInfo?: string | null, isArabic = true
   const text = scheduleInfo.trim();
   const slots: ScheduleSlot[] = [];
 
-  // Extract times in parentheses e.g. (04:00 م - 05:30 م) or (16:00 - 17:30)
-  const timeMatch = text.match(/\((.*?)\)/);
+  // Extract times in parentheses e.g. (04:00 م - 05:30 م) or (16:00 - 17:30) or 16:00 - 17:30
+  const timeMatch = text.match(/\((.*?)\)/) || text.match(/(\d{1,2}:\d{2}.*?-\s*\d{1,2}:\d{2}(?:\s*(?:AM|PM|am|pm|ص|م))?)/);
   let fromTime = '17:00';
   let toTime = '18:30';
 
@@ -116,7 +236,7 @@ export function parseScheduleSlots(scheduleInfo?: string | null, isArabic = true
 }
 
 /**
- * Convert localized time string (e.g. "04:00 م" or "4:00 PM" or "16:00") to 24h "HH:MM"
+ * Convert localized time string (e.g. "4:00 م" or "4:00 PM" or "16:00") to 24h "HH:MM"
  */
 function convertTo24h(str: string): string | null {
   if (!str) return null;

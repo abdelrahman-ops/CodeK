@@ -145,7 +145,13 @@
     "otpResentSuccess": "تم إرسال رمز تحقق جديد بنجاح",
     "otpResendFailed": "فشل إعادة إرسال رمز التحقق",
     "invalidOtp": "رمز التحقق غير صحيح أو منتهي الصلاحية",
-    "temporaryPassword": "كلمة المرور المؤقتة"
+    "temporaryPassword": "كلمة المرور المؤقتة",
+    "noAccount": "طالب جديد؟",
+    "registerHere": "سجّل الآن في الأكاديمية",
+    "alreadyRegistered": "لديك حساب بالفعل؟",
+    "loginHere": "تسجيل الدخول",
+    "applyTitle": "استمارة الانضمام إلى CodeK",
+    "applySubtitle": "قم بتعبئة بياناتك وسنتواصل معك عبر الواتساب لتحديد موعد الحصة الأولى وتفعيل حسابك"
   },
   "dashboard": {
     "commandCenter": "مركز التحكم والعمليات",

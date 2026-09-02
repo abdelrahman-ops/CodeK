@@ -12,11 +12,13 @@ import {
   XCircle,
   Clock,
   RefreshCw,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card.js';
 import { Button } from '../../components/ui/button.js';
 import { Badge } from '../../components/ui/badge.js';
+import { ConfirmDialog } from '../../components/ui/confirm-dialog.js';
 import { Avatar } from '../../components/ui/avatar.js';
 import { CardSkeleton } from '../../components/ui/skeleton.js';
 import { QRCodeSVG } from 'qrcode.react';
@@ -26,11 +28,13 @@ import { localizeText, formatStatus } from '../../lib/i18n-helpers.js';
 export function AdminSessionQrPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language === 'ar';
   const toast = useToast();
   const queryClient = useQueryClient();
 
   const [activeQrToken, setActiveQrToken] = useState<string | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const { data: session, isLoading: sessionLoading } = useQuery({
     queryKey: ['session', id],
@@ -80,6 +84,22 @@ export function AdminSessionQrPage() {
     }
   });
 
+  const deleteSessionMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) return;
+      return (await api.sessions.delete(id)).data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['adminDashboard'] });
+      toast.success(isArabic ? 'تم حذف الحصة بنجاح' : 'Session deleted successfully');
+      navigate('/admin/sessions');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
   if (sessionLoading) return <CardSkeleton />;
 
   if (!session) return <div className="p-8 text-center text-slate-500">{t('common.noData')}</div>;
@@ -101,9 +121,21 @@ export function AdminSessionQrPage() {
           <span>{t('nav.sessions')}</span>
         </button>
 
-        <Badge variant={session.status === 'ACTIVE' ? 'success' : 'primary'}>
-          {formatStatus(session.status)}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={session.status === 'ACTIVE' ? 'success' : 'primary'}>
+            {formatStatus(session.status)}
+          </Badge>
+
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-900 dark:hover:bg-rose-950/40"
+            onClick={() => setIsDeleteDialogOpen(true)}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>{isArabic ? 'حذف الحصة' : 'Delete Session'}</span>
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -270,6 +302,21 @@ export function AdminSessionQrPage() {
           </Card>
         </div>
       </div>
+
+      {/* Delete Session Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={() => deleteSessionMutation.mutate()}
+        title={isArabic ? 'حذف الحصة' : 'Delete Session'}
+        description={
+          isArabic
+            ? `هل أنت متأكد من حذف الحصة رقم #${session.sessionNumber} لمجموعة "${session.group?.name || ''}"؟ سيتم حذف الحصة وسجلات الحضور التابعة لها نهائياً.`
+            : `Are you sure you want to delete session #${session.sessionNumber} for "${session.group?.name || ''}"? This will permanently remove the session and all attendance records.`
+        }
+        isLoading={deleteSessionMutation.isPending}
+        isDestructive={true}
+      />
     </div>
   );
 }

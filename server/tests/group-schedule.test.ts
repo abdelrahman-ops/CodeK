@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { getTestApp, loginAdmin } from './helpers/test-app.js';
 import { FastifyInstance } from 'fastify';
+import { prisma } from '../src/db/prisma.js';
 
 describe('Group Schedule & Session Creation Refactor Module', () => {
   let app: FastifyInstance;
@@ -11,6 +12,17 @@ describe('Group Schedule & Session Creation Refactor Module', () => {
   beforeAll(async () => {
     app = await getTestApp();
     adminToken = await loginAdmin(app);
+
+    // Clean up test groups and their sessions
+    const oldGroups = await prisma.group.findMany({
+      where: { name: { in: ['Single Schedule Group', 'Multi Schedule Group', 'Duplicate Day Group'] } }
+    });
+    if (oldGroups.length > 0) {
+      const oldIds = oldGroups.map(g => g.id);
+      await prisma.session.deleteMany({ where: { groupId: { in: oldIds } } });
+      await prisma.groupSchedule.deleteMany({ where: { groupId: { in: oldIds } } });
+      await prisma.group.deleteMany({ where: { id: { in: oldIds } } });
+    }
   });
 
   it('1. should create a group with one weekly schedule day', async () => {

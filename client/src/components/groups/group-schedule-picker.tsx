@@ -2,12 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { DAYS_OF_WEEK, formatTime12h } from '../../lib/schedule-helpers.js';
 import { GroupSchedule } from '../../types/api.js';
-import { Calendar, Clock, Plus, Trash2, Copy } from 'lucide-react';
+import { Calendar, Clock, Sparkles, Trash2, Check } from 'lucide-react';
 
 interface GroupSchedulePickerProps {
   schedules?: GroupSchedule[];
   onChange: (schedules: GroupSchedule[]) => void;
 }
+
+const PRESETS = [
+  { start: '16:00', end: '17:30', labelEn: '4:00 - 5:30 PM', labelAr: '4:00 م - 5:30 م' },
+  { start: '17:30', end: '19:00', labelEn: '5:30 - 7:00 PM', labelAr: '5:30 م - 7:00 م' },
+  { start: '19:00', end: '20:30', labelEn: '7:00 - 8:30 PM', labelAr: '7:00 م - 8:30 م' }
+];
 
 export function GroupSchedulePicker({ schedules = [], onChange }: GroupSchedulePickerProps) {
   const { i18n, t } = useTranslation();
@@ -77,24 +83,45 @@ export function GroupSchedulePicker({ schedules = [], onChange }: GroupScheduleP
 
   const activeDaysCount = Object.keys(scheduleMap).length;
 
+  const countBadgeText = isArabic
+    ? activeDaysCount === 0
+      ? 'لم يتم تحديد أيام'
+      : activeDaysCount === 1
+      ? 'يوم محدد'
+      : activeDaysCount === 2
+      ? 'يومان محددان'
+      : activeDaysCount >= 3 && activeDaysCount <= 10
+      ? `${activeDaysCount} أيام محددة`
+      : `${activeDaysCount} يوم محدد`
+    : `${activeDaysCount} ${activeDaysCount === 1 ? 'day selected' : 'days selected'}`;
+
   return (
-    <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80">
+    <div className="space-y-4 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/70">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <label className="text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
-          <Calendar className="w-4 h-4 text-brand-600 dark:text-brand-400" />
-          <span>{t('groups.schedule') || (isArabic ? 'جدول الحصص الأسبوعي' : 'Weekly Schedule')}</span>
+        <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-brand-50 dark:bg-brand-950 flex items-center justify-center text-brand-600 dark:text-brand-400">
+            <Calendar className="w-4 h-4" />
+          </div>
+          <span>{isArabic ? 'جدول ومواعيد الحصص بالقاعة' : 'Classroom Schedule Slots'}</span>
         </label>
-        <span className="text-xs font-medium text-slate-500 bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded-full">
-          {activeDaysCount} {isArabic ? 'أيام ممررة' : 'days selected'}
+        <span
+          className={`text-xs font-bold px-2.5 py-0.5 rounded-full transition-colors ${
+            activeDaysCount > 0
+              ? 'bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-200 dark:border-brand-800'
+              : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+          }`}
+        >
+          {countBadgeText}
         </span>
       </div>
 
-      {/* Days Selector Row */}
+      {/* Days Selection Bar */}
       <div>
-        <div className="text-xs text-slate-500 mb-2 font-medium">
-          {isArabic ? 'اختر أيام الحصص في الأسبوع:' : 'Select days of week:'}
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 mb-2 font-medium">
+          {isArabic ? 'اختر أيام الحصص في الأسبوع للمجموعة:' : 'Select days of the week for this group:'}
         </div>
-        <div className="flex flex-wrap gap-1.5">
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
           {DAYS_OF_WEEK.map((day) => {
             const isSelected = !!scheduleMap[day.dayIndex];
             return (
@@ -102,13 +129,14 @@ export function GroupSchedulePicker({ schedules = [], onChange }: GroupScheduleP
                 key={day.id}
                 type="button"
                 onClick={() => toggleDay(day.dayIndex)}
-                className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                className={`py-2 px-1.5 rounded-xl text-xs font-extrabold flex flex-col items-center justify-center gap-1 transition-all ${
                   isSelected
-                    ? 'bg-brand-600 text-white shadow-sm ring-2 ring-brand-600/30'
-                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    ? 'bg-brand-600 text-white shadow-md shadow-brand-600/20 ring-2 ring-brand-500/40 scale-[1.02]'
+                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-brand-300 hover:bg-brand-50/50 dark:hover:bg-slate-800'
                 }`}
               >
                 <span>{isArabic ? day.ar : day.en}</span>
+                {isSelected && <Check className="w-3 h-3 text-white stroke-[3]" />}
               </button>
             );
           })}
@@ -117,81 +145,99 @@ export function GroupSchedulePicker({ schedules = [], onChange }: GroupScheduleP
 
       {/* Quick Presets Bar */}
       {activeDaysCount > 0 && (
-        <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200 dark:border-slate-700/60">
-          <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
-            <Copy className="w-3 h-3 text-slate-400" />
-            {isArabic ? 'تطبيق توقيت سريع للأيام المحددة:' : 'Apply time preset to all:'}
-          </span>
-          <button
-            type="button"
-            onClick={() => applyPresetToAllSelected('16:00', '17:30')}
-            className="text-xs px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-brand-50 hover:border-brand-300 text-slate-700 dark:text-slate-300 font-mono font-medium transition-colors"
-          >
-            4:00 - 5:30 PM
-          </button>
-          <button
-            type="button"
-            onClick={() => applyPresetToAllSelected('17:30', '19:00')}
-            className="text-xs px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-brand-50 hover:border-brand-300 text-slate-700 dark:text-slate-300 font-mono font-medium transition-colors"
-          >
-            5:30 - 7:00 PM
-          </button>
-          <button
-            type="button"
-            onClick={() => applyPresetToAllSelected('19:00', '20:30')}
-            className="text-xs px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-brand-50 hover:border-brand-300 text-slate-700 dark:text-slate-300 font-mono font-medium transition-colors"
-          >
-            7:00 - 8:30 PM
-          </button>
+        <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 space-y-2">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>{isArabic ? 'تطبيق توقيت سريع لجميع الأيام المحددة:' : 'Apply quick preset to all selected days:'}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {PRESETS.map((p) => (
+              <button
+                key={p.start}
+                type="button"
+                onClick={() => applyPresetToAllSelected(p.start, p.end)}
+                className="px-3 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-brand-500 hover:bg-brand-50/60 dark:hover:bg-brand-950 text-slate-800 dark:text-slate-200 text-xs font-medium transition-all group flex items-center gap-1.5"
+              >
+                <Clock className="w-3 h-3 text-slate-400 group-hover:text-brand-500" />
+                <span dir="ltr" className="font-mono font-bold tracking-tight">
+                  {isArabic ? p.labelAr : p.labelEn}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Structured Day Time Inputs */}
       {activeDaysCount === 0 ? (
-        <div className="p-3 text-center text-xs text-slate-400 italic">
-          {isArabic ? 'انقر على أيام الأسبوع أعلاه لتحديد جدول الحصص' : 'Click days above to set schedule times'}
+        <div className="p-4 text-center text-xs text-slate-400 bg-white/50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 italic">
+          {isArabic ? 'اضغط على أيام الأسبوع أعلاه لتعيين أوقات الحصص' : 'Click the days above to configure class times'}
         </div>
       ) : (
-        <div className="space-y-2.5 pt-1">
+        <div className="space-y-2 pt-1">
+          <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 px-1">
+            {isArabic ? 'توقيت كل يوم على حدة:' : 'Individual Day Schedules:'}
+          </div>
           {DAYS_OF_WEEK.filter((d) => scheduleMap[d.dayIndex]).map((day) => {
             const time = scheduleMap[day.dayIndex];
             return (
               <div
                 key={day.id}
-                className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-700/80 shadow-xs"
               >
-                <div className="w-24 font-bold text-xs text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
-                  <span>{isArabic ? day.ar : day.en}</span>
+                {/* Day Label */}
+                <div className="flex items-center gap-2 min-w-[110px]">
+                  <div className="w-6 h-6 rounded-md bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center shrink-0">
+                    <Calendar className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                    {isArabic ? day.ar : day.en}
+                  </span>
                 </div>
 
-                <div className="flex items-center gap-2 flex-1 max-w-xs">
-                  <input
-                    type="time"
-                    value={time.startTime}
-                    onChange={(e) => updateDayTime(day.dayIndex, 'startTime', e.target.value)}
-                    className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    required
-                  />
-                  <span className="text-xs text-slate-400 font-bold">-</span>
-                  <input
-                    type="time"
-                    value={time.endTime}
-                    onChange={(e) => updateDayTime(day.dayIndex, 'endTime', e.target.value)}
-                    className="px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-xs font-mono font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    required
-                  />
+                {/* Time Inputs */}
+                <div className="flex items-center gap-2 flex-1 flex-wrap">
+                  <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <span className="text-[11px] text-slate-400 font-bold">{isArabic ? 'من' : 'From'}</span>
+                    <input
+                      type="time"
+                      value={time.startTime}
+                      onChange={(e) => updateDayTime(day.dayIndex, 'startTime', e.target.value)}
+                      dir="ltr"
+                      className="bg-transparent text-xs font-mono font-black text-slate-800 dark:text-slate-100 focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  <span className="text-slate-400 font-bold text-xs">-</span>
+
+                  <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <span className="text-[11px] text-slate-400 font-bold">{isArabic ? 'إلى' : 'To'}</span>
+                    <input
+                      type="time"
+                      value={time.endTime}
+                      onChange={(e) => updateDayTime(day.dayIndex, 'endTime', e.target.value)}
+                      dir="ltr"
+                      className="bg-transparent text-xs font-mono font-black text-slate-800 dark:text-slate-100 focus:outline-none"
+                      required
+                    />
+                  </div>
+
+                  {/* 12h Formatted Pill */}
+                  <div
+                    dir="ltr"
+                    className="px-2.5 py-1 rounded-lg bg-brand-50 dark:bg-brand-950/60 text-brand-700 dark:text-brand-300 border border-brand-200/60 dark:border-brand-900 text-xs font-mono font-bold whitespace-nowrap ml-auto rtl:mr-auto rtl:ml-0"
+                  >
+                    {formatTime12h(time.startTime, isArabic)} – {formatTime12h(time.endTime, isArabic)}
+                  </div>
                 </div>
 
-                <div className="text-[11px] font-medium text-slate-500 hidden sm:block">
-                  {formatTime12h(time.startTime, isArabic)} – {formatTime12h(time.endTime, isArabic)}
-                </div>
-
+                {/* Delete/Remove Day */}
                 <button
                   type="button"
                   onClick={() => toggleDay(day.dayIndex)}
-                  className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
-                  title={isArabic ? 'إزالة اليوم' : 'Remove day'}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors shrink-0 self-end sm:self-center"
+                  title={isArabic ? 'إلغاء هذا اليوم' : 'Remove day'}
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>

@@ -47,15 +47,13 @@ import { AdminRegistrationsPage } from '../pages/admin/admin-registrations-page.
 import { AdminRegistrationDetailPage } from '../pages/admin/admin-registration-detail-page.js';
 
 export const router = createBrowserRouter([
-  // Standalone Public Registration
-  { path: '/register', element: <PublicRegistrationPage /> },
-  { path: '/student-registration', element: <PublicRegistrationPage /> },
-
   // Public / Auth Routes
   {
     element: <AuthLayout />,
     children: [
       { path: '/login', element: <LoginPage /> },
+      { path: '/register', element: <PublicRegistrationPage /> },
+      { path: '/student-registration', element: <PublicRegistrationPage /> },
       { path: '/change-password', element: <ChangePasswordPage /> },
       { path: '/setup/:token', element: <SetupPasswordPage /> },
       { path: '/reset-password/:token', element: <ResetPasswordPage /> }

@@ -16,9 +16,9 @@ export function AuthLayout() {
   };
 
   return (
-    <div className="h-full overflow-y-auto bg-slate-50 dark:bg-slate-950 flex flex-col justify-between transition-colors duration-200">
+    <div className="h-screen h-[100dvh] overflow-y-auto overflow-x-hidden bg-slate-50 dark:bg-slate-950 flex flex-col justify-between transition-colors duration-200">
       {/* Top Header */}
-      <header className="p-4 sm:p-6 flex items-center justify-between">
+      <header className="p-4 sm:p-6 flex items-center justify-between shrink-0">
         <Logo size="lg" />
 
         <div className="flex items-center gap-2">
@@ -50,14 +50,14 @@ export function AuthLayout() {
       </header>
 
       {/* Main Outlet Container */}
-      <main className="flex-1 flex items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
+      <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-6 py-6 sm:py-10">
+        <div className="w-full flex justify-center my-auto py-2 animate-in fade-in zoom-in-95 duration-200">
           <Outlet />
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="p-4 text-center text-xs text-slate-400 dark:text-slate-600 font-medium">
+      <footer className="p-4 text-center text-xs text-slate-400 dark:text-slate-600 font-medium shrink-0">
         &copy; {new Date().getFullYear()} {t('common.appName')}. {t('common.allRightsReserved') || 'All rights reserved.'}
       </footer>
     </div>

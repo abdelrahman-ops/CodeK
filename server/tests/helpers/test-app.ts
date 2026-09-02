@@ -35,12 +35,17 @@ export async function loginAdmin(testApp: FastifyInstance): Promise<string> {
 
   const body = loginRes.json();
   if (body.data?.requires2FA && body.data?.tempToken) {
+    const otpRecord = await prisma.authToken.findFirst({
+      where: { type: 'ADMIN_LOGIN_OTP' },
+      orderBy: { createdAt: 'desc' }
+    });
+    const otpCode = body.data.devOtp || (otpRecord ? otpRecord.token : '123456');
     const verifyRes = await testApp.inject({
       method: 'POST',
       url: '/api/v1/auth/verify-2fa',
       payload: {
         tempToken: body.data.tempToken,
-        otpCode: body.data.devOtp || '123456'
+        otpCode
       }
     });
     return verifyRes.json().data.accessToken;

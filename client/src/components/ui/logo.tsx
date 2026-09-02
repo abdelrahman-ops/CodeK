@@ -27,7 +27,7 @@ export function Logo({
   };
 
   return (
-    <div className={cn('inline-flex items-center gap-2.5 select-none', className)}>
+    <div dir="ltr" className={cn('inline-flex items-center gap-2.5 select-none [direction:ltr]', className)}>
       <div
         className={cn(
           'relative flex items-center justify-center rounded-xl p-1.5 shadow-md shadow-brand-500/20 shrink-0 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80',
@@ -43,8 +43,9 @@ export function Logo({
 
       {showText && !iconOnly && (
         <span
+          dir="ltr"
           className={cn(
-            'tracking-tight font-brand font-black select-none inline-flex items-baseline',
+            'tracking-tight font-brand font-black select-none inline-flex items-baseline [direction:ltr]',
             forceShowTextOnMobile ? 'inline-flex' : 'hidden sm:inline-flex',
             textSizes[size]
           )}

@@ -128,16 +128,31 @@ export const KNOWN_TRANSLATIONS: Record<string, { ar: string; en: string }> = {
   }
 };
 
+import { formatTime12h, formatScheduleText, formatScheduleDisplay, formatScheduleFromList } from './schedule-helpers.js';
+
+export { formatTime12h, formatScheduleText, formatScheduleDisplay, formatScheduleFromList };
+
 /**
- * Localizes any text string using known database/seed entries if active language is Arabic.
+ * Localizes any text string using known database/seed entries or converts dynamic schedule strings to 12h format.
  */
 export function localizeText(text: string | null | undefined): string {
   if (!text) return '';
   const currentLang = i18n.language === 'ar' ? 'ar' : 'en';
-  const match = KNOWN_TRANSLATIONS[text.trim()];
+  const isAr = currentLang === 'ar';
+  const trimmed = text.trim();
+  const match = KNOWN_TRANSLATIONS[trimmed];
   if (match) {
     return match[currentLang];
   }
+
+  // Check if text contains day names or time patterns like 16:00-17:30
+  if (
+    /\b(Saturday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|السبت|الأحد|الإثنين|الاثنين|الثلاثاء|الأربعاء|الخميس|الجمعة)\b/i.test(trimmed) ||
+    /\b\d{1,2}:\d{2}\b/.test(trimmed)
+  ) {
+    return formatScheduleText(trimmed, isAr);
+  }
+
   return text;
 }
 

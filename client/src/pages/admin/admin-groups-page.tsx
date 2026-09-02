@@ -12,10 +12,11 @@ import { Dialog } from '../../components/ui/dialog.js';
 import { GroupSchedulePicker } from '../../components/groups/group-schedule-picker.js';
 import { CardSkeleton } from '../../components/ui/skeleton.js';
 import { useToast } from '../../components/ui/toast.js';
-import { localizeText } from '../../lib/i18n-helpers.js';
+import { localizeText, formatScheduleDisplay } from '../../lib/i18n-helpers.js';
 
 export function AdminGroupsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language === 'ar';
   const navigate = useNavigate();
   const toast = useToast();
   const queryClient = useQueryClient();
@@ -112,7 +113,7 @@ export function AdminGroupsPage() {
                 {group.scheduleInfo && (
                   <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                     <Clock className="w-3.5 h-3.5 text-brand-500" />
-                    <span>{localizeText(group.scheduleInfo)}</span>
+                    <span>{formatScheduleDisplay(group.schedules, group.scheduleInfo, isArabic)}</span>
                   </div>
                 )}
               </div>
@@ -133,47 +134,50 @@ export function AdminGroupsPage() {
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         title={t('groups.createGroup')}
-        maxWidth="md"
+        maxWidth="lg"
       >
-        <form onSubmit={handleCreateGroup} className="space-y-4 py-2">
-          <Input
-            label={t('groups.groupName')}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
+        <form onSubmit={handleCreateGroup} className="space-y-4 py-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label={t('groups.groupName')}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+            <Input
+              label={t('groups.description') || (isArabic ? 'وصف المجموعة' : 'Group Description')}
+              placeholder={isArabic ? 'مثال: المستوى الأول - الأساسيات البرمجية' : 'e.g. Level 1 - Python Fundamentals'}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
 
           <GroupSchedulePicker
             schedules={schedules}
             onChange={setSchedules}
           />
 
-          <Input
-            label={t('groups.description')}
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label={t('groups.whatsappGroupUrl') || (isArabic ? 'رابط مجموعة الواتساب' : 'WhatsApp Group Invite Link')}
+              type="url"
+              placeholder="https://chat.whatsapp.com/..."
+              value={whatsappGroupUrl}
+              onChange={(e) => setWhatsappGroupUrl(e.target.value)}
+            />
+            <Input
+              label={t('groups.maxCapacity')}
+              type="number"
+              value={maxCapacity}
+              onChange={(e) => setMaxCapacity(Number(e.target.value))}
+              min={1}
+              max={100}
+              required
+            />
+          </div>
 
-          <Input
-            label={t('groups.whatsappGroupUrl') || 'WhatsApp Group Invite Link'}
-            type="url"
-            placeholder="https://chat.whatsapp.com/..."
-            value={whatsappGroupUrl}
-            onChange={(e) => setWhatsappGroupUrl(e.target.value)}
-          />
-
-          <Input
-            label={t('groups.maxCapacity')}
-            type="number"
-            value={maxCapacity}
-            onChange={(e) => setMaxCapacity(Number(e.target.value))}
-            min={1}
-            max={50}
-            required
-          />
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="ghost" onClick={() => setIsCreateModalOpen(false)}>
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="outline" onClick={() => setIsCreateModalOpen(false)}>
               {t('common.cancel')}
             </Button>
             <Button type="submit" isLoading={createMutation.isPending}>

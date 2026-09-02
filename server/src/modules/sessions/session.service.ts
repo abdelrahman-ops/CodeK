@@ -387,24 +387,28 @@ export async function deleteSession(sessionId: string, actorUserId?: string) {
   const session = await prisma.session.findUnique({
     where: { id: sessionId },
     include: {
-      _count: { select: { attendances: true } }
+      _count: { select: { attendances: true, sessionLessons: true } }
     }
   });
 
   if (!session) throw new NotFoundError('Session not found');
 
-  if (session._count.attendances > 0) {
-    throw new BadRequestError('Cannot delete session with recorded student attendance. Mark the session completed or cancelled instead.');
-  }
-
-  await prisma.session.delete({ where: { id: sessionId } });
+  await prisma.$transaction(async (tx) => {
+    await tx.attendance.deleteMany({ where: { sessionId } });
+    await tx.sessionLesson.deleteMany({ where: { sessionId } });
+    await tx.session.delete({ where: { id: sessionId } });
+  });
 
   await createAuditLog({
     actorUserId,
     action: 'SESSION_DELETED',
     entityType: 'Session',
     entityId: sessionId,
-    metadata: { sessionNumber: session.sessionNumber }
+    metadata: {
+      sessionNumber: session.sessionNumber,
+      groupId: session.groupId,
+      deletedAttendancesCount: session._count.attendances
+    }
   });
 
   return { success: true };

@@ -245,7 +245,7 @@ export function AdminDashboardPage() {
                         </Badge>
                       </div>
                       <p className="text-xs text-slate-500 mt-1">
-                        {formatDate(sess.date)} • {sess.startTime} - {sess.endTime} • {sess.presentAttendanceCount} {t('sessions.presentCount')}
+                        {formatDate(sess.date)} • {formatTime12h(sess.startTime, isArabic)} - {formatTime12h(sess.endTime, isArabic)} • {sess.presentAttendanceCount} {t('sessions.presentCount')}
                       </p>
                     </div>
 

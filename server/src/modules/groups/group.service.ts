@@ -6,10 +6,31 @@ import { Role } from '@prisma/client';
 
 const DAY_NAMES_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
+function formatTime12h(timeStr: string): string {
+  if (!timeStr) return '';
+  const [hStr, mStr] = timeStr.split(':');
+  let h = parseInt(hStr, 10);
+  const m = mStr || '00';
+  if (isNaN(h)) return timeStr;
+  const period = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${m} ${period}`;
+}
+
 function generateScheduleInfo(schedules: { dayOfWeek: number; startTime: string; endTime: string }[]): string | undefined {
   if (!schedules || schedules.length === 0) return undefined;
   const sorted = [...schedules].sort((a, b) => a.dayOfWeek - b.dayOfWeek);
-  return sorted.map((s) => `${DAY_NAMES_EN[s.dayOfWeek]} ${s.startTime}-${s.endTime}`).join(', ');
+
+  const firstTime = `${sorted[0].startTime}-${sorted[0].endTime}`;
+  const allSameTime = sorted.every((s) => `${s.startTime}-${s.endTime}` === firstTime);
+
+  if (allSameTime && sorted.length > 1) {
+    const days = sorted.map((s) => DAY_NAMES_EN[s.dayOfWeek]).join(', ');
+    return `${days} ${formatTime12h(sorted[0].startTime)} - ${formatTime12h(sorted[0].endTime)}`;
+  }
+
+  return sorted.map((s) => `${DAY_NAMES_EN[s.dayOfWeek]} ${formatTime12h(s.startTime)} - ${formatTime12h(s.endTime)}`).join(', ');
 }
 
 export async function createGroup(input: CreateGroupInput, actorUserId?: string) {

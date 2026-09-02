@@ -34,7 +34,7 @@ import {
   ApproveRegistrationResponse,
   Group
 } from '../../types/api.js';
-import { formatStatus, formatDate } from '../../lib/i18n-helpers.js';
+import { formatStatus, formatDate, localizeText } from '../../lib/i18n-helpers.js';
 
 export function AdminRegistrationDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -243,7 +243,7 @@ export function AdminRegistrationDetailPage() {
                   </div>
                   {registration.preferredGroup.scheduleInfo && (
                     <p className="text-xs text-slate-600 dark:text-slate-300">
-                      {registration.preferredGroup.scheduleInfo}
+                      {localizeText(registration.preferredGroup.scheduleInfo)}
                     </p>
                   )}
                 </div>

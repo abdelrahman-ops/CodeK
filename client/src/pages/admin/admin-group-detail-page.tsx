@@ -28,12 +28,13 @@ import { GroupSchedulePicker } from '../../components/groups/group-schedule-pick
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '../../components/ui/table.js';
 import { CardSkeleton, TableSkeleton } from '../../components/ui/skeleton.js';
 import { useToast } from '../../components/ui/toast.js';
-import { localizeText, formatStatus, formatStreak } from '../../lib/i18n-helpers.js';
+import { localizeText, formatStatus, formatStreak, formatScheduleDisplay } from '../../lib/i18n-helpers.js';
 
 export function AdminGroupDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language === 'ar';
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -206,7 +207,7 @@ export function AdminGroupDetailPage() {
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="primary" size="sm">
               <Clock className="w-3.5 h-3.5" />
-              <span>{localizeText(group.scheduleInfo) || t('common.noSchedule')}</span>
+              <span>{formatScheduleDisplay(group.schedules, group.scheduleInfo, isArabic) || t('common.noSchedule')}</span>
             </Badge>
             <Badge variant={isNearCapacity ? 'warning' : 'success'} size="sm">
               <Users className="w-3.5 h-3.5" />
@@ -287,35 +288,53 @@ export function AdminGroupDetailPage() {
       </Card>
 
       {/* Edit Group Modal */}
-      <Dialog isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title={t('groups.editGroup')}>
-        <form onSubmit={handleSaveEdit} className="space-y-4">
-          <Input
-            label={t('groups.groupName')}
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            required
-          />
+      <Dialog
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title={t('groups.editGroup')}
+        maxWidth="lg"
+      >
+        <form onSubmit={handleSaveEdit} className="space-y-4 py-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label={t('groups.groupName')}
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              required
+            />
+            <Input
+              label={t('groups.description') || (isArabic ? 'وصف المجموعة' : 'Group Description')}
+              placeholder={isArabic ? 'مثال: المستوى الأول - الأساسيات البرمجية' : 'e.g. Level 1 - Python Fundamentals'}
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+            />
+          </div>
+
           <GroupSchedulePicker
             schedules={editSchedules}
             onChange={setEditSchedules}
           />
-          <Input
-            label={t('groups.whatsappGroupUrl') || 'WhatsApp Group Invite Link'}
-            type="url"
-            placeholder="https://chat.whatsapp.com/..."
-            value={editWhatsappGroupUrl}
-            onChange={(e) => setEditWhatsappGroupUrl(e.target.value)}
-          />
-          <Input
-            label={t('groups.maxCapacity')}
-            type="number"
-            value={editMaxCapacity}
-            onChange={(e) => setEditMaxCapacity(Number(e.target.value))}
-            min={1}
-            max={50}
-            required
-          />
-          <div className="flex justify-end gap-2 pt-2">
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              label={t('groups.whatsappGroupUrl') || (isArabic ? 'رابط مجموعة الواتساب' : 'WhatsApp Group Invite Link')}
+              type="url"
+              placeholder="https://chat.whatsapp.com/..."
+              value={editWhatsappGroupUrl}
+              onChange={(e) => setEditWhatsappGroupUrl(e.target.value)}
+            />
+            <Input
+              label={t('groups.maxCapacity')}
+              type="number"
+              value={editMaxCapacity}
+              onChange={(e) => setEditMaxCapacity(Number(e.target.value))}
+              min={1}
+              max={100}
+              required
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
             <Button type="button" variant="outline" onClick={() => setIsEditModalOpen(false)}>
               {t('common.cancel')}
             </Button>

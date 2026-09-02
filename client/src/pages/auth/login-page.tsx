@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/auth-context.js';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card.js';
 import { Input } from '../../components/ui/input.js';
 import { Button } from '../../components/ui/button.js';
-import { User, Lock, Shield, KeyRound, ArrowRight, ArrowLeft, RefreshCw } from 'lucide-react';
+import { User, Lock, Shield, KeyRound, ArrowRight, ArrowLeft, RefreshCw, UserPlus } from 'lucide-react';
 import { useToast } from '../../components/ui/toast.js';
 import { Logo } from '@/components/ui/logo.js';
 
@@ -112,7 +112,7 @@ export function LoginPage() {
   };
 
   return (
-    <Card className="p-6 sm:p-8 shadow-xl border-slate-200/80 dark:border-slate-800/80">
+    <Card className="w-full max-w-md p-6 sm:p-8 shadow-xl border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl">
       <CardHeader className="text-center p-0 pb-6">
         <div className="mx-auto w-12 h-12 rounded-2xl bg-brand-50 dark:bg-brand-950/80 text-brand-600 dark:text-brand-400 flex items-center justify-center mb-3">
           {step === 'CREDENTIALS' ? <Logo size="sm" iconOnly /> : <Shield className="w-6 h-6 text-brand-500" />}
@@ -154,6 +154,18 @@ export function LoginPage() {
             <Button type="submit" className="w-full mt-2" size="lg" isLoading={isLoading}>
               {t('auth.signIn')}
             </Button>
+
+            {/* Link to Registration Route */}
+            <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800/80 text-center text-xs text-slate-500 dark:text-slate-400 flex flex-wrap items-center justify-center gap-1.5">
+              <span>{t('auth.noAccount') || (isRtl ? 'طالب جديد؟' : 'New Student?')}</span>
+              <Link
+                to="/register"
+                className="font-bold text-brand-600 dark:text-brand-400 hover:text-brand-700 dark:hover:text-brand-300 hover:underline inline-flex items-center gap-1 transition"
+              >
+                <span>{t('auth.registerHere') || (isRtl ? 'سجّل الآن في الأكاديمية' : 'Apply for Admission')}</span>
+                {isRtl ? <ArrowLeft className="w-3.5 h-3.5" /> : <ArrowRight className="w-3.5 h-3.5" />}
+              </Link>
+            </div>
           </form>
         ) : (
           <form onSubmit={handleOtpSubmit} className="space-y-4">

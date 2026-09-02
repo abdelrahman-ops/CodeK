@@ -506,7 +506,7 @@ export function AdminStudentDetailPage() {
                 const count = g._count?.enrollments || 0;
                 return {
                   value: g.id,
-                  label: `${localizeText(g.name)} ${g.scheduleInfo ? `• ${g.scheduleInfo}` : ''} (${count}/${g.maxCapacity})`
+                  label: `${localizeText(g.name)} ${g.scheduleInfo ? `• ${localizeText(g.scheduleInfo)}` : ''} (${count}/${g.maxCapacity})`
                 };
               }) || [])
             ]}
