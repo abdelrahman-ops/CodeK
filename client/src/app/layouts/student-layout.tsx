@@ -22,6 +22,16 @@ export function StudentLayout() {
     return <Navigate to="/login" replace />;
   }
 
+  // Phase 7 Security Guard: Email verification gate
+  if (user.role === 'STUDENT' && user.isEmailVerified === false) {
+    return <Navigate to="/verify-email" replace />;
+  }
+
+  // Phase 7 Onboarding Guard: Learning mode selection gate
+  if (user.role === 'STUDENT' && user.student && user.student.learningModeSelected === false) {
+    return <Navigate to="/onboarding/learning-mode" replace />;
+  }
+
   if (user.mustChangePassword) {
     return <Navigate to="/change-password" replace />;
   }

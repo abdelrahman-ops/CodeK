@@ -413,3 +413,44 @@ export async function deleteSession(sessionId: string, actorUserId?: string) {
 
   return { success: true };
 }
+
+export async function deleteSessionsBulk(sessionIds: string[], actorUserId?: string) {
+  if (!sessionIds || sessionIds.length === 0) {
+    return { success: true, count: 0, deletedCount: 0, ids: [] };
+  }
+
+  const existingSessions = await prisma.session.findMany({
+    where: { id: { in: sessionIds } },
+    select: { id: true, sessionNumber: true, groupId: true }
+  });
+
+  const foundIds = existingSessions.map((s) => s.id);
+  if (foundIds.length === 0) {
+    return { success: true, count: 0, deletedCount: 0, ids: [] };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.attendance.deleteMany({ where: { sessionId: { in: foundIds } } });
+    await tx.sessionLesson.deleteMany({ where: { sessionId: { in: foundIds } } });
+    await tx.session.deleteMany({ where: { id: { in: foundIds } } });
+  });
+
+  await createAuditLog({
+    actorUserId,
+    action: 'SESSION_BULK_DELETED',
+    entityType: 'Session',
+    entityId: foundIds[0] || null,
+    metadata: {
+      deletedCount: foundIds.length,
+      deletedIds: foundIds
+    }
+  });
+
+  return {
+    success: true,
+    count: foundIds.length,
+    deletedCount: foundIds.length,
+    ids: foundIds,
+    deletedIds: foundIds
+  };
+}

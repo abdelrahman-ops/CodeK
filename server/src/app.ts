@@ -4,6 +4,8 @@ import { errorHandler } from './common/errors/error-handler.js';
 import { registerSecurity } from './plugins/security.js';
 import { registerSwagger } from './plugins/swagger.js';
 import { registerRateLimit } from './plugins/rate-limit.js';
+import { registerRawBody } from './plugins/raw-body.js';
+import { prisma } from './db/prisma.js';
 
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { userRoutes } from './modules/users/user.routes.js';
@@ -23,6 +25,10 @@ import { notificationRoutes } from './modules/notifications/notification.routes.
 import { auditRoutes } from './modules/audit/audit.routes.js';
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes.js';
 import { registrationRoutes } from './modules/registrations/registration.routes.js';
+import { videoRoutes } from './modules/videos/video.routes.js';
+import { accessRoutes } from './modules/access/access.routes.js';
+import { billingRoutes } from './modules/billing/billing.routes.js';
+import { webhookRoutes } from './modules/webhooks/webhook.routes.js';
 
 export async function buildApp() {
   const isVercel = process.env.VERCEL === '1';
@@ -49,6 +55,7 @@ export async function buildApp() {
   app.setErrorHandler(errorHandler);
 
   // Core Plugins
+  await registerRawBody(app);
   await registerSecurity(app);
   await registerSwagger(app);
   await registerRateLimit(app);
@@ -62,11 +69,36 @@ export async function buildApp() {
     docs: '/docs'
   }));
 
+  // Liveness Probe: process is alive
   app.get('/health', async () => ({
     status: 'healthy',
     timestamp: new Date().toISOString(),
     env: env.NODE_ENV
   }));
+
+  // Readiness Probe: application is ready to serve traffic (verifies critical dependencies)
+  app.get('/ready', async (_request, reply) => {
+    try {
+      await Promise.race([
+        prisma.$queryRaw`SELECT 1`,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Database connectivity timeout')), 3000)
+        )
+      ]);
+      return {
+        status: 'ready',
+        timestamp: new Date().toISOString(),
+        database: 'connected'
+      };
+    } catch (err) {
+      app.log.error({ err }, 'Readiness check failed');
+      return reply.status(503).send({
+        status: 'not_ready',
+        timestamp: new Date().toISOString(),
+        database: 'disconnected'
+      });
+    }
+  });
 
   // API V1 Routes
   await app.register(
@@ -79,7 +111,9 @@ export async function buildApp() {
       await v1.register(sessionRoutes, { prefix: '/sessions' });
       await v1.register(attendanceRoutes, { prefix: '/attendance' });
       await v1.register(curriculumRoutes, { prefix: '/curriculum' });
+      await v1.register(curriculumRoutes, { prefix: '/courses' });
       await v1.register(lessonRoutes, { prefix: '/lessons' });
+      await v1.register(lessonRoutes, { prefix: '/admin/lessons' });
       await v1.register(taskRoutes, { prefix: '/tasks' });
       await v1.register(submissionRoutes, { prefix: '/submissions' });
       await v1.register(examRoutes, { prefix: '/exams' });
@@ -88,6 +122,10 @@ export async function buildApp() {
       await v1.register(notificationRoutes, { prefix: '/notifications' });
       await v1.register(auditRoutes, { prefix: '/audit-logs' });
       await v1.register(dashboardRoutes, { prefix: '/dashboard' });
+      await v1.register(videoRoutes, { prefix: '/videos' });
+      await v1.register(accessRoutes, { prefix: '/access' });
+      await v1.register(billingRoutes, { prefix: '/billing' });
+      await v1.register(webhookRoutes, { prefix: '/webhooks' });
       await v1.register(registrationRoutes);
     },
     { prefix: '/api/v1' }

@@ -43,6 +43,7 @@ export async function createStudentUser(input: CreateStudentUserInput, actorUser
         loginId,
         passwordHash,
         mustChangePassword: true,
+        isEmailVerified: true,
         email: input.email && input.email.trim() !== '' ? input.email.toLowerCase() : null,
         phone: input.phone && input.phone.trim() !== '' ? input.phone : null,
         role: Role.STUDENT,
@@ -57,6 +58,7 @@ export async function createStudentUser(input: CreateStudentUserInput, actorUser
         studentCode: loginId,
         anonymousLeaderboardCode: anonymousCode,
         programmingLevel: input.programmingLevel,
+        learningModeSelected: true,
         schoolName: input.schoolName || null,
         dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null
       }
@@ -128,6 +130,7 @@ export async function createParentUser(input: CreateParentUserInput, actorUserId
         loginId,
         passwordHash,
         mustChangePassword: true,
+        isEmailVerified: true,
         email: input.email && input.email.trim() !== '' ? input.email.toLowerCase() : null,
         phone: input.phone && input.phone.trim() !== '' ? input.phone : null,
         role: Role.PARENT,

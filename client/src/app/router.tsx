@@ -7,12 +7,18 @@ import { StudentLayout, ParentLayout, AdminLayout } from './layouts/student-layo
 
 // Auth Pages
 import { LoginPage } from '../pages/auth/login-page.js';
+import { RegisterPage } from '../pages/auth/register-page.js';
+import { VerifyEmailPage } from '../pages/auth/verify-email-page.js';
+import { LearningModePage } from '../pages/auth/learning-mode-page.js';
 import { ChangePasswordPage, SetupPasswordPage, ResetPasswordPage } from '../pages/auth/change-password-page.js';
 
 // Student Pages
 import { StudentHomePage } from '../pages/student/student-home-page.js';
 import { TodayPage } from '../pages/student/today-page.js';
 import { MyGroupPage } from '../pages/student/my-group-page.js';
+import { StudentCoursesPage } from '../pages/student/student-courses-page.js';
+import { CourseDetailPage } from '../pages/student/course-detail-page.js';
+import { LessonPlayerPage } from '../pages/student/lesson-player-page.js';
 import { CurriculumPage, LessonViewPage } from '../pages/student/curriculum-page.js';
 import { TasksPage, TaskViewPage } from '../pages/student/tasks-page.js';
 import { ExamsPage, ExamTakePage } from '../pages/student/exams-page.js';
@@ -20,6 +26,7 @@ import { LeaderboardPage } from '../pages/student/leaderboard-page.js';
 import { AchievementsPage } from '../pages/student/achievements-page.js';
 import { ProgressPage } from '../pages/student/progress-page.js';
 import { SettingsPage } from '../pages/student/settings-page.js';
+import { SubscriptionPage } from '../pages/student/subscription-page.js';
 
 // Parent Pages
 import { ParentDashboardPage } from '../pages/parent/parent-dashboard-page.js';
@@ -40,6 +47,7 @@ import { AdminSubmissionsPage } from '../pages/admin/admin-submissions-page.js';
 import { AdminExamsPage, AdminExamBuilderPage } from '../pages/admin/admin-exams-page.js';
 import { AdminLeaderboardPage } from '../pages/admin/admin-leaderboard-page.js';
 import { AdminPaymentsPage } from '../pages/admin/admin-payments-page.js';
+import { AdminBillingPage } from '../pages/admin/admin-billing-page.js';
 import { AdminNotificationsPage } from '../pages/admin/admin-notifications-page.js';
 import { AdminAuditLogsPage } from '../pages/admin/admin-audit-logs-page.js';
 import { PublicRegistrationPage } from '../pages/public/public-registration-page.js';
@@ -52,8 +60,11 @@ export const router = createBrowserRouter([
     element: <AuthLayout />,
     children: [
       { path: '/login', element: <LoginPage /> },
-      { path: '/register', element: <PublicRegistrationPage /> },
+      { path: '/register', element: <RegisterPage /> },
+      { path: '/verify-email', element: <VerifyEmailPage /> },
+      { path: '/onboarding/learning-mode', element: <LearningModePage /> },
       { path: '/student-registration', element: <PublicRegistrationPage /> },
+      { path: '/apply', element: <PublicRegistrationPage /> },
       { path: '/change-password', element: <ChangePasswordPage /> },
       { path: '/setup/:token', element: <SetupPasswordPage /> },
       { path: '/reset-password/:token', element: <ResetPasswordPage /> }
@@ -68,8 +79,11 @@ export const router = createBrowserRouter([
       { index: true, element: <StudentHomePage /> },
       { path: 'today', element: <TodayPage /> },
       { path: 'my-group', element: <MyGroupPage /> },
-      { path: 'curriculum', element: <CurriculumPage /> },
-      { path: 'lessons/:id', element: <LessonViewPage /> },
+      { path: 'courses', element: <StudentCoursesPage /> },
+      { path: 'courses/:id', element: <CourseDetailPage /> },
+      { path: 'courses/:courseId/lessons/:id', element: <LessonPlayerPage /> },
+      { path: 'curriculum', element: <StudentCoursesPage /> },
+      { path: 'lessons/:id', element: <LessonPlayerPage /> },
       { path: 'tasks', element: <TasksPage /> },
       { path: 'tasks/:id', element: <TaskViewPage /> },
       { path: 'exams', element: <ExamsPage /> },
@@ -77,6 +91,7 @@ export const router = createBrowserRouter([
       { path: 'leaderboard', element: <LeaderboardPage /> },
       { path: 'achievements', element: <AchievementsPage /> },
       { path: 'progress', element: <ProgressPage /> },
+      { path: 'subscription', element: <SubscriptionPage /> },
       { path: 'settings', element: <SettingsPage /> }
     ]
   },
@@ -116,6 +131,7 @@ export const router = createBrowserRouter([
       { path: 'exams/:id/builder', element: <AdminExamBuilderPage /> },
       { path: 'leaderboard', element: <AdminLeaderboardPage /> },
       { path: 'payments', element: <AdminPaymentsPage /> },
+      { path: 'billing', element: <AdminBillingPage /> },
       { path: 'notifications', element: <AdminNotificationsPage /> },
       { path: 'audit-logs', element: <AdminAuditLogsPage /> },
       { path: 'settings', element: <SettingsPage /> }

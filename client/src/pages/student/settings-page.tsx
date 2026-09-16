@@ -28,6 +28,7 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card.js';
 import { Button } from '../../components/ui/button.js';
 import { Input } from '../../components/ui/input.js';
+import { PasswordInput } from '../../components/ui/password-input.js';
 import { Badge } from '../../components/ui/badge.js';
 import { Dialog } from '../../components/ui/dialog.js';
 import { useToast } from '../../components/ui/toast.js';
@@ -324,23 +325,20 @@ export function SettingsPage() {
         maxWidth="sm"
       >
         <form onSubmit={handlePasswordChange} className="space-y-4 py-2">
-          <Input
+          <PasswordInput
             label={t('auth.currentPassword')}
-            type="password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             required
           />
-          <Input
+          <PasswordInput
             label={t('auth.newPassword')}
-            type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             required
           />
-          <Input
+          <PasswordInput
             label={t('auth.confirmNewPassword')}
-            type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required

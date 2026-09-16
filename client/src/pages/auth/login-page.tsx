@@ -4,6 +4,7 @@ import { useAuth } from '../../context/auth-context.js';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card.js';
 import { Input } from '../../components/ui/input.js';
+import { PasswordInput } from '../../components/ui/password-input.js';
 import { Button } from '../../components/ui/button.js';
 import { User, Lock, Shield, KeyRound, ArrowRight, ArrowLeft, RefreshCw, UserPlus } from 'lucide-react';
 import { useToast } from '../../components/ui/toast.js';
@@ -51,6 +52,22 @@ export function LoginPage() {
         setCountdown(60);
         setOtpCode('');
         toast.info(t('auth.otpSentNotice') || 'Verification code sent to your email');
+        return;
+      }
+
+      if (res.requiresVerification) {
+        toast.info(
+          isRtl
+            ? 'حسابك يحتاج إلى تأكيد البريد الإلكتروني أولاً.'
+            : 'Your account requires email verification.'
+        );
+        navigate('/verify-email', {
+          state: {
+            userId: res.userId,
+            emailMasked: res.emailMasked,
+            devOtp: res.devOtp
+          }
+        });
         return;
       }
 
@@ -140,9 +157,8 @@ export function LoginPage() {
               disabled={isLoading}
             />
 
-            <Input
+            <PasswordInput
               label={t('auth.password')}
-              type="password"
               placeholder={t('auth.passwordPlaceholder')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}

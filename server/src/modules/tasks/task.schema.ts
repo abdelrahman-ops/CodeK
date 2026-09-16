@@ -41,7 +41,18 @@ export const listTasksQuerySchema = z.object({
   isPublished: z.boolean().optional()
 });
 
+export const bulkPublishTasksSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, 'At least one task ID is required'),
+  isPublished: z.boolean()
+});
+
+export const bulkDeleteTasksSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, 'At least one task ID is required')
+});
+
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 export type AssignTaskInput = z.infer<typeof assignTaskSchema>;
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
+export type BulkPublishTasksInput = z.infer<typeof bulkPublishTasksSchema>;
+export type BulkDeleteTasksInput = z.infer<typeof bulkDeleteTasksSchema>;

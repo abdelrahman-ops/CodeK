@@ -9,10 +9,13 @@ import { Button } from '../../components/ui/button.js';
 import { Input } from '../../components/ui/input.js';
 import { Badge } from '../../components/ui/badge.js';
 import { Dialog } from '../../components/ui/dialog.js';
+import { ConfirmDialog } from '../../components/ui/confirm-dialog.js';
 import { GroupSchedulePicker } from '../../components/groups/group-schedule-picker.js';
 import { CardSkeleton } from '../../components/ui/skeleton.js';
 import { useToast } from '../../components/ui/toast.js';
 import { localizeText, formatScheduleDisplay } from '../../lib/i18n-helpers.js';
+import { useBulkSelection } from '../../hooks/use-bulk-selection.js';
+import { BulkSelectionBar } from '../../components/shared/bulk-selection-bar.js';
 
 export function AdminGroupsPage() {
   const { t, i18n } = useTranslation();
@@ -22,6 +25,7 @@ export function AdminGroupsPage() {
   const queryClient = useQueryClient();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [schedules, setSchedules] = useState<any[]>([]);
@@ -33,6 +37,9 @@ export function AdminGroupsPage() {
     queryFn: async () => (await api.groups.list()).data.data
   });
 
+  const allGroups = groups || [];
+  const selection = useBulkSelection(allGroups);
+
   const createMutation = useMutation({
     mutationFn: async (data: any) => (await api.groups.create(data)).data.data,
     onSuccess: () => {
@@ -43,6 +50,43 @@ export function AdminGroupsPage() {
       setSchedules([]);
       setWhatsappGroupUrl('');
       toast.success(t('common.success'));
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (groupIds: string[]) => {
+      return (await api.groups.bulkDelete(groupIds)).data.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['groups'] });
+      selection.clear();
+      setIsBulkDeleteOpen(false);
+
+      if (data.failed && data.failed.length > 0) {
+        const failedNames = data.failed.map((f) => f.name).join(', ');
+        if (data.count > 0) {
+          toast.success(
+            isArabic
+              ? `تم حذف ${data.count} مجموعة. تعذر حذف (${failedNames}) لوجود حصص أو طلاب ملتحقين.`
+              : `Deleted ${data.count} groups. Could not delete (${failedNames}) due to active sessions or enrolled students.`
+          );
+        } else {
+          toast.error(
+            isArabic
+              ? `تعذر حذف المجموعات المحددة (${failedNames}) لوجود حصص أو طلاب ملتحقين.`
+              : `Could not delete selected groups (${failedNames}) due to active sessions or enrolled students.`
+          );
+        }
+      } else {
+        toast.success(
+          isArabic
+            ? `تم حذف ${data.count} مجموعة بنجاح`
+            : `Successfully deleted ${data.count} groups`
+        );
+      }
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.error?.message || t('common.error'));
@@ -81,21 +125,51 @@ export function AdminGroupsPage() {
         </Button>
       </div>
 
+      {/* Bulk Selection Bar */}
+      <BulkSelectionBar
+        totalItems={allGroups.length}
+        selectedCount={selection.selectedCount}
+        isAllSelected={selection.isAllSelected}
+        isIndeterminate={selection.isIndeterminate}
+        onToggleSelectAll={selection.toggleSelectAll}
+        onDeselectAll={selection.deselectAll}
+        onDeleteSelected={() => setIsBulkDeleteOpen(true)}
+        isLoading={bulkDeleteMutation.isPending}
+      />
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {groups?.map((group) => {
           const studentCount = group._count?.enrollments || 0;
           const isNearCapacity = studentCount >= group.maxCapacity;
+          const isSelected = selection.isSelected(group.id);
 
           return (
             <Card
               key={group.id}
               onClick={() => navigate(`/admin/groups/${group.id}`)}
-              className="p-6 flex flex-col justify-between gap-4 cursor-pointer hover:border-brand-500/60 dark:hover:border-brand-500/60 transition-all hover:shadow-md border-slate-200/80 dark:border-slate-800/80"
+              className={`p-6 flex flex-col justify-between gap-4 cursor-pointer hover:border-brand-500/60 dark:hover:border-brand-500/60 transition-all hover:shadow-md ${
+                isSelected
+                  ? 'ring-2 ring-brand-500/40 border-brand-400 bg-brand-50/10 dark:bg-brand-950/10'
+                  : 'border-slate-200/80 dark:border-slate-800/80'
+              }`}
             >
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="w-10 h-10 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center">
-                    <Presentation className="w-5 h-5" />
+                  <div className="flex items-center gap-2.5">
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => selection.toggle(group.id)}
+                        className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 cursor-pointer accent-brand-600"
+                      />
+                    </div>
+                    <div className="w-10 h-10 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center">
+                      <Presentation className="w-5 h-5" />
+                    </div>
                   </div>
                   <Badge variant={isNearCapacity ? 'danger' : 'primary'}>
                     {studentCount} / {group.maxCapacity} {t('roles.student')}
@@ -128,6 +202,25 @@ export function AdminGroupsPage() {
           );
         })}
       </div>
+
+      {/* Bulk Delete Groups Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={isBulkDeleteOpen}
+        onClose={() => setIsBulkDeleteOpen(false)}
+        onConfirm={() => bulkDeleteMutation.mutate(selection.selectedIds)}
+        title={
+          isArabic
+            ? `حذف ${selection.selectedCount} مجموعة؟`
+            : `Delete ${selection.selectedCount} groups?`
+        }
+        description={
+          isArabic
+            ? `هل أنت متأكد من حذف ${selection.selectedCount} مجموعة محددة؟ لا يمكن حذف المجموعات التي تحتوي على حصص دراسية سابقة أو طلاب ملتحقين حالياً.`
+            : `Are you sure you want to delete ${selection.selectedCount} selected groups? Groups with active class sessions or enrolled students cannot be deleted and will be skipped.`
+        }
+        isLoading={bulkDeleteMutation.isPending}
+        isDestructive={true}
+      />
 
       {/* Create Group Modal */}
       <Dialog
@@ -189,3 +282,4 @@ export function AdminGroupsPage() {
     </div>
   );
 }
+

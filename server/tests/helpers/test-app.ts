@@ -15,9 +15,19 @@ export async function getTestApp(): Promise<FastifyInstance> {
 
 export async function loginAdmin(testApp: FastifyInstance): Promise<string> {
   // Invalidate any existing pending OTP tokens for tests to avoid reuse with missing raw OTP
-  const adminUser = await prisma.user.findFirst({
-    where: { loginId: env.ADMIN_LOGIN_ID || 'ADM-001' }
-  });
+  let adminUser = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      adminUser = await prisma.user.findFirst({
+        where: { loginId: env.ADMIN_LOGIN_ID || 'ADM-001' }
+      });
+      break;
+    } catch (err) {
+      if (attempt === 3) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+  }
+
   if (adminUser) {
     await prisma.authToken.deleteMany({
       where: { userId: adminUser.id, type: 'ADMIN_LOGIN_OTP' }
@@ -34,6 +44,10 @@ export async function loginAdmin(testApp: FastifyInstance): Promise<string> {
   });
 
   const body = loginRes.json();
+  if (!body.data) {
+    throw new Error(`loginAdmin failed at /login: status=${loginRes.statusCode}, body=${JSON.stringify(body)}`);
+  }
+
   if (body.data?.requires2FA && body.data?.tempToken) {
     const otpRecord = await prisma.authToken.findFirst({
       where: { type: 'ADMIN_LOGIN_OTP' },
@@ -48,7 +62,11 @@ export async function loginAdmin(testApp: FastifyInstance): Promise<string> {
         otpCode
       }
     });
-    return verifyRes.json().data.accessToken;
+    const verifyBody = verifyRes.json();
+    if (!verifyBody.data) {
+      throw new Error(`loginAdmin failed at /verify-2fa: status=${verifyRes.statusCode}, body=${JSON.stringify(verifyBody)}`);
+    }
+    return verifyBody.data.accessToken;
   }
 
   return body.data.accessToken;

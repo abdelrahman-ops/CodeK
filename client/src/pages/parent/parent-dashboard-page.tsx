@@ -15,7 +15,10 @@ import {
   Clock,
   Presentation,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  BookOpen,
+  HelpCircle,
+  Activity
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card.js';
 import { Button } from '../../components/ui/button.js';
@@ -182,6 +185,64 @@ export function ParentDashboardPage() {
           icon={<CreditCard className="w-5 h-5 text-amber-600" />}
         />
       </div>
+
+      {/* Meaningful Learning Analytics (Phase 4) */}
+      {currentChild.learningAnalytics && (
+        <Card className="p-5 sm:p-6 space-y-4 border-slate-200/80 dark:border-slate-800/80 shadow-sm rounded-2xl">
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-brand-600 dark:text-brand-400" />
+            <CardTitle className="text-base font-black">
+              {t('dashboard.tier5Analytics', 'مستوى التقدم الدراسي والإحصائيات')}
+            </CardTitle>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+              <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.courseProgress')}</span>
+              <span className="text-lg font-black text-brand-600 dark:text-brand-400 mt-1 block">
+                {currentChild.learningAnalytics.courseProgress}%
+              </span>
+              <Progress value={currentChild.learningAnalytics.courseProgress} color="brand" className="h-1.5 mt-2" />
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+              <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.lessonsCompleted')}</span>
+              <span className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1 block">
+                {currentChild.learningAnalytics.lessonsCompleted.completed} / {currentChild.learningAnalytics.lessonsCompleted.total}
+              </span>
+              <Progress value={currentChild.learningAnalytics.lessonsCompleted.percentage} color="success" className="h-1.5 mt-2" />
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+              <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.tasksCompleted')}</span>
+              <span className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1 block">
+                {currentChild.learningAnalytics.tasksCompleted.completed} / {currentChild.learningAnalytics.tasksCompleted.total}
+              </span>
+              <Progress value={currentChild.learningAnalytics.tasksCompleted.percentage} color="accent" className="h-1.5 mt-2" />
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+              <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.quizPerformance')}</span>
+              <span className="text-lg font-black text-purple-600 dark:text-purple-400 mt-1 block">
+                {currentChild.learningAnalytics.quizPerformance.attempted > 0 ? `${currentChild.learningAnalytics.quizPerformance.averageScore}%` : '—'}
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-1">
+                {currentChild.learningAnalytics.quizPerformance.attempted} {t('exams.quiz', 'اختبار')}
+              </span>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
+              <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.examPerformance')}</span>
+              <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+                {currentChild.learningAnalytics.examPerformance.attempted > 0 ? `${currentChild.learningAnalytics.examPerformance.averageScore}%` : '—'}
+              </span>
+              <span className="text-[10px] text-slate-400 block mt-1">
+                {currentChild.learningAnalytics.examPerformance.attempted} {t('exams.title', 'امتحان')}
+              </span>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {/* 4-Dimension Skill Progression */}
       <Card className="p-5 sm:p-6 space-y-4 border-slate-200/80 dark:border-slate-800/80 shadow-sm">

@@ -14,6 +14,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { TableSkeleton } from '../../components/ui/skeleton.js';
 import { StatCard } from '../../components/ui/stat-card.js';
 import { useToast } from '../../components/ui/toast.js';
+import { useBulkSelection } from '../../hooks/use-bulk-selection.js';
+import { BulkSelectionBar } from '../../components/shared/bulk-selection-bar.js';
 import { Payment } from '../../types/api.js';
 import { localizeText, formatStatus, formatCurrency } from '../../lib/i18n-helpers.js';
 
@@ -82,6 +84,25 @@ export function AdminPaymentsPage() {
   });
 
   const payments = paymentsRes?.data || [];
+  const selection = useBulkSelection(payments);
+
+  const bulkStatusMutation = useMutation({
+    mutationFn: async ({ status }: { status: string }) => {
+      return (await api.payments.bulkStatus({
+        paymentIds: Array.from(selection.selectedIds),
+        status
+      })).data;
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['adminPayments'] });
+      queryClient.invalidateQueries({ queryKey: ['paymentSummary'] });
+      toast.success(vars.status === 'PAID' ? 'تم تحديد المدفوعات كمدفوعة بنجاح' : 'تم تحديد المدفوعات كغير مدفوعة بنجاح');
+      selection.deselectAll();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
 
   const recordMutation = useMutation({
     mutationFn: async (data: any) => (await api.payments.record(data)).data.data,
@@ -227,9 +248,46 @@ export function AdminPaymentsPage() {
         ))}
       </div>
 
+      <BulkSelectionBar
+        totalItems={payments.length}
+        selectedCount={selection.selectedCount}
+        isAllSelected={selection.isAllSelected}
+        isIndeterminate={selection.isIndeterminate}
+        onToggleSelectAll={selection.toggleSelectAll}
+        onDeselectAll={selection.deselectAll}
+        isLoading={bulkStatusMutation.isPending}
+        actions={[
+          {
+            id: 'mark-paid',
+            label: 'تحديد كمدفوع',
+            icon: <Check className="w-3.5 h-3.5" />,
+            variant: 'primary',
+            onClick: () => bulkStatusMutation.mutate({ status: 'PAID' })
+          },
+          {
+            id: 'mark-unpaid',
+            label: 'تحديد كغير مدفوع',
+            icon: <X className="w-3.5 h-3.5" />,
+            variant: 'secondary',
+            onClick: () => bulkStatusMutation.mutate({ status: 'UNPAID' })
+          }
+        ]}
+      />
+
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-12">
+              <input
+                type="checkbox"
+                checked={selection.isAllSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = selection.isIndeterminate;
+                }}
+                onChange={selection.toggleSelectAll}
+                className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 cursor-pointer"
+              />
+            </TableHead>
             <TableHead>{t('roles.student')}</TableHead>
             <TableHead>{t('payments.month')} / {t('payments.year')}</TableHead>
             <TableHead>{t('payments.amount')}</TableHead>
@@ -241,9 +299,18 @@ export function AdminPaymentsPage() {
           {payments?.map((p) => {
             const studentUser = p.student?.user;
             const isPaid = p.status === 'PAID';
+            const isSelected = selection.isSelected(p.id);
 
             return (
-              <TableRow key={p.id}>
+              <TableRow key={p.id} className={isSelected ? 'bg-brand-50/20 dark:bg-brand-950/20' : ''}>
+                <TableCell>
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => selection.toggle(p.id)}
+                    className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 cursor-pointer"
+                  />
+                </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar name={`${studentUser?.firstName} ${studentUser?.lastName}`} size="sm" />

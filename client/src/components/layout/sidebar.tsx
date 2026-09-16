@@ -58,7 +58,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     {
       labelKey: 'nav.groupLearning',
       items: [
-        { to: '/student/curriculum', labelKey: 'nav.curriculum', icon: BookOpen },
+        { to: '/student/courses', labelKey: 'nav.courses', icon: BookOpen },
         { to: '/student/tasks', labelKey: 'nav.tasks', icon: CheckSquare },
         { to: '/student/exams', labelKey: 'nav.exams', icon: GraduationCap }
       ]
@@ -75,6 +75,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     {
       labelKey: 'nav.groupAccount',
       items: [
+        { to: '/student/subscription', labelKey: 'nav.subscription', icon: CreditCard },
         { to: '/student/settings', labelKey: 'nav.settings', icon: Settings }
       ]
     }
@@ -127,6 +128,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     {
       labelKey: 'nav.groupFinancial',
       items: [
+        { to: '/admin/billing', labelKey: 'nav.billing', icon: CreditCard },
         { to: '/admin/payments', labelKey: 'nav.payments', icon: CreditCard },
         { to: '/admin/notifications', labelKey: 'nav.notifications', icon: Send },
         { to: '/admin/audit-logs', labelKey: 'nav.auditLogs', icon: History },

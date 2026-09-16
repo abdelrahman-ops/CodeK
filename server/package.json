@@ -15,6 +15,11 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:admin": "tsx prisma/seed-admin.ts",
+    "db:bootstrap:admin": "tsx scripts/bootstrap-admin.ts",
+    "seed:curriculum": "tsx prisma/seeds/official-curriculum-eb-part1.ts",
+    "seed:curriculum:dry-run": "tsx prisma/seeds/official-curriculum-eb-part1.ts --dry-run",
+    "audit:curriculum": "tsx prisma/seeds/official-curriculum-eb-part1.ts --audit",
+    "smoke-test": "tsx scripts/smoke-test.ts",
     "db:studio": "prisma studio"
   },
   "keywords": [
@@ -34,6 +39,7 @@
     "@fastify/rate-limit": "^9.1.0",
     "@fastify/swagger": "^8.14.0",
     "@fastify/swagger-ui": "^3.0.0",
+    "@mux/mux-node": "^15.1.0",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "bcryptjs": "^2.4.3",

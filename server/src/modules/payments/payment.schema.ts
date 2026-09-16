@@ -25,6 +25,13 @@ export const listPaymentsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50)
 });
 
+export const bulkPaymentStatusSchema = z.object({
+  paymentIds: z.array(z.string().uuid()).min(1, 'At least one payment ID is required'),
+  status: z.nativeEnum(PaymentStatus),
+  notes: z.string().optional().nullable()
+});
+
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 export type UpdatePaymentInput = z.infer<typeof updatePaymentSchema>;
 export type ListPaymentsQuery = z.infer<typeof listPaymentsQuerySchema>;
+export type BulkPaymentStatusInput = z.infer<typeof bulkPaymentStatusSchema>;

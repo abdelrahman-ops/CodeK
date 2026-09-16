@@ -1,11 +1,26 @@
 import { z } from 'zod';
 import { SubmissionStatus } from '@prisma/client';
 
+const safeHttpUrlSchema = z
+  .string()
+  .url({ message: 'Must be a valid URL' })
+  .refine(
+    (url) => {
+      try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+      } catch {
+        return false;
+      }
+    },
+    { message: 'URL protocol must be http: or https:' }
+  );
+
 export const createSubmissionSchema = z.object({
   taskId: z.string().uuid(),
   content: z.string().optional(),
-  fileUrl: z.string().url().optional().or(z.literal('')),
-  githubUrl: z.string().url().optional().or(z.literal(''))
+  fileUrl: safeHttpUrlSchema.optional().or(z.literal('')),
+  githubUrl: safeHttpUrlSchema.optional().or(z.literal(''))
 }).refine((data) => Boolean(data.content || data.fileUrl || data.githubUrl), {
   message: 'At least one submission field (content, fileUrl, or githubUrl) is required'
 });

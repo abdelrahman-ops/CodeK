@@ -3,7 +3,9 @@ import {
   createPublicRegistrationSchema,
   updateRegistrationSettingsSchema,
   updateRegistrationSchema,
-  approveRegistrationSchema
+  approveRegistrationSchema,
+  bulkRegistrationStatusSchema,
+  bulkApproveRegistrationsSchema
 } from './registration.schema.js';
 import {
   getPublicRegistrationStatus,
@@ -12,7 +14,9 @@ import {
   getAdminRegistrationById,
   updateAdminRegistration,
   approveRegistrationAndCreateStudent,
-  updateRegistrationSettings
+  updateRegistrationSettings,
+  bulkUpdateRegistrationStatus,
+  bulkApproveRegistrations
 } from './registration.service.js';
 import { authenticate } from '../../common/middleware/auth.js';
 import { requireAdmin } from '../../common/middleware/rbac.js';
@@ -102,6 +106,57 @@ export async function registrationRoutes(app: FastifyInstance) {
       return reply.send({
         success: true,
         data: settings
+      });
+    });
+
+    // Bulk Update Registration Status
+    adminRoutes.patch('/admin/registrations/bulk-status', async (req, reply) => {
+      const parseResult = bulkRegistrationStatusSchema.safeParse(req.body || {});
+      if (!parseResult.success) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid bulk status payload',
+            details: parseResult.error.flatten()
+          }
+        });
+      }
+
+      const result = await bulkUpdateRegistrationStatus(
+        parseResult.data.registrationIds,
+        parseResult.data.status,
+        parseResult.data.rejectionReason,
+        req.user!.userId
+      );
+      return reply.send({
+        success: true,
+        data: result
+      });
+    });
+
+    // Bulk Approve Registrations & Create Student Accounts
+    adminRoutes.post('/admin/registrations/bulk-approve', async (req, reply) => {
+      const parseResult = bulkApproveRegistrationsSchema.safeParse(req.body || {});
+      if (!parseResult.success) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid bulk approve payload',
+            details: parseResult.error.flatten()
+          }
+        });
+      }
+
+      const result = await bulkApproveRegistrations(
+        parseResult.data.registrationIds,
+        parseResult.data.groupId,
+        req.user!.userId
+      );
+      return reply.send({
+        success: true,
+        data: result
       });
     });
 

@@ -475,6 +475,7 @@ export async function approveRegistrationAndCreateStudent(
         loginId,
         passwordHash,
         mustChangePassword: true,
+        isEmailVerified: true,
         email: reg.email,
         phone: reg.phone,
         role: Role.STUDENT,
@@ -490,7 +491,9 @@ export async function approveRegistrationAndCreateStudent(
         studentCode: loginId,
         anonymousLeaderboardCode: anonymousCode,
         programmingLevel: reg.programmingLevel,
+        learningModeSelected: true,
         schoolName: reg.schoolName,
+        grade: reg.grade,
         dateOfBirth: reg.dateOfBirth
       }
     });
@@ -596,4 +599,71 @@ export async function updateRegistrationSettings(input: UpdateRegistrationSettin
   });
 
   return setting;
+}
+
+export async function bulkUpdateRegistrationStatus(
+  registrationIds: string[],
+  status: RegistrationStatus,
+  rejectionReason?: string | null,
+  actorUserId?: string
+) {
+  const result = await prisma.studentRegistration.updateMany({
+    where: { id: { in: registrationIds } },
+    data: {
+      status,
+      reviewedAt: new Date(),
+      reviewedByUserId: actorUserId,
+      ...(rejectionReason ? { rejectionReason } : {})
+    }
+  });
+
+  await createAuditLog({
+    actorUserId,
+    action: `REGISTRATIONS_BULK_${status}`,
+    entityType: 'StudentRegistration',
+    entityId: registrationIds[0] || null,
+    metadata: { count: result.count, registrationIds, status, rejectionReason }
+  });
+
+  return {
+    success: true,
+    count: result.count,
+    registrationIds
+  };
+}
+
+export async function bulkApproveRegistrations(
+  registrationIds: string[],
+  groupId?: string | null,
+  actorUserId?: string
+) {
+  const successful: Array<{ id: string; studentId: string; loginId: string }> = [];
+  const failed: Array<{ id: string; reason: string }> = [];
+
+  for (const regId of registrationIds) {
+    try {
+      const res = await approveRegistrationAndCreateStudent(regId, { groupId }, actorUserId || 'SYSTEM');
+      successful.push({
+        id: regId,
+        studentId: res.student.id,
+        loginId: res.credentials.loginId
+      });
+    } catch (err: any) {
+      failed.push({ id: regId, reason: err.message || 'Approval failed' });
+    }
+  }
+
+  await createAuditLog({
+    actorUserId,
+    action: 'REGISTRATIONS_BULK_APPROVED',
+    entityType: 'StudentRegistration',
+    entityId: registrationIds[0] || null,
+    metadata: { successfulCount: successful.length, failedCount: failed.length }
+  });
+
+  return {
+    success: failed.length === 0,
+    successful,
+    failed
+  };
 }

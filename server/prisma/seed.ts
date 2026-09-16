@@ -4,6 +4,11 @@ import { prisma } from '../src/db/prisma.js';
 import { env } from '../src/config/env.js';
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ SEED ABORTED: Database wiping / development seeding is strictly forbidden in production!');
+    process.exit(1);
+  }
+
   console.log('[Seed] Seeding CodeK database...');
 
   // Clean existing tables in reverse dependency order
@@ -47,6 +52,7 @@ async function main() {
       loginId: env.ADMIN_LOGIN_ID || 'ADM-001',
       passwordHash: adminPasswordHash,
       mustChangePassword: false,
+      isEmailVerified: true,
       role: Role.ADMIN,
       firstName: nameParts[0] || 'Admin',
       lastName: nameParts.slice(1).join(' ') || 'User',
@@ -101,6 +107,7 @@ async function main() {
         loginId: s.loginId,
         passwordHash: defaultPasswordHash,
         mustChangePassword: false,
+        isEmailVerified: true,
         role: Role.STUDENT,
         firstName: s.firstName,
         lastName: s.lastName,
@@ -114,6 +121,7 @@ async function main() {
         studentCode: s.loginId,
         anonymousLeaderboardCode: s.anon,
         programmingLevel: Difficulty.BEGINNER,
+        learningModeSelected: true,
         totalXp: s.xp,
         currentStreak: s.streak,
         lastActiveDate: new Date()
@@ -137,6 +145,7 @@ async function main() {
       loginId: 'PAR-2001',
       passwordHash: parentPasswordHash,
       mustChangePassword: false,
+      isEmailVerified: true,
       role: Role.PARENT,
       firstName: 'Hassan',
       lastName: 'Ali',
@@ -164,6 +173,7 @@ async function main() {
       loginId: 'PAR-2002',
       passwordHash: parentPasswordHash,
       mustChangePassword: false,
+      isEmailVerified: true,
       role: Role.PARENT,
       firstName: 'Mona',
       lastName: 'Adel',

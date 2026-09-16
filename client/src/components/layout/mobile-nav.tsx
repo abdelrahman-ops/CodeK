@@ -34,14 +34,15 @@ export function MobileNav() {
   const role = user.role.toLowerCase();
 
   const studentPrimary = [
-    { to: '/student/today', label: t('nav.today'), icon: CalendarCheck2 },
-    { to: '/student/curriculum', label: t('nav.curriculum'), icon: BookOpen },
+    { to: '/student', label: t('nav.home'), icon: LayoutDashboard },
+    { to: '/student/courses', label: t('nav.courses'), icon: BookOpen },
     { to: '/student/tasks', label: t('nav.tasks'), icon: CheckSquare },
-    { to: '/student/leaderboard', label: t('nav.leaderboard'), icon: Trophy }
+    { to: '/student/subscription', label: t('nav.subscription'), icon: CreditCard }
   ];
 
   const studentMore = [
-    { to: '/student', label: t('nav.home'), icon: LayoutDashboard },
+    { to: '/student/today', label: t('nav.today'), icon: CalendarCheck2 },
+    { to: '/student/leaderboard', label: t('nav.leaderboard'), icon: Trophy },
     { to: '/student/my-group', label: t('nav.myGroup'), icon: Users2 },
     { to: '/student/achievements', label: t('nav.achievements'), icon: Award },
     { to: '/student/progress', label: t('nav.progress'), icon: TrendingUp },
@@ -68,6 +69,7 @@ export function MobileNav() {
     { to: '/admin/curriculum', label: t('nav.curriculum'), icon: BookOpen },
     { to: '/admin/tasks', label: t('nav.tasks'), icon: CheckSquare },
     { to: '/admin/leaderboard', label: t('nav.leaderboard'), icon: Trophy },
+    { to: '/admin/billing', label: t('nav.billing'), icon: CreditCard },
     { to: '/admin/payments', label: t('nav.payments'), icon: CreditCard },
     { to: '/admin/settings', label: t('nav.settings'), icon: Settings }
   ];

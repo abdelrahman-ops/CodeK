@@ -17,6 +17,7 @@ export async function listStudents(query: ListStudentsQuery) {
           }
         }
       : {}),
+    ...(query.grade ? { grade: query.grade } : {}),
     ...(search
       ? {
           user: {
@@ -53,6 +54,17 @@ export async function listStudents(query: ListStudentsQuery) {
         enrollments: {
           where: { isActive: true },
           include: { group: true }
+        },
+        subscriptions: {
+          orderBy: { currentPeriodEnd: 'desc' },
+          take: 1,
+          select: {
+            id: true,
+            status: true,
+            currentPeriodStart: true,
+            currentPeriodEnd: true,
+            plan: { select: { id: true, name: true, code: true, price: true } }
+          }
         }
       }
     })
@@ -104,6 +116,17 @@ export async function getStudentById(
       },
       achievements: {
         include: { achievement: true }
+      },
+      subscriptions: {
+        orderBy: { currentPeriodEnd: 'desc' },
+        take: 1,
+        select: {
+          id: true,
+          status: true,
+          currentPeriodStart: true,
+          currentPeriodEnd: true,
+          plan: { select: { id: true, name: true, code: true, price: true } }
+        }
       }
     }
   });
@@ -151,6 +174,8 @@ export async function getStudentProgress(
   if (!student) throw new NotFoundError('Student not found');
 
   const activeGroupId = student.enrollments[0]?.groupId;
+  const gradeScope = student.grade ? { curriculum: { grade: student.grade } } : { curriculum: { id: '__NONE__' } };
+  const lessonGradeScope = student.grade ? { lesson: gradeScope } : { lesson: { curriculum: { id: '__NONE__' } } };
 
   const [
     totalLessons,
@@ -159,33 +184,38 @@ export async function getStudentProgress(
     totalProjects,
     approvedSubmissions,
     totalSessions,
-    presentAttendances
+    presentAttendances,
+    completedLessonsCount,
+    allExamAttempts
   ] = await Promise.all([
-    // Total published lessons in curriculum
-    prisma.lesson.count({ where: { isPublished: true } }),
-    // Total assigned daily tasks
+    // Total published lessons in curriculum for student's grade
+    prisma.lesson.count({ where: { isPublished: true, ...gradeScope } }),
+    // Total assigned daily tasks for student's grade
     prisma.task.count({
       where: {
         taskType: TaskType.DAILY_TASK,
         isPublished: true,
+        ...lessonGradeScope,
         OR: [
           { assignments: { none: {} } },
           ...(activeGroupId ? [{ assignments: { some: { groupId: activeGroupId } } }] : [])
         ]
       }
     }),
-    // Total challenges
+    // Total challenges for student's grade
     prisma.task.count({
       where: {
         taskType: { in: [TaskType.CHALLENGE, TaskType.WEEKLY_CHALLENGE] },
-        isPublished: true
+        isPublished: true,
+        ...lessonGradeScope
       }
     }),
-    // Total projects
+    // Total projects for student's grade
     prisma.task.count({
       where: {
         taskType: TaskType.PROJECT,
-        isPublished: true
+        isPublished: true,
+        ...lessonGradeScope
       }
     }),
     // Student's approved submissions
@@ -211,6 +241,22 @@ export async function getStudentProgress(
         studentId,
         status: AttendanceStatus.PRESENT
       }
+    }),
+    // Completed lessons count
+    prisma.studentLessonProgress.count({
+      where: {
+        studentId,
+        status: 'COMPLETED',
+        ...lessonGradeScope
+      }
+    }),
+    // Student's exam & quiz attempts
+    prisma.examAttempt.findMany({
+      where: {
+        studentId,
+        ...(student.grade ? { exam: { curriculum: { grade: student.grade } } } : { exam: { curriculum: { id: '__NONE__' } } })
+      },
+      include: { exam: { select: { id: true, title: true, isQuiz: true } } }
     })
   ]);
 
@@ -235,6 +281,17 @@ export async function getStudentProgress(
   // Classroom Attendance Rate
   const attendancePercentage = totalSessions > 0 ? Math.min(100, Math.round((presentAttendanceCount / totalSessions) * 100)) : (presentAttendanceCount > 0 ? 100 : 0);
 
+  // Meaningful Learning Analytics (Phase 4)
+  const courseProgressPercentage = totalLessons > 0 ? Math.min(100, Math.round((completedLessonsCount / totalLessons) * 100)) : 0;
+  const totalTasksCount = totalDailyTasks + totalChallenges + totalProjects;
+  const tasksCompletedPercentage = totalTasksCount > 0 ? Math.min(100, Math.round((approvedSubmissions.length / totalTasksCount) * 100)) : 0;
+
+  const quizAttempts = allExamAttempts.filter((a) => a.exam.isQuiz);
+  const avgQuizScore = quizAttempts.length > 0 ? Math.round(quizAttempts.reduce((sum, a) => sum + a.percentage, 0) / quizAttempts.length) : 0;
+
+  const realExamAttempts = allExamAttempts.filter((a) => !a.exam.isQuiz);
+  const avgExamScore = realExamAttempts.length > 0 ? Math.round(realExamAttempts.reduce((sum, a) => sum + a.percentage, 0) / realExamAttempts.length) : 0;
+
   return {
     studentId,
     metrics: {
@@ -244,6 +301,27 @@ export async function getStudentProgress(
       projects: projectsPercentage,
       attendance: attendancePercentage
     },
+    learningAnalytics: {
+      courseProgress: courseProgressPercentage,
+      lessonsCompleted: {
+        completed: completedLessonsCount,
+        total: totalLessons,
+        percentage: courseProgressPercentage
+      },
+      tasksCompleted: {
+        completed: approvedSubmissions.length,
+        total: totalTasksCount,
+        percentage: tasksCompletedPercentage
+      },
+      quizPerformance: {
+        attempted: quizAttempts.length,
+        averageScore: avgQuizScore
+      },
+      examPerformance: {
+        attempted: realExamAttempts.length,
+        averageScore: avgExamScore
+      }
+    },
     counts: {
       approvedDailyTasks: approvedDailyCount,
       totalDailyTasks,
@@ -252,7 +330,9 @@ export async function getStudentProgress(
       approvedProjects: approvedProjectCount,
       totalProjects,
       presentSessions: presentAttendanceCount,
-      totalCompletedSessions: totalSessions
+      totalCompletedSessions: totalSessions,
+      completedLessons: completedLessonsCount,
+      totalLessons
     }
   };
 }
@@ -269,6 +349,7 @@ export async function updateStudent(
     where: { id: studentId },
     data: {
       programmingLevel: input.programmingLevel,
+      grade: input.grade !== undefined ? input.grade : undefined,
       schoolName: input.schoolName !== undefined ? input.schoolName : undefined,
       dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined
     }
@@ -373,6 +454,174 @@ export async function resetStudentPassword(
     groupName: activeGroup?.name || null,
     groupSchedule: activeGroup?.scheduleInfo || null,
     whatsappGroupUrl: activeGroup?.whatsappGroupUrl || null
+  };
+}
+
+export async function bulkUpdateStudentStatus(
+  studentIds: string[],
+  isActive: boolean,
+  actorUserId?: string
+) {
+  const students = await prisma.student.findMany({
+    where: { id: { in: studentIds } },
+    select: { id: true, userId: true }
+  });
+
+  const userIds = students.map((s) => s.userId);
+
+  await prisma.user.updateMany({
+    where: { id: { in: userIds } },
+    data: { isActive }
+  });
+
+  await createAuditLog({
+    actorUserId,
+    action: isActive ? 'STUDENTS_BULK_ACTIVATED' : 'STUDENTS_BULK_DEACTIVATED',
+    entityType: 'Student',
+    entityId: studentIds[0] || null,
+    metadata: { count: students.length, studentIds, isActive }
+  });
+
+  return {
+    success: true,
+    count: students.length,
+    studentIds: students.map((s) => s.id)
+  };
+}
+
+export async function bulkAssignGroup(
+  studentIds: string[],
+  groupId: string | null,
+  actorUserId?: string
+) {
+  if (groupId) {
+    const group = await prisma.group.findUnique({ where: { id: groupId } });
+    if (!group) throw new NotFoundError('Class group not found');
+  }
+
+  const results: Array<{ id: string; success: boolean; error?: string }> = [];
+
+  for (const studentId of studentIds) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        // Deactivate existing active enrollments
+        await tx.groupEnrollment.updateMany({
+          where: { studentId, isActive: true },
+          data: { isActive: false }
+        });
+
+        // If assigning to a new group, create or reactivate enrollment
+        if (groupId) {
+          const existing = await tx.groupEnrollment.findFirst({
+            where: { studentId, groupId }
+          });
+
+          if (existing) {
+            await tx.groupEnrollment.update({
+              where: { id: existing.id },
+              data: { isActive: true }
+            });
+          } else {
+            await tx.groupEnrollment.create({
+              data: { studentId, groupId, isActive: true }
+            });
+          }
+        }
+      });
+      results.push({ id: studentId, success: true });
+    } catch (err: any) {
+      results.push({ id: studentId, success: false, error: err.message });
+    }
+  }
+
+  const successful = results.filter((r) => r.success).map((r) => r.id);
+  const failed = results.filter((r) => !r.success).map((r) => ({ id: r.id, reason: r.error || 'Failed to assign group' }));
+
+  await createAuditLog({
+    actorUserId,
+    action: 'STUDENTS_BULK_GROUP_ASSIGNED',
+    entityType: 'Student',
+    entityId: groupId || 'unassigned',
+    metadata: { groupId, successfulCount: successful.length, failedCount: failed.length }
+  });
+
+  return {
+    success: failed.length === 0,
+    successful,
+    failed
+  };
+}
+
+export async function bulkDeleteStudents(
+  studentIds: string[],
+  actorUserId?: string
+) {
+  const successful: string[] = [];
+  const failed: Array<{ id: string; reason: string }> = [];
+
+  for (const studentId of studentIds) {
+    try {
+      const student = await prisma.student.findUnique({
+        where: { id: studentId },
+        include: {
+          user: true,
+          _count: {
+            select: {
+              subscriptions: true,
+              paymentTransactions: true,
+              payments: true,
+              attendances: true,
+              submissions: true,
+              examAttempts: true
+            }
+          }
+        }
+      });
+
+      if (!student) {
+        failed.push({ id: studentId, reason: 'Student not found' });
+        continue;
+      }
+
+      const totalHistoryRecords =
+        student._count.subscriptions +
+        student._count.paymentTransactions +
+        student._count.payments +
+        student._count.attendances +
+        student._count.submissions +
+        student._count.examAttempts;
+
+      if (totalHistoryRecords > 0) {
+        failed.push({
+          id: studentId,
+          reason: `Cannot delete student with historical records (${student._count.subscriptions} subs, ${student._count.payments} payments, ${student._count.attendances} attendances, ${student._count.submissions} submissions). Deactivate instead.`
+        });
+        continue;
+      }
+
+      // Safe to delete student and user
+      await prisma.user.delete({
+        where: { id: student.userId }
+      });
+
+      successful.push(studentId);
+    } catch (err: any) {
+      failed.push({ id: studentId, reason: err.message || 'Deletion failed' });
+    }
+  }
+
+  await createAuditLog({
+    actorUserId,
+    action: 'STUDENTS_BULK_DELETED',
+    entityType: 'Student',
+    entityId: studentIds[0] || null,
+    metadata: { successfulCount: successful.length, failedCount: failed.length }
+  });
+
+  return {
+    success: failed.length === 0,
+    successful,
+    failed
   };
 }
 

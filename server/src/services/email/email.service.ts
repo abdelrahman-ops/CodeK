@@ -10,6 +10,7 @@ export interface SendEmailOptions {
 
 export interface IEmailService {
   sendAdminLoginOtp(toEmail: string, otpCode: string, adminName: string): Promise<boolean>;
+  sendEmailVerificationOtp(toEmail: string, otpCode: string, studentName: string): Promise<boolean>;
   sendMail(options: SendEmailOptions): Promise<boolean>;
 }
 
@@ -194,6 +195,118 @@ If you did not request this login, please secure your account immediately.
     return this.sendMail({
       to: toEmail,
       subject: `[CodeK] ${otpCode} is your Admin Login Verification Code`,
+      text,
+      html
+    });
+  }
+
+  async sendEmailVerificationOtp(toEmail: string, otpCode: string, studentName: string): Promise<boolean> {
+    const isDevelopment = env.NODE_ENV !== 'production';
+
+    // Development Console Visual Box for clear visibility during local testing
+    if (isDevelopment || !this.isConfigured) {
+      console.log('\n============================================================');
+      console.log('📧 [EMAIL NOTIFICATION] — CodeK Email Verification Code');
+      console.log('============================================================');
+      console.log(`To:         ${toEmail} (${studentName})`);
+      console.log(`Subject:    Verify Your CodeK Academy Account`);
+      console.log(`Expires In: 10 minutes`);
+      console.log('------------------------------------------------------------');
+      console.log(`🔐 Verification Code: [ ${otpCode} ]`);
+      console.log('============================================================\n');
+    }
+
+    const html = `
+<!DOCTYPE html>
+<html dir="ltr" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your CodeK Account</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #f8fafc;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #0f172a; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" max-width="560" border="0" cellspacing="0" cellpadding="0" style="max-width: 560px; background-color: #1e293b; border-radius: 20px; border: 1px solid #334155; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 32px 32px 20px 32px; text-align: center; background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); border-bottom: 1px solid #334155;">
+              <div style="display: inline-block; width: 48px; height: 48px; line-height: 48px; border-radius: 14px; background: #6366f1; color: #ffffff; font-weight: 900; font-size: 22px; text-align: center; margin-bottom: 12px;">
+                C
+              </div>
+              <h1 style="margin: 0; font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">CodeK Academy</h1>
+              <p style="margin: 4px 0 0 0; font-size: 13px; color: #94a3b8;">Email Address Verification</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding: 32px;">
+              <p style="margin: 0 0 16px 0; font-size: 15px; color: #cbd5e1; line-height: 1.6;">
+                Welcome to CodeK Academy, <strong style="color: #ffffff;">${studentName}</strong>!
+              </p>
+              <p style="margin: 0 0 24px 0; font-size: 14px; color: #94a3b8; line-height: 1.6;">
+                Thank you for joining. Please use the 6-digit verification code below to verify your email address and activate your account:
+              </p>
+
+              <!-- OTP Code Display -->
+              <div style="background-color: #0f172a; border: 1px solid #4338ca; border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 24px;">
+                <span style="font-family: 'Courier New', Courier, monospace; font-size: 36px; font-weight: 900; letter-spacing: 12px; color: #818cf8; display: inline-block; margin-left: 12px;">
+                  ${otpCode}
+                </span>
+                <div style="margin-top: 8px; font-size: 12px; font-weight: 600; color: #a5b4fc;">
+                  Valid for 10 minutes • Single Use Only
+                </div>
+              </div>
+
+              <!-- Notice -->
+              <div style="background-color: #1e1b4b; border: 1px solid #3730a3; border-radius: 12px; padding: 14px; margin-bottom: 24px;">
+                <p style="margin: 0; font-size: 12px; color: #c7d2fe; line-height: 1.5;">
+                  If you did not sign up for CodeK Academy, you can safely ignore this email.
+                </p>
+              </div>
+
+              <p style="margin: 0; font-size: 13px; color: #64748b; line-height: 1.5;">
+                Best regards,<br>
+                <strong style="color: #94a3b8;">The CodeK Academy Team</strong>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 32px; background-color: #0f172a; border-top: 1px solid #334155; text-align: center;">
+              <p style="margin: 0; font-size: 11px; color: #64748b;">
+                This is an automated system email from CodeK Academy. Please do not reply directly to this message.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+
+    const text = `
+CodeK Academy - Verify Your Email
+---------------------------------
+Hello ${studentName},
+
+Welcome to CodeK Academy! Your email verification code is: ${otpCode}
+
+This code is valid for 10 minutes and can only be used once.
+
+If you did not sign up for an account, please ignore this email.
+
+- The CodeK Academy Team
+`;
+
+    return this.sendMail({
+      to: toEmail,
+      subject: `[CodeK] ${otpCode} is your email verification code`,
       text,
       html
     });

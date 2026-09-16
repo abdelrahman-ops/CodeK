@@ -26,6 +26,11 @@ export const listSessionsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20)
 });
 
+export const bulkDeleteSessionsSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, 'At least one session ID is required')
+});
+
 export type CreateSessionInput = z.infer<typeof createSessionSchema>;
 export type UpdateSessionInput = z.infer<typeof updateSessionSchema>;
 export type ListSessionsQuery = z.infer<typeof listSessionsQuerySchema>;
+export type BulkDeleteSessionsInput = z.infer<typeof bulkDeleteSessionsSchema>;

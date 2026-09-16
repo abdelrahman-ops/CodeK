@@ -9,6 +9,7 @@ export interface TokenPayload {
   role: Role;
   studentId?: string;
   parentId?: string;
+  isEmailVerified?: boolean;
 }
 
 export function signAccessToken(payload: TokenPayload): string {

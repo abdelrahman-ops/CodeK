@@ -28,6 +28,7 @@ export interface User {
   avatarUrl?: string | null;
   isActive: boolean;
   mustChangePassword: boolean;
+  isEmailVerified: boolean;
   createdAt?: string;
   student?: StudentProfile | null;
   parent?: ParentProfile | null;
@@ -41,10 +42,21 @@ export interface StudentProfile {
   programmingLevel: Difficulty;
   totalXp: number;
   currentStreak: number;
+  attendanceRequired?: boolean;
+  learningModeSelected?: boolean;
   schoolName?: string | null;
+  grade?: string | null;
   dateOfBirth?: string | null;
   enrollments?: GroupEnrollment[];
   achievements?: StudentAchievement[];
+  subscriptions?: Array<{
+    id: string;
+    status: SubscriptionStatus;
+    currentPeriodStart: string;
+    currentPeriodEnd: string;
+    plan?: { id: string; name: string; code: string; price: number };
+  }>;
+  user?: User;
 }
 
 export interface ParentProfile {
@@ -157,17 +169,98 @@ export interface AttendanceRosterItem {
   notes?: string | null;
 }
 
+export type LessonAccessType =
+  | 'ATTENDANCE_REQUIRED'
+  | 'FREE'
+  | 'ENROLLED'
+  | 'SUBSCRIPTION_REQUIRED'
+  | 'ADMIN_GRANTED';
+
+export type LessonProgressStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+
+export type ContentAuthority = 'OFFICIAL' | 'DERIVED' | 'PROPOSED';
+
+export interface ConceptCard {
+  id?: string;
+  title: string;
+  explanation?: string;
+  keyConcept?: string;
+  summary?: string;
+  takeaway?: string;
+  terminology?: string[];
+  ministryReference?: string;
+  curriculumPage?: number | string;
+}
+
+export interface VideoBlueprint {
+  id: string;
+  code?: string | null;
+  provider: string; // 'CLOUDFLARE_STREAM' | 'MOCK' | 'EXTERNAL'
+  providerVideoId: string;
+  title?: string | null;
+  durationSeconds?: number | null;
+  thumbnailUrl?: string | null;
+  playbackUrl?: string | null;
+  authority?: ContentAuthority;
+  metadata?: Record<string, any> | null;
+}
+
+export interface Section {
+  id: string;
+  curriculumId: string;
+  code?: string | null;
+  title: string;
+  description?: string | null;
+  order: number;
+  authority?: ContentAuthority;
+  isPublished: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lessons?: Lesson[];
+  _count?: {
+    lessons: number;
+  };
+}
+
+export interface StudentLessonProgress {
+  id: string;
+  studentId: string;
+  lessonId: string;
+  status: LessonProgressStatus;
+  progressPercentage: number;
+  lastWatchedPosition: number;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface CourseProgress {
+  curriculumId: string;
+  totalLessons: number;
+  completedLessons: number;
+  percentage: number;
+  status: LessonProgressStatus;
+}
+
+export type StudentGrade = 'GRADE_1' | 'GRADE_2' | 'GRADE_3';
+
 export interface Curriculum {
   id: string;
+  code?: string | null;
   title: string;
   description?: string | null;
   type: 'OFFICIAL_EB' | 'ACADEMY';
+  grade?: StudentGrade;
   track?: string | null;
+  academicYear?: string | null;
+  term?: string | null;
+  authority?: ContentAuthority;
   isPublished: boolean;
+  sections?: Section[];
   lessons?: Lesson[];
   exams?: Exam[];
   _count?: {
     lessons: number;
+    sections?: number;
     exams: number;
   };
 }
@@ -176,25 +269,88 @@ export interface Lesson {
   id: string;
   curriculumId: string;
   curriculum?: Curriculum;
+  sectionId?: string | null;
+  section?: Section | null;
+  code?: string | null;
   title: string;
   description?: string | null;
   content: string | null;
+  conceptCards?: ConceptCard[] | null;
+  pageRange?: string | null;
+  authority?: ContentAuthority;
   difficulty: Difficulty;
   estimatedDurationMinutes: number;
   order: number;
   isPublished: boolean;
+  isFree?: boolean;
+  accessType?: LessonAccessType;
+  videoUrl?: string | null;
+  videoDurationSeconds?: number | null;
   externalResourceUrl?: string | null;
   externalResourceTitle?: string | null;
   isLocked?: boolean;
   lockReason?: string | null;
+  lockMessage?: string | null;
+  lockMessageAr?: string | null;
+  lockMessageEn?: string | null;
+  videoId?: string | null;
+  video?: VideoAsset | null;
+  videoBlueprint?: VideoBlueprint | null;
   tasks?: Task[];
+  engineeringTask?: Task | null;
+  advancedChallenge?: Task | null;
   taskCount?: number;
+  exams?: Exam[];
+  quiz?: Exam | null;
+  nextSteps?: {
+    quiz?: Exam | null;
+    exam?: Exam | null;
+    task?: Task | null;
+    project?: Task | null;
+    nextLesson?: { id: string; title: string; order: number } | null;
+  } | null;
+  progress?: StudentLessonProgress | null;
+}
+
+export type VideoAssetStatus = 'PENDING_UPLOAD' | 'PROCESSING' | 'READY' | 'ERROR';
+
+export interface VideoAsset {
+  id: string;
+  provider: string; // 'MUX' | 'CLOUDFLARE_STREAM' | 'MOCK' | 'EXTERNAL'
+  providerVideoId: string;
+  uploadId?: string | null;
+  playbackId?: string | null;
+  title?: string | null;
+  durationSeconds?: number | null;
+  thumbnailUrl?: string | null;
+  playbackUrl?: string | null;
+  errorMessage?: string | null;
+  isPrivate: boolean;
+  status: VideoAssetStatus;
+  metadata?: Record<string, any> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlaybackInfo {
+  provider: string;
+  providerVideoId: string;
+  playbackId?: string;
+  token?: string;
+  playbackUrl: string | null;
+  thumbnailUrl?: string;
+  hlsUrl?: string;
+  dashUrl?: string;
+  durationSeconds?: number;
+  isPrivate: boolean;
+  expiresAt?: string;
 }
 
 export interface Task {
   id: string;
   lessonId?: string | null;
   lesson?: Lesson | null;
+  code?: string | null;
   title: string;
   description: string;
   instructions: string;
@@ -202,6 +358,7 @@ export interface Task {
   difficulty: Difficulty;
   estimatedDurationMinutes: number;
   xpReward: number;
+  authority?: ContentAuthority;
   isPublished: boolean;
   assignments?: TaskAssignment[];
   assignment?: TaskAssignment | null;
@@ -238,12 +395,17 @@ export interface Submission {
 
 export interface Exam {
   id: string;
+  code?: string | null;
   title: string;
   description?: string | null;
   curriculumId?: string | null;
   curriculum?: Curriculum | null;
   groupId?: string | null;
   group?: Group | null;
+  lessonId?: string | null;
+  lesson?: Lesson | null;
+  isQuiz?: boolean;
+  authority?: ContentAuthority;
   startsAt: string;
   endsAt: string;
   durationMinutes: number;
@@ -416,7 +578,22 @@ export interface StudentDashboardData {
     programmingLevel: Difficulty;
     totalXp: number;
     currentStreak: number;
+    attendanceRequired?: boolean;
     activeGroup: Group | null;
+  };
+  subscription?: {
+    id: string | null;
+    status: string;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    cancelAtPeriodEnd: boolean;
+    isActive: boolean;
+    plan?: {
+      id: string;
+      name: string;
+      price: number;
+      currency: string;
+    } | null;
   };
   todaySession: {
     sessionId: string;
@@ -439,6 +616,16 @@ export interface StudentDashboardData {
     content?: string | null;
     tasks?: Task[];
   }[];
+  continueLearning?: {
+    courseId: string;
+    courseTitle: string;
+    lessonId: string;
+    lessonTitle: string;
+    progressPercentage: number;
+    lastWatchedPosition: number;
+    status: string;
+  } | null;
+  upcomingQuizOrExam?: (Exam & { isStarted?: boolean }) | null;
   tasks: {
     id: string;
     title: string;
@@ -463,10 +650,17 @@ export interface StudentDashboardData {
     curriculum: number;
     attendance: number;
   };
+  learningAnalytics?: LearningAnalytics;
   rank: {
     rank: number;
     monthlyXp: number;
   } | null;
+  leaderboardPreview?: {
+    rank: number;
+    anonymousCode: string;
+    monthlyXp: number;
+    isCurrentStudent: boolean;
+  }[];
   achievements: {
     id: string;
     name: string;
@@ -474,6 +668,28 @@ export interface StudentDashboardData {
     unlockedAt: string;
   }[];
   recentNotifications: NotificationItem[];
+}
+
+export interface LearningAnalytics {
+  courseProgress: number;
+  lessonsCompleted: {
+    completed: number;
+    total: number;
+    percentage: number;
+  };
+  tasksCompleted: {
+    completed: number;
+    total: number;
+    percentage: number;
+  };
+  quizPerformance: {
+    attempted: number;
+    averageScore: number;
+  };
+  examPerformance: {
+    attempted: number;
+    averageScore: number;
+  };
 }
 
 export interface ParentChildSummary {
@@ -493,6 +709,7 @@ export interface ParentChildSummary {
     curriculum: number;
     attendance: number;
   };
+  learningAnalytics?: LearningAnalytics;
   counts: {
     approvedDailyTasks: number;
     totalDailyTasks: number;
@@ -585,10 +802,43 @@ export interface LoginResponse {
   requires2FA: boolean;
   tempToken?: string;
   emailMasked?: string;
+  requiresVerification?: boolean;
+  userId?: string;
+  devOtp?: string;
   user?: User;
   accessToken?: string;
   refreshToken?: string;
   mustChangePassword?: boolean;
+}
+
+export interface RegisterStudentInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  phone?: string;
+  grade?: string;
+  programmingLevel?: Difficulty;
+  website?: string;
+}
+
+export interface RegisterResponse {
+  requiresVerification: boolean;
+  userId: string;
+  emailMasked: string;
+  devOtp?: string;
+  user?: User;
+  accessToken?: string;
+  refreshToken?: string;
+  assignedPlan?: {
+    id: string;
+    code: string;
+    name: string;
+    price: number;
+    currency: string;
+    billingInterval: string;
+    grade?: string;
+  };
 }
 
 export interface ResetStudentPasswordResponse {
@@ -730,4 +980,167 @@ export interface ApproveRegistrationResponse {
   };
 }
 
+export type AccessGrantScope = 'ALL_ACCESS' | 'COURSE' | 'LESSON';
 
+export type LessonAccessReason =
+  | 'FREE_PREVIEW'
+  | 'ENROLLED'
+  | 'SUBSCRIPTION_REQUIRED'
+  | 'ADMIN_GRANTED'
+  | 'ATTENDANCE_REQUIRED'
+  | 'NOT_ENROLLED';
+
+export interface LessonAccessDecision {
+  allowed: boolean;
+  reason: LessonAccessReason;
+  isFreePreview: boolean;
+  lesson?: {
+    id: string;
+    title?: string;
+    curriculumId?: string;
+    isFree: boolean;
+    accessType: LessonAccessType;
+  };
+  grant?: {
+    id: string;
+    scope: AccessGrantScope;
+    reason: string;
+    validUntil: string | null;
+  } | null;
+  lockMessageAr?: string | null;
+  lockMessageEn?: string | null;
+}
+
+export interface EducationalAccessGrant {
+  id: string;
+  studentId: string;
+  scope: AccessGrantScope;
+  curriculumId?: string | null;
+  lessonId?: string | null;
+  grantedByUserId?: string | null;
+  reason: string;
+  validFrom: string;
+  validUntil?: string | null;
+  isActive: boolean;
+  revokedAt?: string | null;
+  revokedReason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  student?: {
+    studentCode: string;
+    user: {
+      firstName: string;
+      lastName: string;
+      email?: string | null;
+      loginId: string;
+    };
+  };
+  curriculum?: { id: string; title: string };
+  lesson?: { id: string; title: string };
+  grantedByUser?: { id: string; firstName: string; lastName: string };
+}
+
+export interface PlanBenefit {
+  id: string;
+  textAr: string;
+  textEn?: string;
+  icon?: string;
+  sortOrder: number;
+}
+
+export interface SubscriptionPlan {
+  id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  price: number;
+  currency: string;
+  billingInterval: string;
+  isActive: boolean;
+  features?: (string | PlanBenefit)[] | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type SubscriptionStatus = 'ACTIVE' | 'PAST_DUE' | 'CANCELED' | 'EXPIRED' | 'TRIALING';
+
+export interface Subscription {
+  id: string;
+  studentId: string;
+  planId: string;
+  plan?: SubscriptionPlan;
+  status: SubscriptionStatus;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  canceledAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Phase 6 & 8: Billing & Payment Types ─────────────────
+
+export type PaymentTransactionStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REFUNDED' | 'CANCELLED' | 'EXPIRED' | 'REJECTED';
+
+export interface PaymentTransaction {
+  id: string;
+  subscriptionId?: string | null;
+  subscription?: {
+    id: string;
+    status: SubscriptionStatus;
+    currentPeriodStart: string;
+    currentPeriodEnd: string;
+  } | null;
+  studentId: string;
+  planId?: string | null;
+  plan?: { id: string; name: string; code: string; price?: number } | null;
+  provider?: string | null;
+  providerTransactionId?: string | null;
+  amount: number;
+  currency: string;
+  status: PaymentTransactionStatus;
+  description?: string | null;
+  paidAt?: string | null;
+  refundedAt?: string | null;
+  expiresAt?: string | null;
+  metadata?: any;
+  createdAt: string;
+  updatedAt: string;
+  student?: {
+    id: string;
+    studentCode?: string;
+    attendanceRequired?: boolean;
+    learningModeSelected?: boolean;
+    user: { firstName: string; lastName: string; email?: string | null; phone?: string | null; loginId: string };
+  };
+}
+
+export interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface CheckoutResponse {
+  transactionId: string;
+  clientSecret: string;
+  publicKey: string;
+  redirectUrl?: string;
+}
+
+export interface StudentSubscriptionResponse {
+  subscription: Subscription | null;
+  plan: SubscriptionPlan | null;
+  isActive: boolean;
+}
+
+export interface AdminSubscriptionItem extends Subscription {
+  student?: {
+    id: string;
+    studentCode?: string;
+    attendanceRequired?: boolean;
+    learningModeSelected?: boolean;
+    user: { firstName: string; lastName: string; email?: string | null; phone?: string | null; loginId: string };
+  };
+}

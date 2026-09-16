@@ -4,7 +4,8 @@ import { requireAdmin } from '../../common/middleware/rbac.js';
 import {
   createSessionSchema,
   listSessionsQuerySchema,
-  updateSessionSchema
+  updateSessionSchema,
+  bulkDeleteSessionsSchema
 } from './session.schema.js';
 import * as sessionService from './session.service.js';
 import { z } from 'zod';
@@ -102,6 +103,17 @@ export async function sessionRoutes(app: FastifyInstance) {
     }
   );
 
+  // Bulk delete sessions (Admin)
+  app.delete(
+    '/bulk',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const { ids } = bulkDeleteSessionsSchema.parse(request.body);
+      const result = await sessionService.deleteSessionsBulk(ids, request.user!.userId);
+      return reply.send({ data: result });
+    }
+  );
+
   // Delete session (Admin)
   app.delete(
     '/:id',
@@ -113,3 +125,4 @@ export async function sessionRoutes(app: FastifyInstance) {
     }
   );
 }
+

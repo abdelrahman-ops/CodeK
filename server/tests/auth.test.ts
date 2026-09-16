@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { getTestApp } from './helpers/test-app.js';
+import { getTestApp, loginAdmin } from './helpers/test-app.js';
 import { FastifyInstance } from 'fastify';
 import { env } from '../src/config/env.js';
 
@@ -179,18 +179,7 @@ describe('Authentication & Onboarding Module', () => {
     let adminToken: string;
 
     beforeAll(async () => {
-      const loginRes = await app.inject({
-        method: 'POST',
-        url: '/api/v1/auth/login',
-        payload: { loginId: 'ADM-001', password: 'Admin@123456' }
-      });
-      const { tempToken, devOtp } = loginRes.json().data;
-      const verifyRes = await app.inject({
-        method: 'POST',
-        url: '/api/v1/auth/verify-2fa',
-        payload: { tempToken, otpCode: devOtp }
-      });
-      adminToken = verifyRes.json().data.accessToken;
+      adminToken = await loginAdmin(app);
     });
 
     it('should create a student, issue STU- login ID, and allow password change', async () => {

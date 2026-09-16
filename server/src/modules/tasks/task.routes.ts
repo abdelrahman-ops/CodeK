@@ -5,7 +5,9 @@ import {
   assignTaskSchema,
   createTaskSchema,
   listTasksQuerySchema,
-  updateTaskSchema
+  updateTaskSchema,
+  bulkPublishTasksSchema,
+  bulkDeleteTasksSchema
 } from './task.schema.js';
 import * as taskService from './task.service.js';
 import { z } from 'zod';
@@ -19,6 +21,28 @@ export async function taskRoutes(app: FastifyInstance) {
       const input = createTaskSchema.parse(request.body);
       const task = await taskService.createTask(input, request.user!.userId);
       return reply.status(201).send({ data: task });
+    }
+  );
+
+  // Bulk publish/unpublish tasks (Admin)
+  app.patch(
+    '/bulk-publish',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const input = bulkPublishTasksSchema.parse(request.body || {});
+      const result = await taskService.bulkPublishTasks(input.ids, input.isPublished, request.user!.userId);
+      return reply.send({ data: result });
+    }
+  );
+
+  // Bulk delete tasks (Admin — safe checks: prevents deleting tasks with student submissions)
+  app.delete(
+    '/bulk',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const input = bulkDeleteTasksSchema.parse(request.body || {});
+      const result = await taskService.bulkDeleteTasks(input.ids, request.user!.userId);
+      return reply.send({ data: result });
     }
   );
 

@@ -24,11 +24,14 @@ import { Button } from '../../components/ui/button.js';
 import { Input } from '../../components/ui/input.js';
 import { Select } from '../../components/ui/select.js';
 import { Badge } from '../../components/ui/badge.js';
+import { Dialog } from '../../components/ui/dialog.js';
 import { StatCard } from '../../components/ui/stat-card.js';
 import { TableSkeleton } from '../../components/ui/skeleton.js';
 import { useToast } from '../../components/ui/toast.js';
 import { StudentRegistration, RegistrationStatus, PublicRegistrationStatus, ListAdminRegistrationsResponse } from '../../types/api.js';
-import { formatStatus, formatDate } from '../../lib/i18n-helpers.js';
+import { formatStatus, formatDate, localizeText } from '../../lib/i18n-helpers.js';
+import { useBulkSelection } from '../../hooks/use-bulk-selection.js';
+import { BulkSelectionBar } from '../../components/shared/bulk-selection-bar.js';
 
 export function AdminRegistrationsPage() {
   const { t, i18n } = useTranslation();
@@ -40,6 +43,12 @@ export function AdminRegistrationsPage() {
   const [search, setSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [page, setPage] = useState(1);
+
+  // Bulk actions state
+  const [isBulkApproveOpen, setIsBulkApproveOpen] = useState(false);
+  const [bulkApproveGroupId, setBulkApproveGroupId] = useState('');
+  const [isBulkRejectOpen, setIsBulkRejectOpen] = useState(false);
+  const [bulkRejectReason, setBulkRejectReason] = useState('');
 
   // Settings Edit Modal state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -97,6 +106,92 @@ export function AdminRegistrationsPage() {
   };
   const settingsData = listData?.settings;
   const meta = listData?.meta;
+
+  const { data: groups } = useQuery({
+    queryKey: ['groups'],
+    queryFn: async () => (await api.groups.list()).data.data
+  });
+
+  const selection = useBulkSelection(registrations);
+
+  // Bulk Approve Mutation
+  const bulkApproveMutation = useMutation({
+    mutationFn: async ({ registrationIds, groupId }: { registrationIds: string[]; groupId: string | null }) => {
+      return (await api.registrations.bulkApprove({ registrationIds, groupId })).data.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['adminRegistrations'] });
+      selection.deselectAll();
+      setIsBulkApproveOpen(false);
+      setBulkApproveGroupId('');
+      toast.success(
+        isArabic
+          ? `تم قبول وتأهيل ${data.successful.length} طلب تسجيل بنجاح`
+          : `Successfully approved ${data.successful.length} registrations`
+      );
+      if (data.failed && data.failed.length > 0) {
+        toast.info(
+          isArabic
+            ? `تعذر قبول ${data.failed.length} طلب`
+            : `Failed to approve ${data.failed.length} applications`
+        );
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  // Bulk Reject Mutation
+  const bulkRejectMutation = useMutation({
+    mutationFn: async ({ registrationIds, reason }: { registrationIds: string[]; reason: string }) => {
+      return (
+        await api.registrations.bulkStatus({
+          registrationIds,
+          status: 'REJECTED',
+          rejectionReason: reason
+        })
+      ).data.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['adminRegistrations'] });
+      selection.deselectAll();
+      setIsBulkRejectOpen(false);
+      setBulkRejectReason('');
+      toast.success(
+        isArabic
+          ? `تم رفض ${data.count} طلب تسجيل بنجاح`
+          : `Successfully rejected ${data.count} registrations`
+      );
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  // Bulk Archive Mutation
+  const bulkArchiveMutation = useMutation({
+    mutationFn: async (registrationIds: string[]) => {
+      return (
+        await api.registrations.bulkStatus({
+          registrationIds,
+          status: 'ARCHIVED'
+        })
+      ).data.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['adminRegistrations'] });
+      selection.deselectAll();
+      toast.success(
+        isArabic
+          ? `تمت أرشفة ${data.count} طلب بنجاح`
+          : `Successfully archived ${data.count} registrations`
+      );
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
 
   const handleOpenSettings = () => {
     if (settingsData) {
@@ -264,6 +359,40 @@ export function AdminRegistrationsPage() {
           </div>
         </div>
 
+        {/* Bulk Action Toolbar */}
+        <BulkSelectionBar
+          totalItems={registrations.length}
+          selectedCount={selection.selectedCount}
+          isAllSelected={selection.isAllSelected}
+          isIndeterminate={selection.isIndeterminate}
+          onToggleSelectAll={selection.toggleSelectAll}
+          onDeselectAll={selection.deselectAll}
+          isLoading={bulkApproveMutation.isPending || bulkRejectMutation.isPending || bulkArchiveMutation.isPending}
+          actions={[
+            {
+              id: 'approve',
+              label: isArabic ? 'قبول وتأهيل المحدد' : 'Approve Selected',
+              icon: <UserCheck className="w-3.5 h-3.5" />,
+              variant: 'primary',
+              onClick: () => setIsBulkApproveOpen(true)
+            },
+            {
+              id: 'reject',
+              label: isArabic ? 'رفض المحدد' : 'Reject Selected',
+              icon: <XCircle className="w-3.5 h-3.5" />,
+              variant: 'danger',
+              onClick: () => setIsBulkRejectOpen(true)
+            },
+            {
+              id: 'archive',
+              label: isArabic ? 'أرشفة المحدد' : 'Archive Selected',
+              icon: <Archive className="w-3.5 h-3.5" />,
+              variant: 'secondary',
+              onClick: () => bulkArchiveMutation.mutate(Array.from(selection.selectedIds))
+            }
+          ]}
+        />
+
         {/* Table */}
         {isLoading ? (
           <TableSkeleton />
@@ -276,6 +405,17 @@ export function AdminRegistrationsPage() {
             <table className="w-full text-xs text-left rtl:text-right">
               <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200 dark:border-slate-800">
                 <tr>
+                  <th className="w-12 px-4 py-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selection.isAllSelected}
+                      ref={(el) => {
+                        if (el) el.indeterminate = selection.isIndeterminate;
+                      }}
+                      onChange={selection.toggleSelectAll}
+                      className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 cursor-pointer accent-brand-600"
+                    />
+                  </th>
                   <th className="px-4 py-3">{isArabic ? 'كود مرجع التسجيل' : 'Registration Code'}</th>
                   <th className="px-4 py-3">{isArabic ? 'اسم الطالب' : 'Student Name'}</th>
                   <th className="px-4 py-3">{isArabic ? 'رقم الهاتف' : 'Phone'}</th>
@@ -287,14 +427,29 @@ export function AdminRegistrationsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
-                {registrations.map((reg) => (
-                  <tr
-                    key={reg.id}
-                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
-                  >
-                    <td className="px-4 py-3 font-mono font-black text-brand-600 dark:text-brand-400">
-                      {reg.registrationCode}
-                    </td>
+                {registrations.map((reg) => {
+                  const isSelected = selection.isSelected(reg.id);
+                  return (
+                    <tr
+                      key={reg.id}
+                      className={`transition-colors ${
+                        isSelected
+                          ? 'bg-brand-50/40 dark:bg-brand-950/20'
+                          : 'hover:bg-slate-50/80 dark:hover:bg-slate-800/40'
+                      }`}
+                    >
+                      <td className="w-12 px-4 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => selection.toggle(reg.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 cursor-pointer accent-brand-600"
+                        />
+                      </td>
+                      <td className="px-4 py-3 font-mono font-black text-brand-600 dark:text-brand-400">
+                        {reg.registrationCode}
+                      </td>
                     <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100">
                       {reg.firstName} {reg.lastName}
                     </td>
@@ -328,7 +483,8 @@ export function AdminRegistrationsPage() {
                       </Button>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -407,6 +563,107 @@ export function AdminRegistrationsPage() {
           </div>
         </div>
       )}
+      {/* Bulk Approve Dialog */}
+      <Dialog
+        isOpen={isBulkApproveOpen}
+        onClose={() => setIsBulkApproveOpen(false)}
+        title={
+          isArabic
+            ? `قبول وتأهيل ${selection.selectedCount} طلب تسجيل`
+            : `Approve and Onboard ${selection.selectedCount} Registrations`
+        }
+      >
+        <div className="space-y-4 pt-2">
+          <p className="text-sm text-slate-500">
+            {isArabic
+              ? 'سيتم إنشاء حسابات مستخدمين وبطاقات طلاب وتوليد بيانات الدخول تلقائياً للطلبات المحددة. يمكنك اختياريًا إلحاقهم بمجموعة محددة:'
+              : 'User accounts, student profiles, and login credentials will be generated automatically. You can optionally assign them to a group now:'}
+          </p>
+
+          <Select
+            label={isArabic ? 'المجموعة المستهدفة (اختياري)' : 'Target Group (Optional)'}
+            value={bulkApproveGroupId}
+            onChange={(e: any) => setBulkApproveGroupId(e.target.value)}
+            options={[
+              { value: '', label: isArabic ? '— بدون تعيين مجموعة حالياً —' : '— No Group Assignment Now —' },
+              ...(groups?.map((g) => ({ value: g.id, label: localizeText(g.name) })) || [])
+            ]}
+          />
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsBulkApproveOpen(false)}
+              disabled={bulkApproveMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              isLoading={bulkApproveMutation.isPending}
+              onClick={() =>
+                bulkApproveMutation.mutate({
+                  registrationIds: Array.from(selection.selectedIds),
+                  groupId: bulkApproveGroupId || null
+                })
+              }
+            >
+              {isArabic ? 'تأكيد وقبول الطلبات' : 'Confirm & Approve'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Bulk Reject Dialog */}
+      <Dialog
+        isOpen={isBulkRejectOpen}
+        onClose={() => setIsBulkRejectOpen(false)}
+        title={
+          isArabic
+            ? `رفض ${selection.selectedCount} طلب تسجيل`
+            : `Reject ${selection.selectedCount} Registrations`
+        }
+      >
+        <div className="space-y-4 pt-2">
+          <p className="text-sm text-slate-500">
+            {isArabic
+              ? 'يرجى كتابة سبب الرفض لتسجيله في سجل الطلبات:'
+              : 'Please provide a reason for the rejection to record in the audit log:'}
+          </p>
+
+          <Input
+            placeholder={isArabic ? 'سبب الرفض (مثلاً: عدم اكتمال البيانات / السن غير مطابق)' : 'Reason (e.g. Incomplete info)'}
+            value={bulkRejectReason}
+            onChange={(e) => setBulkRejectReason(e.target.value)}
+          />
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsBulkRejectOpen(false)}
+              disabled={bulkRejectMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              isLoading={bulkRejectMutation.isPending}
+              disabled={!bulkRejectReason.trim()}
+              onClick={() =>
+                bulkRejectMutation.mutate({
+                  registrationIds: Array.from(selection.selectedIds),
+                  reason: bulkRejectReason.trim()
+                })
+              }
+            >
+              {isArabic ? 'تأكيد الرفض' : 'Confirm Rejection'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

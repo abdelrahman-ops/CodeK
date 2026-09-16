@@ -183,3 +183,33 @@ export async function getStudentPayments(
     orderBy: [{ year: 'desc' }, { month: 'desc' }]
   });
 }
+
+export async function bulkUpdatePaymentStatus(
+  paymentIds: string[],
+  status: PaymentStatus,
+  notes?: string | null,
+  actorUserId?: string
+) {
+  const result = await prisma.payment.updateMany({
+    where: { id: { in: paymentIds } },
+    data: {
+      status,
+      paidAt: status === PaymentStatus.PAID ? new Date() : null,
+      ...(notes !== undefined ? { notes } : {})
+    }
+  });
+
+  await createAuditLog({
+    actorUserId,
+    action: `PAYMENTS_BULK_${status}`,
+    entityType: 'Payment',
+    entityId: paymentIds[0] || null,
+    metadata: { count: result.count, paymentIds, status, notes }
+  });
+
+  return {
+    success: true,
+    count: result.count,
+    paymentIds
+  };
+}

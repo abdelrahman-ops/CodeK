@@ -28,14 +28,17 @@ export async function registerSecurity(app: FastifyInstance) {
         return;
       }
 
-      // Also allow local development origins if testing against hosted backend
-      if (
-        normalizedOrigin.startsWith('http://localhost:') ||
-        normalizedOrigin.startsWith('http://127.0.0.1:') ||
-        normalizedOrigin.endsWith('.vercel.app')
-      ) {
-        cb(null, true);
-        return;
+      // In non-production environments, also allow local development loopbacks
+      if (env.NODE_ENV !== 'production') {
+        if (
+          normalizedOrigin.startsWith('http://localhost:') ||
+          normalizedOrigin.startsWith('http://127.0.0.1:') ||
+          normalizedOrigin.startsWith('https://localhost:') ||
+          normalizedOrigin.startsWith('https://127.0.0.1:')
+        ) {
+          cb(null, true);
+          return;
+        }
       }
 
       cb(new Error(`CORS origin '${origin}' not allowed`), false);

@@ -38,9 +38,14 @@ export const listGroupsQuerySchema = z.object({
   activeOnly: z.coerce.boolean().optional()
 });
 
+export const bulkDeleteGroupsSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1, 'At least one group ID is required')
+});
+
 export type GroupScheduleInput = z.infer<typeof groupScheduleInputSchema>;
 export type CreateGroupInput = z.infer<typeof createGroupSchema>;
 export type UpdateGroupInput = z.infer<typeof updateGroupSchema>;
 export type EnrollStudentInput = z.infer<typeof enrollStudentSchema>;
 export type ListGroupsQuery = z.infer<typeof listGroupsQuerySchema>;
+export type BulkDeleteGroupsInput = z.infer<typeof bulkDeleteGroupsSchema>;
 

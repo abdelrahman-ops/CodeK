@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Difficulty, RelationshipType, RegistrationStatus } from '@prisma/client';
+import { Difficulty, RelationshipType, RegistrationStatus, StudentGrade } from '@prisma/client';
 
 export const createPublicRegistrationSchema = z.object({
   firstName: z.string().min(2, 'First name is required').max(50),
@@ -10,7 +10,7 @@ export const createPublicRegistrationSchema = z.object({
 
   dateOfBirth: z.string().optional().nullable(),
   schoolName: z.string().max(100).optional().nullable(),
-  grade: z.string().max(50).optional().nullable(),
+  grade: z.nativeEnum(StudentGrade).optional().nullable(),
   programmingLevel: z.nativeEnum(Difficulty).default(Difficulty.BEGINNER),
   previousExperience: z.string().max(1000).optional().nullable(),
   motivation: z.string().max(1000).optional().nullable(),
@@ -52,4 +52,17 @@ export const approveRegistrationSchema = z.object({
   adminNotes: z.string().max(2000).optional().nullable()
 });
 
+export const bulkRegistrationStatusSchema = z.object({
+  registrationIds: z.array(z.string().uuid()).min(1, 'At least one registration ID is required'),
+  status: z.nativeEnum(RegistrationStatus),
+  rejectionReason: z.string().max(1000).optional().nullable()
+});
+
+export const bulkApproveRegistrationsSchema = z.object({
+  registrationIds: z.array(z.string().uuid()).min(1, 'At least one registration ID is required'),
+  groupId: z.string().uuid().optional().nullable()
+});
+
 export type ApproveRegistrationInput = z.infer<typeof approveRegistrationSchema>;
+export type BulkRegistrationStatusInput = z.infer<typeof bulkRegistrationStatusSchema>;
+export type BulkApproveRegistrationsInput = z.infer<typeof bulkApproveRegistrationsSchema>;
