@@ -3,12 +3,22 @@ import { ZodError } from 'zod';
 import { AppError } from './app-error.js';
 import { env } from '../../config/env.js';
 
+import { sanitizeErrorMessage } from '../../plugins/request-logger.js';
+
 export const errorHandler = (
   error: FastifyError | AppError | ZodError | Error,
   request: FastifyRequest,
   reply: FastifyReply
 ) => {
-  request.log.error(error);
+  // Only log unexpected 500 errors to request.log, and ensure sensitive values are redacted
+  const isOperational = error instanceof AppError || error instanceof ZodError;
+  if (!isOperational) {
+    const safeMsg = sanitizeErrorMessage(error.message);
+    if (safeMsg !== error.message) {
+      error.message = safeMsg;
+    }
+    request.log.error(error);
+  }
 
   if (error instanceof ZodError) {
     return reply.status(400).send({

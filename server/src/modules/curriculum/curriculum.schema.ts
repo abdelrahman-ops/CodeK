@@ -22,7 +22,8 @@ export const updateCurriculumSchema = z.object({
 export const listCurriculumQuerySchema = z.object({
   type: z.nativeEnum(CurriculumType).optional(),
   track: z.string().optional(),
-  grade: z.nativeEnum(StudentGrade).optional()
+  grade: z.nativeEnum(StudentGrade).optional(),
+  includeDetails: z.coerce.boolean().optional()
 });
 
 export const bulkDeleteCurriculaSchema = z.object({

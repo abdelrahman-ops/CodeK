@@ -54,7 +54,8 @@ export function AdminGroupDetailPage() {
 
   const { data: allStudents } = useQuery({
     queryKey: ['allStudentsList'],
-    queryFn: async () => (await api.students.list()).data.data
+    queryFn: async () => (await api.students.list()).data.data,
+    enabled: isEnrollModalOpen
   });
 
   const enrollMutation = useMutation({

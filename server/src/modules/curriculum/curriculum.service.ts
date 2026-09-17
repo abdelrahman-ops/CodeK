@@ -33,18 +33,22 @@ export async function listCurricula(
   query: ListCurriculumQuery,
   requestUser?: { userId: string; role: Role; studentId?: string }
 ) {
-  let studentGrade: StudentGrade | null = null;
-  if (requestUser?.role === Role.STUDENT && requestUser.studentId) {
-    studentGrade = await getStudentGrade(requestUser.studentId);
-    if (!studentGrade) {
+  let studentGrade: StudentGrade | undefined;
+  if (requestUser?.role === Role.STUDENT) {
+    if (!requestUser.studentId) {
       return [];
     }
+    const resolved = await getStudentGrade(requestUser.studentId);
+    if (!resolved) {
+      return [];
+    }
+    studentGrade = resolved;
   }
 
   const where = {
     ...(query.type ? { type: query.type } : {}),
     ...(query.track ? { track: query.track } : {}),
-    ...(requestUser?.role === Role.STUDENT
+    ...(requestUser?.role === Role.STUDENT && studentGrade
       ? { isPublished: true, grade: studentGrade }
       : query.grade
       ? { grade: query.grade }
@@ -54,11 +58,47 @@ export async function listCurricula(
   return prisma.curriculum.findMany({
     where,
     orderBy: { createdAt: 'asc' },
-    include: {
-      _count: {
-        select: { lessons: true, sections: true, exams: true }
-      }
-    }
+    include: query.includeDetails
+      ? {
+          _count: {
+            select: { lessons: true, sections: true, exams: true }
+          },
+          sections: {
+            orderBy: { order: 'asc' },
+            include: {
+              lessons: {
+                orderBy: { order: 'asc' },
+                include: {
+                  video: true,
+                  sessionLessons: { select: { sessionId: true } },
+                  tasks: {
+                    where: { isPublished: true },
+                    select: { id: true, code: true, title: true, taskType: true, difficulty: true, xpReward: true, authority: true }
+                  }
+                }
+              }
+            }
+          },
+          lessons: {
+            orderBy: { order: 'asc' },
+            include: {
+              section: {
+                select: { id: true, code: true, title: true, order: true, authority: true }
+              },
+              video: true,
+              sessionLessons: { select: { sessionId: true } },
+              tasks: {
+                where: { isPublished: true },
+                select: { id: true, code: true, title: true, taskType: true, difficulty: true, xpReward: true, authority: true }
+              }
+            }
+          }
+        }
+      : {
+          _count: {
+            select: { lessons: true, sections: true, exams: true }
+          }
+        }
   });
 }
 
@@ -90,6 +130,7 @@ export async function getCurriculumById(
               accessType: true,
               videoUrl: true,
               videoDurationSeconds: true,
+              video: true,
               sessionLessons: { select: { sessionId: true } },
               tasks: {
                 select: { id: true, code: true, title: true, taskType: true, difficulty: true, xpReward: true, authority: true }
@@ -107,6 +148,7 @@ export async function getCurriculumById(
           section: {
             select: { id: true, code: true, title: true, order: true, authority: true }
           },
+          video: true,
           sessionLessons: { select: { sessionId: true } },
           tasks: {
             where: { isPublished: true },
@@ -161,6 +203,7 @@ export async function getCurriculumById(
         accessType: lesson.accessType,
         videoUrl: isLocked ? null : lesson.videoUrl,
         videoDurationSeconds: lesson.videoDurationSeconds,
+        video: isLocked ? null : lesson.video,
         isLocked,
         lockReason: access.reason || (isLocked ? 'ATTENDANCE_REQUIRED' : null),
         lockMessage: isLocked ? (access.messageAr || LOCKED_EXPLANATION_AR) : null,

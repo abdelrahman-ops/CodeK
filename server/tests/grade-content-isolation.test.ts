@@ -4,6 +4,7 @@ import { getTestApp, loginAdmin } from './helpers/test-app.js';
 import { prisma } from '../src/db/prisma.js';
 import { StudentGrade, Role, TaskType, SubscriptionStatus } from '@prisma/client';
 import { hashPassword } from '../src/common/utils/crypto.js';
+import { getPlanForGrade } from '../src/modules/billing/billing.service.js';
 
 describe('Grade-Based Curriculum Ownership & Student Content Isolation', () => {
   let app: FastifyInstance;
@@ -62,7 +63,7 @@ describe('Grade-Based Curriculum Ownership & Student Content Isolation', () => {
     grade1StudentId = userG1.student!.id;
 
     // Give Grade 1 student an active subscription
-    const planG1 = await prisma.subscriptionPlan.findFirst({ where: { code: 'GRADE_1_MONTHLY' } });
+    const planG1 = (await prisma.subscriptionPlan.findFirst({ where: { code: 'GRADE_1_MONTHLY' } })) || (await getPlanForGrade('GRADE_1'));
     if (planG1) {
       await prisma.subscription.create({
         data: {
@@ -108,7 +109,7 @@ describe('Grade-Based Curriculum Ownership & Student Content Isolation', () => {
     grade2StudentId = userG2.student!.id;
 
     // Give Grade 2 student an active subscription
-    const planG2 = await prisma.subscriptionPlan.findFirst({ where: { code: 'GRADE_2_MONTHLY' } });
+    const planG2 = (await prisma.subscriptionPlan.findFirst({ where: { code: 'GRADE_2_MONTHLY' } })) || (await getPlanForGrade('GRADE_2'));
     if (planG2) {
       await prisma.subscription.create({
         data: {
@@ -830,7 +831,7 @@ describe('Grade-Based Curriculum Ownership & Student Content Isolation', () => {
       legacyStudentId = userLegacy.student!.id;
 
       // Give student an active subscription to ensure subscription is NOT the barrier
-      const plan = await prisma.subscriptionPlan.findFirst({ where: { code: 'GRADE_1_MONTHLY' } });
+      const plan = (await prisma.subscriptionPlan.findFirst({ where: { code: 'GRADE_1_MONTHLY' } })) || (await getPlanForGrade('GRADE_1'));
       if (plan) {
         await prisma.subscription.create({
           data: {

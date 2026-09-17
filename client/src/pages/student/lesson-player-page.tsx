@@ -35,7 +35,6 @@ import { VideoPlayer } from '../../components/shared/video-player.js';
 import { useToast } from '../../components/ui/toast.js';
 import { useLearningStore } from '../../store/learning-store.js';
 import { localizeText, formatStatus, formatDuration } from '../../lib/i18n-helpers.js';
-import { LessonAccessDecision } from '../../types/api.js';
 import { Lesson, Curriculum } from '../../types/api.js';
 import {
   LessonHeader,
@@ -93,20 +92,6 @@ export function LessonPlayerPage() {
     enabled: Boolean(activeCourseId)
   });
 
-  // Authoritative Backend Access Decision
-  const { data: accessDecision } = useQuery<LessonAccessDecision | null>({
-    queryKey: ['lessonAccessDecision', id],
-    queryFn: async () => {
-      if (!id) return null;
-      try {
-        const res = await api.access.getLessonAccess(id);
-        return res.data.data;
-      } catch {
-        return null;
-      }
-    },
-    enabled: Boolean(id)
-  });
 
   // Track active lesson in store
   useEffect(() => {

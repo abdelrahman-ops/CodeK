@@ -140,6 +140,7 @@ export function AdminBillingPage() {
   // 1. Subscriptions Query
   const { data: subsData, isLoading: isLoadingSubs } = useQuery({
     queryKey: ['adminSubscriptions', subStatusFilter, subPage],
+    enabled: activeTab === 'subscriptions',
     queryFn: async () => {
       const res = await api.billing.adminListSubscriptions({
         status: subStatusFilter || undefined,
@@ -161,6 +162,7 @@ export function AdminBillingPage() {
       txnPage,
       txnPageSize
     ],
+    enabled: activeTab === 'transactions',
     queryFn: async () => {
       const res = await api.billing.adminListTransactions({
         search: txnSearch || undefined,
@@ -177,6 +179,7 @@ export function AdminBillingPage() {
   // 3. Plans Query
   const { data: plansData, isLoading: isLoadingPlans } = useQuery({
     queryKey: ['adminBillingPlans'],
+    enabled: activeTab === 'plans',
     queryFn: async () => (await api.subscriptions.listPlans()).data.data
   });
 

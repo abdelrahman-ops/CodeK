@@ -118,12 +118,16 @@ export async function listLessons(
   query: ListLessonsQuery,
   requestUser: { userId: string; role: Role; studentId?: string }
 ) {
-  let studentGrade: StudentGrade | null = null;
-  if (requestUser.role === Role.STUDENT && requestUser.studentId) {
-    studentGrade = await getStudentGrade(requestUser.studentId);
-    if (!studentGrade) {
+  let studentGrade: StudentGrade | undefined;
+  if (requestUser.role === Role.STUDENT) {
+    if (!requestUser.studentId) {
       return [];
     }
+    const resolved = await getStudentGrade(requestUser.studentId);
+    if (!resolved) {
+      return [];
+    }
+    studentGrade = resolved;
   }
 
   const where = {
@@ -131,7 +135,7 @@ export async function listLessons(
     ...(query.curriculumId ? { curriculumId: query.curriculumId } : {}),
     ...(query.sectionId ? { sectionId: query.sectionId } : {}),
     ...(query.difficulty ? { difficulty: query.difficulty } : {}),
-    ...(requestUser.role === Role.STUDENT ? { curriculum: { grade: studentGrade } } : {})
+    ...(requestUser.role === Role.STUDENT && studentGrade ? { curriculum: { grade: studentGrade } } : {})
   };
 
   const lessons = await prisma.lesson.findMany({

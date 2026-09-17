@@ -24,7 +24,8 @@ export function AdminNotificationsPage() {
 
   const { data: users } = useQuery({
     queryKey: ['allUsersList'],
-    queryFn: async () => (await api.users.list()).data.data
+    queryFn: async () => (await api.users.list()).data.data,
+    enabled: isSendModalOpen
   });
 
   const { data: notifications, isLoading } = useQuery({

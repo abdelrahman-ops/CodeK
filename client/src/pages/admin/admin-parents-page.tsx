@@ -64,7 +64,8 @@ export function AdminParentsPage() {
 
   const { data: students } = useQuery({
     queryKey: ['studentsList'],
-    queryFn: async () => (await api.students.list()).data.data
+    queryFn: async () => (await api.students.list()).data.data,
+    enabled: isLinkModalOpen
   });
 
   const createMutation = useMutation({

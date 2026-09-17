@@ -122,29 +122,48 @@ export async function getPaymentSummary(year?: number, month?: number) {
   const currentYear = year || now.getFullYear();
   const currentMonth = month || now.getMonth() + 1;
 
-  const payments = await prisma.payment.findMany({
+  const grouped = await prisma.payment.groupBy({
+    by: ['status'],
     where: {
       year: currentYear,
       month: currentMonth
+    },
+    _sum: {
+      amount: true
+    },
+    _count: {
+      _all: true
     }
   });
 
-  const totalCollected = payments
-    .filter((p) => p.status === PaymentStatus.PAID)
-    .reduce((sum, p) => sum + p.amount, 0);
+  let totalRecords = 0;
+  let paidCount = 0;
+  let unpaidCount = 0;
+  let totalCollectedEgp = 0;
+  let totalExpectedEgp = 0;
 
-  const totalExpected = payments.reduce((sum, p) => sum + p.amount, 0);
-  const paidCount = payments.filter((p) => p.status === PaymentStatus.PAID).length;
-  const unpaidCount = payments.filter((p) => p.status === PaymentStatus.UNPAID).length;
+  for (const g of grouped) {
+    const count = g._count._all;
+    const sum = g._sum.amount ?? 0;
+    totalRecords += count;
+    totalExpectedEgp += sum;
+
+    if (g.status === PaymentStatus.PAID) {
+      paidCount = count;
+      totalCollectedEgp = sum;
+    } else if (g.status === PaymentStatus.UNPAID) {
+      unpaidCount = count;
+    }
+  }
 
   return {
     year: currentYear,
     month: currentMonth,
-    totalRecords: payments.length,
+    totalRecords,
     paidCount,
     unpaidCount,
-    totalCollectedEgp: totalCollected,
-    totalExpectedEgp: totalExpected
+    totalCollectedEgp,
+    totalExpectedEgp
   };
 }
 

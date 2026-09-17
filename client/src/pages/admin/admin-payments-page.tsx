@@ -58,13 +58,14 @@ export function AdminPaymentsPage() {
   ];
 
   const { data: groups } = useQuery({
-    queryKey: ['adminGroupsList'],
+    queryKey: ['groups'],
     queryFn: async () => (await api.groups.list()).data.data
   });
 
   const { data: students } = useQuery({
     queryKey: ['allStudentsList'],
-    queryFn: async () => (await api.students.list()).data.data
+    queryFn: async () => (await api.students.list()).data.data,
+    enabled: isRecordModalOpen
   });
 
   const { data: summary } = useQuery({

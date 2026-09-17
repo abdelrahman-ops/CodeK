@@ -222,7 +222,8 @@ export const api = {
       apiClient.post<ApiResponse<{ success: boolean; successful: string[]; failed: { id: string; reason: string }[] }>>('/attendance/admin-bulk-mark', data)
   },
   curriculum: {
-    list: () => apiClient.get<ApiResponse<Curriculum[]>>('/curriculum'),
+    list: (params?: { type?: string; track?: string; grade?: string; includeDetails?: boolean }) =>
+      apiClient.get<ApiResponse<Curriculum[]>>('/curriculum', { params }),
     getById: (id: string) => apiClient.get<ApiResponse<Curriculum>>(`/curriculum/${id}`),
     create: (data: any) => apiClient.post<ApiResponse<Curriculum>>('/curriculum', data),
     update: (id: string, data: any) => apiClient.patch<ApiResponse<Curriculum>>(`/curriculum/${id}`, data),

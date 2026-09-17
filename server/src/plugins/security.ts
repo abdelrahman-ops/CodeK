@@ -45,7 +45,8 @@ export async function registerSecurity(app: FastifyInstance) {
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    maxAge: 86400
   });
 
   await app.register(helmet, {

@@ -5,6 +5,7 @@ import { registerSecurity } from './plugins/security.js';
 import { registerSwagger } from './plugins/swagger.js';
 import { registerRateLimit } from './plugins/rate-limit.js';
 import { registerRawBody } from './plugins/raw-body.js';
+import { registerRequestLogger } from './plugins/request-logger.js';
 import { prisma } from './db/prisma.js';
 
 import { authRoutes } from './modules/auth/auth.routes.js';
@@ -35,6 +36,7 @@ export async function buildApp() {
   const usePrettyLogger = env.NODE_ENV === 'development' && !isVercel;
 
   const app = Fastify({
+    disableRequestLogging: true,
     logger: usePrettyLogger
       ? {
           level: 'info',
@@ -55,6 +57,7 @@ export async function buildApp() {
   app.setErrorHandler(errorHandler);
 
   // Core Plugins
+  await app.register(registerRequestLogger);
   await registerRawBody(app);
   await registerSecurity(app);
   await registerSwagger(app);

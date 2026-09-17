@@ -96,81 +96,92 @@ export async function getStudentDashboard(studentUserId: string) {
       };
     });
 
-  // Group tasks available (grade-scoped, null-grade receives empty array)
-  const groupTasks = (activeGroup && student.grade)
-    ? await prisma.task.findMany({
-        where: {
-          isPublished: true,
-          lesson: { curriculum: { grade: student.grade } },
-          assignments: {
-            some: {
-              groupId: activeGroup.id,
-              availableAt: { lte: new Date() }
+  const now = new Date();
+
+  // Parallelize independent queries
+  const [
+    groupTasks,
+    activeOrUpcomingExam,
+    continueLearning,
+    progress,
+    leaderboard,
+    notifications
+  ] = await Promise.all([
+    // Group tasks available (grade-scoped, null-grade receives empty array)
+    activeGroup && student.grade
+      ? prisma.task.findMany({
+          where: {
+            isPublished: true,
+            lesson: { curriculum: { grade: student.grade } },
+            assignments: {
+              some: {
+                groupId: activeGroup.id,
+                availableAt: { lte: now }
+              }
+            }
+          },
+          take: 5,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            submissions: {
+              where: { studentId: student.id }
             }
           }
-        },
-        take: 5,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          submissions: {
-            where: { studentId: student.id }
-          }
-        }
-      })
-    : [];
+        })
+      : Promise.resolve([]),
 
-  // Active or Upcoming Exam / Quiz (grade-scoped, null-grade receives null)
-  const now = new Date();
-  const activeOrUpcomingExam = student.grade
-    ? await prisma.exam.findFirst({
-        where: {
-          isPublished: true,
-          endsAt: { gte: now },
-          curriculum: { grade: student.grade },
-          OR: [
-            { groupId: null },
-            ...(activeGroup ? [{ groupId: activeGroup.id }] : [])
-          ]
-        },
-        orderBy: { startsAt: 'asc' },
-        include: {
-          attempts: {
-            where: { studentId: student.id }
+    // Active or Upcoming Exam / Quiz (grade-scoped, null-grade receives null)
+    student.grade
+      ? prisma.exam.findFirst({
+          where: {
+            isPublished: true,
+            endsAt: { gte: now },
+            curriculum: { grade: student.grade },
+            OR: [
+              { groupId: null },
+              ...(activeGroup ? [{ groupId: activeGroup.id }] : [])
+            ]
           },
-          lesson: { select: { id: true, title: true } }
-        }
-      })
-    : null;
-
-  // Continue Learning (Tier 1 Priority, grade-scoped, null-grade receives null)
-  let continueLearning = null;
-  if (student.grade) {
-    const lastProgress = await prisma.studentLessonProgress.findFirst({
-      where: {
-        studentId: student.id,
-        lesson: { curriculum: { grade: student.grade } }
-      },
-      orderBy: { updatedAt: 'desc' },
-      include: {
-        lesson: {
+          orderBy: { startsAt: 'asc' },
           include: {
-            curriculum: { select: { id: true, title: true, grade: true } }
+            attempts: {
+              where: { studentId: student.id }
+            },
+            lesson: { select: { id: true, title: true } }
+          }
+        })
+      : Promise.resolve(null),
+
+    // Continue Learning (Tier 1 Priority, grade-scoped, null-grade receives null)
+    (async () => {
+      if (!student.grade) return null;
+      const lastProgress = await prisma.studentLessonProgress.findFirst({
+        where: {
+          studentId: student.id,
+          lesson: { curriculum: { grade: student.grade } }
+        },
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          lesson: {
+            include: {
+              curriculum: { select: { id: true, title: true, grade: true } }
+            }
           }
         }
-      }
-    });
+      });
 
-    if (lastProgress && lastProgress.lesson.curriculum.grade === student.grade) {
-      continueLearning = {
-        courseId: lastProgress.lesson.curriculumId,
-        courseTitle: lastProgress.lesson.curriculum.title,
-        lessonId: lastProgress.lessonId,
-        lessonTitle: lastProgress.lesson.title,
-        progressPercentage: lastProgress.progressPercentage,
-        lastWatchedPosition: lastProgress.lastWatchedPosition,
-        status: lastProgress.status
-      };
-    } else {
+      if (lastProgress && lastProgress.lesson.curriculum.grade === student.grade) {
+        return {
+          courseId: lastProgress.lesson.curriculumId,
+          courseTitle: lastProgress.lesson.curriculum.title,
+          lessonId: lastProgress.lessonId,
+          lessonTitle: lastProgress.lesson.title,
+          progressPercentage: lastProgress.progressPercentage,
+          lastWatchedPosition: lastProgress.lastWatchedPosition,
+          status: lastProgress.status
+        };
+      }
+
       const firstCourse = await prisma.curriculum.findFirst({
         where: {
           isPublished: true,
@@ -184,8 +195,9 @@ export async function getStudentDashboard(studentUserId: string) {
           }
         }
       });
+
       if (firstCourse && firstCourse.lessons[0]) {
-        continueLearning = {
+        return {
           courseId: firstCourse.id,
           courseTitle: firstCourse.title,
           lessonId: firstCourse.lessons[0].id,
@@ -195,22 +207,31 @@ export async function getStudentDashboard(studentUserId: string) {
           status: 'NOT_STARTED'
         };
       }
-    }
-  }
 
-  // Progress & Learning Analytics
-  const progress = await getStudentProgress(student.id, {
-    userId: studentUserId,
-    role: Role.STUDENT,
-    studentId: student.id
-  });
+      return null;
+    })(),
 
-  // Leaderboard position (Tier 7 Priority)
-  const leaderboard = await getMonthlyLeaderboard({}, {
-    userId: studentUserId,
-    role: Role.STUDENT,
-    studentId: student.id
-  });
+    // Progress & Learning Analytics
+    getStudentProgress(student.id, {
+      userId: studentUserId,
+      role: Role.STUDENT,
+      studentId: student.id
+    }),
+
+    // Leaderboard position (Tier 7 Priority)
+    getMonthlyLeaderboard({}, {
+      userId: studentUserId,
+      role: Role.STUDENT,
+      studentId: student.id
+    }),
+
+    // Notifications
+    prisma.notification.findMany({
+      where: { userId: studentUserId },
+      orderBy: { createdAt: 'desc' },
+      take: 5
+    })
+  ]);
 
   const myRankEntry = leaderboard.entries.find((e) => e.isCurrentStudent) || null;
   const topPeers = leaderboard.entries.slice(0, 5).map((e) => ({
@@ -219,13 +240,6 @@ export async function getStudentDashboard(studentUserId: string) {
     monthlyXp: e.monthlyXp,
     isCurrentStudent: e.isCurrentStudent
   }));
-
-  // Notifications
-  const notifications = await prisma.notification.findMany({
-    where: { userId: studentUserId },
-    orderBy: { createdAt: 'desc' },
-    take: 5
-  });
 
   return {
     student: {

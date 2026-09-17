@@ -6,7 +6,7 @@ import { getTestApp, loginAdmin } from './helpers/test-app.js';
 import { prisma } from '../src/db/prisma.js';
 import { videoProviderFactory } from '../src/modules/videos/video-provider.factory.js';
 import { MuxVideoProvider } from '../src/modules/videos/providers/mux-video.provider.js';
-import { LessonAccessType, Role, VideoAssetStatus } from '@prisma/client';
+import { LessonAccessType, Role, VideoAssetStatus, StudentGrade } from '@prisma/client';
 import Mux from '@mux/mux-node';
 
 describe('Production-Ready Secure Video Delivery with Mux', () => {
@@ -51,6 +51,33 @@ describe('Production-Ready Secure Video Delivery with Mux', () => {
     const adminUser = await prisma.user.findFirst({ where: { role: Role.ADMIN } });
     adminUserId = adminUser!.id;
 
+    // Ensure student STU-1001 exists for isolated test runs
+    let stuUser = await prisma.user.findFirst({ where: { loginId: 'STU-1001' }, include: { student: true } });
+    if (!stuUser) {
+      const bcrypt = (await import('bcryptjs')).default;
+      const pwdHash = await bcrypt.hash('Student@123', 10);
+      stuUser = await prisma.user.create({
+        data: {
+          loginId: 'STU-1001',
+          email: 'stu1001@codek.test',
+          passwordHash: pwdHash,
+          role: Role.STUDENT,
+          firstName: 'Omar',
+          lastName: 'Hassan',
+          mustChangePassword: false,
+          isEmailVerified: true,
+          student: {
+            create: {
+              studentCode: 'STU-1001',
+              grade: StudentGrade.GRADE_2,
+              learningModeSelected: true
+            }
+          }
+        },
+        include: { student: true }
+      });
+    }
+
     // Student login (STU-1001)
     const studentRes = await app.inject({
       method: 'POST',
@@ -61,9 +88,13 @@ describe('Production-Ready Secure Video Delivery with Mux', () => {
     studentUserId = studentRes.json().data.user.id;
     studentId = studentRes.json().data.user.student.id;
 
-    // Remove subscriptions for clean access tests
+    // Remove subscriptions for clean access tests and ensure student has GRADE_2
     await prisma.subscription.deleteMany({ where: { studentId } });
     await prisma.educationalAccessGrant.deleteMany({ where: { studentId } });
+    await prisma.student.update({
+      where: { id: studentId },
+      data: { grade: StudentGrade.GRADE_2 }
+    });
 
     // Mock Mux Client without external network calls
     const mockMuxClient = new Mux({
@@ -98,7 +129,8 @@ describe('Production-Ready Secure Video Delivery with Mux', () => {
       data: {
         code: `MUX-CRS-${unique}`,
         title: `Mux Video Course ${unique}`,
-        description: 'Testing secure Mux streaming'
+        description: 'Testing secure Mux streaming',
+        grade: StudentGrade.GRADE_2
       }
     });
     testCourseId = course.id;

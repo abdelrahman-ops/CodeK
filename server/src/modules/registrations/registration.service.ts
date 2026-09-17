@@ -263,7 +263,7 @@ export async function createPublicRegistration(input: CreatePublicRegistrationIn
       email: input.email && input.email.trim() !== '' ? input.email.trim().toLowerCase() : null,
       dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
       schoolName: input.schoolName ? input.schoolName.trim() : null,
-      grade: input.grade ? input.grade.trim() : null,
+      grade: input.grade || null,
       programmingLevel: input.programmingLevel,
       previousExperience: input.previousExperience ? input.previousExperience.trim() : null,
       motivation: input.motivation ? input.motivation.trim() : null,
@@ -325,7 +325,7 @@ export async function listAdminRegistrations(query: {
       : {})
   };
 
-  const [total, items, statusCountsGroup] = await Promise.all([
+  const [total, items, statusCountsGroup, settings] = await Promise.all([
     prisma.studentRegistration.count({ where }),
     prisma.studentRegistration.findMany({
       where,
@@ -344,7 +344,8 @@ export async function listAdminRegistrations(query: {
     prisma.studentRegistration.groupBy({
       by: ['status'],
       _count: { _all: true }
-    })
+    }),
+    prisma.registrationSetting.findUnique({ where: { id: 'default' } })
   ]);
 
   const counts: Record<string, number> = {
@@ -362,8 +363,6 @@ export async function listAdminRegistrations(query: {
     counts[group.status] = group._count._all;
     counts.ALL += group._count._all;
   }
-
-  const settings = await prisma.registrationSetting.findUnique({ where: { id: 'default' } });
 
   return {
     items,

@@ -59,11 +59,23 @@ export async function getTodayScheduledGroups(targetDateStr?: string) {
     orderBy: { name: 'asc' }
   });
 
-  return Promise.all(
-    activeGroups.map(async (g) => {
-      const schedule = g.schedules[0];
-      const existingSession = g.sessions[0] || null;
-      const nextSessionNumber = await getNextSessionNumber(g.id);
+  const groupIds = activeGroups.map((g) => g.id);
+  const maxSessionNumbers = groupIds.length > 0
+    ? await prisma.session.groupBy({
+        by: ['groupId'],
+        _max: { sessionNumber: true },
+        where: { groupId: { in: groupIds } }
+      })
+    : [];
+
+  const maxSessionMap = new Map<string, number>(
+    maxSessionNumbers.map((m) => [m.groupId, m._max.sessionNumber ?? 0])
+  );
+
+  return activeGroups.map((g) => {
+    const schedule = g.schedules[0];
+    const existingSession = g.sessions[0] || null;
+    const nextSessionNumber = (maxSessionMap.get(g.id) ?? 0) + 1;
 
       return {
         groupId: g.id,
@@ -90,8 +102,7 @@ export async function getTodayScheduledGroups(targetDateStr?: string) {
             }
           : null
       };
-    })
-  );
+    });
 }
 
 export async function createSession(input: CreateSessionInput, actorUserId?: string) {

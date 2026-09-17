@@ -53,7 +53,7 @@ export function AdminSessionQrPage() {
       return (await api.attendance.getSessionRoster(id)).data.data;
     },
     enabled: Boolean(id),
-    refetchInterval: 4000
+    refetchInterval: session?.status === 'ACTIVE' ? 4000 : false
   });
 
   const startSessionMutation = useMutation({

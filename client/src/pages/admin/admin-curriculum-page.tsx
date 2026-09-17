@@ -99,18 +99,7 @@ export function AdminCurriculumPage() {
   const { data: curricula, isLoading } = useQuery({
     queryKey: ['adminCurricula'],
     queryFn: async () => {
-      const res = (await api.curriculum.list()).data.data;
-      // Fetch full curriculum details with sections for each curriculum
-      const detailed = await Promise.all(
-        res.map(async (c) => {
-          try {
-            return (await api.curriculum.getById(c.id)).data.data;
-          } catch {
-            return c;
-          }
-        })
-      );
-      return detailed;
+      return (await api.curriculum.list({ includeDetails: true })).data.data;
     }
   });
 
