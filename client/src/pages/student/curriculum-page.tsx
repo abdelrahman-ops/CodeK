@@ -39,7 +39,7 @@ export function CurriculumPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
           {t('curriculum.title')}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -54,7 +54,7 @@ export function CurriculumPage() {
           <div key={curriculum.id} className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-xl font-black text-slate-900 dark:text-slate-100">
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
                   {localizeText(curriculum.title)}
                 </h2>
                 <p className="text-xs text-slate-500 mt-0.5">{localizeText(curriculum.description)}</p>
@@ -163,7 +163,7 @@ export function LessonViewPage() {
           </div>
         </div>
 
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
           {localizeText(lesson.title)}
         </h1>
         {lesson.description && (

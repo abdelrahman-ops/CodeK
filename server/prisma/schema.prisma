@@ -272,13 +272,14 @@ model AuthToken {
   id        String        @id @default(uuid())
   userId    String
   user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tokenHash String        @unique // Hashed token (SHA-256)
-  type      AuthTokenType
-  status    OtpStatus     @default(PENDING)
-  attempts  Int           @default(0)
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime      @default(now())
+  tokenHash      String        @unique // Hashed token (SHA-256)
+  encryptedToken String?       // AES-256-GCM encrypted delivery secret (cleared after delivery)
+  type           AuthTokenType
+  status         OtpStatus     @default(PENDING)
+  attempts       Int           @default(0)
+  expiresAt      DateTime
+  usedAt         DateTime?
+  createdAt      DateTime      @default(now())
 
   @@index([userId, type])
   @@index([userId, type, status])

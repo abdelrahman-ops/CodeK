@@ -139,7 +139,7 @@ export function AdminExamsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
             <GraduationCap className="w-7 h-7 text-brand-600 dark:text-brand-400" />
             <span>{t('nav.exams')}</span>
           </h1>
@@ -562,7 +562,7 @@ export function AdminExamBuilderPage() {
       </div>
 
       <Card className="p-6">
-        <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100">{exam?.title ? localizeText(exam.title) : ''}</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{exam?.title ? localizeText(exam.title) : ''}</h1>
         <p className="text-xs text-slate-500 mt-1">
           {questions.length} {t('exams.questions')} • {formatDuration(exam?.durationMinutes)} • {formatMarks(exam?.totalMarks)}
         </p>
@@ -589,18 +589,32 @@ export function AdminExamBuilderPage() {
 
             <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">{localizeText(q.questionText)}</h3>
 
-            {q.options && (
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                {q.options.map((opt, oIdx) => (
-                  <div
-                    key={oIdx}
-                    className={`p-2.5 rounded-xl border font-semibold ${opt === q.correctAnswer ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-800 dark:text-emerald-200' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'}`}
-                  >
-                    {String.fromCharCode(65 + oIdx)}. {opt} {opt === q.correctAnswer ? `(${t('exams.correctAnswer')})` : ''}
-                  </div>
-                ))}
-              </div>
-            )}
+            {(() => {
+              let parsedOptions: string[] = [];
+              if (Array.isArray(q.options)) {
+                parsedOptions = q.options;
+              } else if (typeof q.options === 'string') {
+                try {
+                  const parsed = JSON.parse(q.options);
+                  if (Array.isArray(parsed)) parsedOptions = parsed;
+                } catch {
+                  parsedOptions = [];
+                }
+              }
+              if (parsedOptions.length === 0) return null;
+              return (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {parsedOptions.map((opt, oIdx) => (
+                    <div
+                      key={oIdx}
+                      className={`p-2.5 rounded-xl border font-semibold ${opt === q.correctAnswer ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-800 dark:text-emerald-200' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'}`}
+                    >
+                      {String.fromCharCode(65 + oIdx)}. {opt} {opt === q.correctAnswer ? `(${t('exams.correctAnswer')})` : ''}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </Card>
         ))}
       </div>

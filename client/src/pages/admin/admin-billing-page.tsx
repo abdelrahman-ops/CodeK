@@ -39,7 +39,9 @@ import {
   X,
   Smartphone,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  Image as ImageIcon,
+  ExternalLink
 } from 'lucide-react';
 import { api } from '../../lib/api/client.js';
 import { Card } from '../../components/ui/card.js';
@@ -53,6 +55,7 @@ import { CardSkeleton } from '../../components/ui/skeleton.js';
 import { SubscriptionPlan, PlanBenefit } from '../../types/api.js';
 import { useBulkSelection } from '../../hooks/use-bulk-selection.js';
 import { BulkSelectionBar } from '../../components/shared/bulk-selection-bar.js';
+import { VodafoneCashLogo, InstaPayLogo } from '../../components/shared/payment-logos.js';
 
 const AVAILABLE_ICONS = [
   { id: 'check', labelAr: 'علامة صح', labelEn: 'Check mark' },
@@ -82,6 +85,7 @@ export function AdminBillingPage() {
   const [rejectTxnReason, setRejectTxnReason] = useState('');
   const [isBulkRejectTxnOpen, setIsBulkRejectTxnOpen] = useState(false);
   const [bulkRejectTxnReason, setBulkRejectTxnReason] = useState('');
+  const [previewReceiptUrl, setPreviewReceiptUrl] = useState<string | null>(null);
 
   // Payment settings state
   const [settingsForm, setSettingsForm] = useState({
@@ -114,6 +118,7 @@ export function AdminBillingPage() {
   const [showManualRecordModal, setShowManualRecordModal] = useState(false);
   const [manualStudentSearch, setManualStudentSearch] = useState('');
   const [selectedHybridStudentId, setSelectedHybridStudentId] = useState('');
+  const [manualPaymentAmount, setManualPaymentAmount] = useState<string>('');
   const [manualPaymentNotes, setManualPaymentNotes] = useState('');
 
   // Create / Edit plan modal state
@@ -123,10 +128,12 @@ export function AdminBillingPage() {
     name: '',
     code: '',
     description: '',
-    price: 250,
+    price: 0,
     currency: 'EGP',
     billingInterval: 'MONTHLY',
     isActive: true,
+    targetGrade: 'ALL' as 'ALL' | 'GRADE_1' | 'GRADE_2' | 'GRADE_3',
+    targetGroup: '',
     benefits: [
       { id: 'b-1', textAr: 'الوصول لجميع الدروس والمشاريع أونلاين', textEn: 'Full access to online lessons & projects', icon: 'check', sortOrder: 0 },
       { id: 'b-2', textAr: 'حضور الجلسات العملية في مقر الأكاديمية (للمسار المدمج)', textEn: 'In-person lab sessions at academy campus', icon: 'building', sortOrder: 1 },
@@ -223,8 +230,8 @@ export function AdminBillingPage() {
 
   // 6. Manual Payment Mutation (Header modal)
   const manualPaymentMutation = useMutation({
-    mutationFn: async ({ studentId, notes }: { studentId: string; notes?: string }) => {
-      const res = await api.billing.adminRecordManualPayment({ studentId, notes });
+    mutationFn: async ({ studentId, amount, notes }: { studentId: string; amount?: number; notes?: string }) => {
+      const res = await api.billing.adminRecordManualPayment({ studentId, amount, notes });
       return res.data.data;
     },
     onSuccess: () => {
@@ -235,6 +242,7 @@ export function AdminBillingPage() {
       );
       setShowManualRecordModal(false);
       setSelectedHybridStudentId('');
+      setManualPaymentAmount('');
       setManualPaymentNotes('');
       setManualStudentSearch('');
       queryClient.invalidateQueries({ queryKey: ['adminTransactions'] });
@@ -259,6 +267,15 @@ export function AdminBillingPage() {
         currency: planForm.currency,
         billingInterval: planForm.billingInterval,
         isActive: planForm.isActive,
+        targetGrade: planForm.targetGrade || 'ALL',
+        targetGroup: planForm.targetGroup?.trim() || null,
+        features: planForm.benefits.map((b, idx) => ({
+          id: b.id || `b-${idx + 1}`,
+          textAr: cleanBenefitText(b.textAr),
+          textEn: b.textEn ? cleanBenefitText(b.textEn) : undefined,
+          icon: b.icon || 'check',
+          sortOrder: idx
+        })),
         benefits: planForm.benefits.map((b, idx) => ({
           id: b.id || `b-${idx + 1}`,
           textAr: cleanBenefitText(b.textAr),
@@ -321,22 +338,22 @@ export function AdminBillingPage() {
   // 9. Payment Settings Query
   const { data: paymentSettingsData, isLoading: isLoadingSettings } = useQuery({
     queryKey: ['adminPaymentSettings'],
-    queryFn: async () => {
-      const res = await api.billing.adminGetSettings();
-      if (res.data?.data) {
-        setSettingsForm({
-          vodafoneCashNumber: res.data.data.vodafoneCashNumber || '',
-          vodafoneCashInstructions: res.data.data.vodafoneCashInstructions || '',
-          vodafoneCashEnabled: res.data.data.vodafoneCashEnabled ?? true,
-          instaPayAddress: res.data.data.instaPayAddress || '',
-          instaPayInstructions: res.data.data.instaPayInstructions || '',
-          instaPayEnabled: res.data.data.instaPayEnabled ?? true,
-          paymobEnabled: res.data.data.paymobEnabled ?? true
-        });
-      }
-      return res.data?.data;
-    }
+    queryFn: async () => (await api.billing.adminGetSettings()).data?.data
   });
+
+  React.useEffect(() => {
+    if (paymentSettingsData) {
+      setSettingsForm({
+        vodafoneCashNumber: paymentSettingsData.vodafoneCashNumber || '',
+        vodafoneCashInstructions: paymentSettingsData.vodafoneCashInstructions || '',
+        vodafoneCashEnabled: paymentSettingsData.vodafoneCashEnabled ?? true,
+        instaPayAddress: paymentSettingsData.instaPayAddress || '',
+        instaPayInstructions: paymentSettingsData.instaPayInstructions || '',
+        instaPayEnabled: paymentSettingsData.instaPayEnabled ?? true,
+        paymobEnabled: paymentSettingsData.paymobEnabled ?? true
+      });
+    }
+  }, [paymentSettingsData]);
 
   const updateSettingsMutation = useMutation({
     mutationFn: async (data: typeof settingsForm) => {
@@ -432,7 +449,7 @@ export function AdminBillingPage() {
   // Selections
   const planSelection = useBulkSelection(plansData || []);
   const pendingManualTxns = (txnsData?.data || []).filter(
-    (t: any) => (t.provider === 'VODAFONE_CASH' || t.provider === 'INSTAPAY') && t.status === 'PENDING'
+    (t: any) => t.status === 'PENDING'
   );
   const manualTxnSelection = useBulkSelection(pendingManualTxns);
 
@@ -554,6 +571,8 @@ export function AdminBillingPage() {
       currency: plan.currency || 'EGP',
       billingInterval: plan.billingInterval || 'MONTHLY',
       isActive: plan.isActive,
+      targetGrade: ((plan as any).targetGrade || 'ALL') as any,
+      targetGroup: (plan as any).targetGroup || '',
       benefits: benefitsList
     });
 
@@ -566,10 +585,12 @@ export function AdminBillingPage() {
       name: '',
       code: '',
       description: '',
-      price: 250,
+      price: 0,
       currency: 'EGP',
       billingInterval: 'MONTHLY',
       isActive: true,
+      targetGrade: 'ALL',
+      targetGroup: '',
       benefits: [
         { id: 'b-1', textAr: 'الوصول لجميع الدروس والمشاريع أونلاين', textEn: 'Full access to online lessons & projects', icon: 'check', sortOrder: 0 },
         { id: 'b-2', textAr: 'حضور الجلسات العملية في مقر الأكاديمية (للمسار المدمج)', textEn: 'In-person lab sessions at academy campus', icon: 'building', sortOrder: 1 },
@@ -638,7 +659,7 @@ export function AdminBillingPage() {
             className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0 shadow-sm"
           >
             <Wallet className="w-4 h-4 mr-1.5" />
-            <span>{isRtl ? 'تسجيل دفع حضوري (250 ج.م)' : 'Record In-Person Payment'}</span>
+            <span>{isRtl ? 'تسجيل دفع يدوي / حضوري' : 'Record In-Person / Manual Payment'}</span>
           </Button>
 
           {activeTab === 'plans' && (
@@ -971,7 +992,7 @@ export function AdminBillingPage() {
                           const isHybrid = student?.learningModeSelected && student?.attendanceRequired;
                           const isOnline = student?.learningModeSelected && !student?.attendanceRequired;
                           const isManual = txn.provider === 'MANUAL';
-                          const isManualPending = (txn.provider === 'VODAFONE_CASH' || txn.provider === 'INSTAPAY') && txn.status === 'PENDING';
+                          const isPending = txn.status === 'PENDING';
                           const isSelected = manualTxnSelection.isSelected(txn.id);
 
                           return (
@@ -984,7 +1005,7 @@ export function AdminBillingPage() {
                               }`}
                             >
                               <td className="w-10 py-3 px-3 text-center">
-                                {isManualPending ? (
+                                {isPending ? (
                                   <input
                                     type="checkbox"
                                     checked={isSelected}
@@ -1023,13 +1044,13 @@ export function AdminBillingPage() {
                               {/* Payment source column */}
                               <td className="py-3 px-4">
                                 {txn.provider === 'VODAFONE_CASH' ? (
-                                  <Badge variant="danger" size="sm" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800 flex items-center gap-1 w-fit">
-                                    <Smartphone className="w-3 h-3 text-red-600" />
+                                  <Badge variant="danger" size="sm" className="bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800 flex items-center gap-1.5 w-fit">
+                                    <VodafoneCashLogo className="w-3.5 h-3.5 shrink-0" />
                                     <span>فودافون كاش</span>
                                   </Badge>
                                 ) : txn.provider === 'INSTAPAY' ? (
-                                  <Badge variant="primary" size="sm" className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800 flex items-center gap-1 w-fit">
-                                    <Smartphone className="w-3 h-3 text-purple-600" />
+                                  <Badge variant="primary" size="sm" className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800 flex items-center gap-1.5 w-fit">
+                                    <InstaPayLogo className="w-3.5 h-3.5 shrink-0" />
                                     <span>إنستاباي (InstaPay)</span>
                                   </Badge>
                                 ) : isManual ? (
@@ -1071,19 +1092,31 @@ export function AdminBillingPage() {
                                     )}
                                   </div>
                                 )}
+                                {txn.metadata?.receiptUrl && (
+                                  <div className="mt-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewReceiptUrl(txn.metadata.receiptUrl)}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 dark:bg-brand-950/40 dark:hover:bg-brand-900/40 dark:text-brand-300 dark:border-brand-800 transition shadow-2xs"
+                                    >
+                                      <ImageIcon className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                                      <span>{isRtl ? 'عرض صورة الإيصال' : 'View Receipt Proof'}</span>
+                                    </button>
+                                  </div>
+                                )}
                               </td>
                               <td className="py-3 px-4">{getTxnBadge(txn.status)}</td>
                               <td className="py-3 px-4 text-center">
-                                {isManualPending ? (
+                                {isPending ? (
                                   <div className="flex items-center justify-center gap-1.5">
                                     <Button
                                       size="sm"
-                                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 px-2.5 flex items-center gap-1"
+                                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-7 px-2.5 flex items-center gap-1 font-bold shadow-2xs"
                                       onClick={() => confirmTxnMutation.mutate(txn.id)}
                                       isLoading={confirmTxnMutation.isPending}
                                     >
                                       <Check className="w-3.5 h-3.5" />
-                                      <span>{isRtl ? 'تأكيد' : 'Confirm'}</span>
+                                      <span>{isRtl ? 'تأكيد وتفعيل' : 'Approve & Activate'}</span>
                                     </Button>
                                     <Button
                                       size="sm"
@@ -1263,7 +1296,23 @@ export function AdminBillingPage() {
                             </Badge>
                           )}
                         </div>
-                        <span className="text-xs font-mono text-slate-400 font-semibold">{plan.code}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                          <span className="text-xs font-mono text-slate-400 font-semibold">{plan.code}</span>
+                          <Badge variant="outline" size="sm" className="font-semibold bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800">
+                            {(plan as any).targetGrade === 'GRADE_1'
+                              ? (isRtl ? 'الصف الأول الثانوي' : '1st Grade')
+                              : (plan as any).targetGrade === 'GRADE_2'
+                              ? (isRtl ? 'الصف الثاني الثانوي' : '2nd Grade')
+                              : (plan as any).targetGrade === 'GRADE_3'
+                              ? (isRtl ? 'الصف الثالث الثانوي' : '3rd Grade')
+                              : (isRtl ? 'جميع الصفوف' : 'All Grades')}
+                          </Badge>
+                          {(plan as any).targetGroup && (
+                            <Badge variant="outline" size="sm" className="font-medium text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+                              {(plan as any).targetGroup}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
 
                       <Badge variant={plan.isActive ? 'success' : 'secondary'}>
@@ -1271,7 +1320,7 @@ export function AdminBillingPage() {
                       </Badge>
                     </div>
 
-                    <div className="text-2xl font-black text-slate-900 dark:text-white">
+                    <div className="text-2xl font-bold text-slate-900 dark:text-white">
                       {formatPrice(plan.price, plan.currency)}{' '}
                       <span className="text-xs text-slate-400 font-normal">
                         / {isRtl ? 'شهرياً' : plan.billingInterval.toLowerCase()}
@@ -1370,8 +1419,8 @@ export function AdminBillingPage() {
             <Card className="p-6 space-y-4 border-red-200/80 dark:border-red-900/40 bg-gradient-to-br from-red-50/20 to-transparent">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-red-500/10 text-red-600 flex items-center justify-center font-bold text-lg">
-                    📱
+                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-xs">
+                    <VodafoneCashLogo className="w-10 h-10" />
                   </div>
                   <div>
                     <h3 className="font-bold text-slate-900 dark:text-white text-base">
@@ -1425,8 +1474,8 @@ export function AdminBillingPage() {
             <Card className="p-6 space-y-4 border-purple-200/80 dark:border-purple-900/40 bg-gradient-to-br from-purple-50/20 to-transparent">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-purple-500/10 text-purple-600 flex items-center justify-center font-bold text-lg">
-                    ⚡
+                  <div className="w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-xs">
+                    <InstaPayLogo className="w-10 h-10" />
                   </div>
                   <div>
                     <h3 className="font-bold text-slate-900 dark:text-white text-base">
@@ -1511,14 +1560,14 @@ export function AdminBillingPage() {
             setManualPaymentNotes('');
             setManualStudentSearch('');
           }}
-          title={isRtl ? 'تسجيل دفع اشتراك حضوري (المسار المدمج)' : 'Record In-Person Hybrid Payment'}
+          title={isRtl ? 'تسجيل دفع يدوي / حضوري وتفعيل الاشتراك' : 'Record Manual / In-Person Payment'}
           maxWidth="md"
         >
           <div className="space-y-4 py-2">
             <p className="text-xs text-slate-500 leading-relaxed">
               {isRtl
-                ? 'يستخدم هذا النموذج لتسجيل استلام رسوم الاشتراك الشهري (250 ج.م) نقداً أو بمكتب الأكاديمية لطلاب المسار المدمج (حضوري + أونلاين). يتم تفعيل وتمديد الاشتراك فورياً لمدة 30 يوماً.'
-                : 'Record manual monthly subscription payments (250 EGP) at academy desk for Hybrid students. This immediately activates/extends full online access.'}
+                ? 'يستخدم هذا النموذج لتسجيل استلام رسوم الاشتراك نقداً أو بمكتب الأكاديمية أو تحويل يدوي وتحديد المبلغ وتمديد الاشتراك فورياً لمدة 30 يوماً.'
+                : 'Record manual subscription payments at academy desk or manual cash. Specify the exact collected amount and immediately activate/extend 30 days access.'}
             </p>
 
             {/* Student Search & Select */}
@@ -1575,11 +1624,28 @@ export function AdminBillingPage() {
               </div>
             </div>
 
+            {/* Custom Amount Input Field */}
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                {isRtl ? 'قيمة المبلغ المحصل (ج.م) *' : 'Amount Collected (EGP) *'}
+              </label>
+              <Input
+                type="number"
+                min="1"
+                placeholder={isRtl ? 'أدخل المبلغ المحصل نقداً...' : 'Enter collected amount...'}
+                value={manualPaymentAmount}
+                onChange={(e) => setManualPaymentAmount(e.target.value)}
+                required
+              />
+            </div>
+
             {/* Payment Summary Box */}
             <div className="p-3.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 space-y-1.5 text-xs">
               <div className="flex justify-between items-center">
-                <span className="text-emerald-800 dark:text-emerald-300 font-medium">{isRtl ? 'قيمة الرسوم المقررة:' : 'Standard Fee:'}</span>
-                <span className="font-black text-sm text-emerald-700 dark:text-emerald-400">250 {isRtl ? 'ج.م' : 'EGP'}</span>
+                <span className="text-emerald-800 dark:text-emerald-300 font-medium">{isRtl ? 'المبلغ المحصل:' : 'Collected Fee:'}</span>
+                <span className="font-bold text-sm text-emerald-700 dark:text-emerald-400">
+                  {manualPaymentAmount ? `${manualPaymentAmount} ${isRtl ? 'ج.م' : 'EGP'}` : (isRtl ? 'حسب الإدخال أعلاه' : 'As entered')}
+                </span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-emerald-800 dark:text-emerald-300 font-medium">{isRtl ? 'فترة التمديد:' : 'Access Period:'}</span>
@@ -1612,6 +1678,7 @@ export function AdminBillingPage() {
                 onClick={() => {
                   setShowManualRecordModal(false);
                   setSelectedHybridStudentId('');
+                  setManualPaymentAmount('');
                   setManualPaymentNotes('');
                 }}
               >
@@ -1624,6 +1691,7 @@ export function AdminBillingPage() {
                 onClick={() =>
                   manualPaymentMutation.mutate({
                     studentId: selectedHybridStudentId,
+                    amount: manualPaymentAmount ? Number(manualPaymentAmount) : undefined,
                     notes: manualPaymentNotes || undefined
                   })
                 }
@@ -1722,6 +1790,36 @@ export function AdminBillingPage() {
                     { value: 'true', label: isRtl ? 'مُفعّلة (Active)' : 'Active' },
                     { value: 'false', label: isRtl ? 'مُعطّلة (Inactive)' : 'Inactive' }
                   ]}
+                />
+              </div>
+            </div>
+
+            {/* Target Grade & Class Assignment */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200/60 dark:border-indigo-800/40">
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  {isRtl ? 'الصف الدراسي المستهدف' : 'Target Academic Grade'} *
+                </label>
+                <Select
+                  value={planForm.targetGrade}
+                  onChange={(e: any) => setPlanForm({ ...planForm, targetGrade: e.target.value })}
+                  options={[
+                    { value: 'ALL', label: isRtl ? 'جميع الصفوف الدراسية (متاح للكل)' : 'All Grades (Universal)' },
+                    { value: 'GRADE_1', label: isRtl ? 'الصف الأول الثانوي' : '1st Secondary Grade' },
+                    { value: 'GRADE_2', label: isRtl ? 'الصف الثاني الثانوي' : '2nd Secondary Grade' },
+                    { value: 'GRADE_3', label: isRtl ? 'الصف الثالث الثانوي' : '3rd Secondary Grade' }
+                  ]}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  {isRtl ? 'المجموعة / القاعة الدراسية (اختياري)' : 'Target Class / Group (Optional)'}
+                </label>
+                <Input
+                  value={planForm.targetGroup}
+                  onChange={(e) => setPlanForm({ ...planForm, targetGroup: e.target.value })}
+                  placeholder={isRtl ? 'مثال: طلاب السبت - قاعة A' : 'e.g. Saturday Group A'}
                 />
               </div>
             </div>
@@ -2050,6 +2148,44 @@ export function AdminBillingPage() {
                 }
               >
                 {isRtl ? 'تأكيد الرفض الجماعي' : 'Confirm Bulk Rejection'}
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {/* Receipt Proof Preview Dialog */}
+      {previewReceiptUrl && (
+        <Dialog
+          isOpen={Boolean(previewReceiptUrl)}
+          onClose={() => setPreviewReceiptUrl(null)}
+          title={isRtl ? 'إشعار وتحويل الطالب (صورة الإيصال)' : 'Transfer Proof / Screenshot'}
+          maxWidth="lg"
+        >
+          <div className="space-y-4 pt-2">
+            <div className="max-h-[70vh] overflow-auto rounded-2xl bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-center p-3">
+              <img
+                src={previewReceiptUrl}
+                alt="Transfer Receipt Proof"
+                className="max-h-[65vh] w-auto max-w-full object-contain rounded-xl shadow-lg"
+              />
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+              <a
+                href={previewReceiptUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs font-bold text-brand-600 hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                <span>{isRtl ? 'فتح الصورة بالحجم الكامل في نافذة جديدة' : 'Open in new tab'}</span>
+              </a>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPreviewReceiptUrl(null)}
+              >
+                {isRtl ? 'إغلاق' : 'Close'}
               </Button>
             </div>
           </div>

@@ -20,7 +20,8 @@ import { Payment } from '../../types/api.js';
 import { localizeText, formatStatus, formatCurrency } from '../../lib/i18n-helpers.js';
 
 export function AdminPaymentsPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRtl = i18n.language === 'ar';
   const toast = useToast();
   const queryClient = useQueryClient();
 
@@ -37,7 +38,7 @@ export function AdminPaymentsPage() {
   const [studentId, setStudentId] = useState('');
   const [formYear, setFormYear] = useState(currentRealYear);
   const [formMonth, setFormMonth] = useState(currentRealMonth);
-  const [amount, setAmount] = useState(250);
+  const [amount, setAmount] = useState<number | ''>('');
   const [status, setStatus] = useState('PAID');
   const [notes, setNotes] = useState('Paid in cash');
 
@@ -111,6 +112,8 @@ export function AdminPaymentsPage() {
       queryClient.invalidateQueries({ queryKey: ['adminPayments'] });
       queryClient.invalidateQueries({ queryKey: ['paymentSummary'] });
       setIsRecordModalOpen(false);
+      setStudentId('');
+      setAmount('');
       toast.success(t('common.success'));
     },
     onError: (err: any) => {
@@ -120,6 +123,10 @@ export function AdminPaymentsPage() {
 
   const handleRecordPayment = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!amount || Number(amount) <= 0) {
+      toast.error(isRtl ? 'يرجى إدخال مبلغ صحيح' : 'Please enter a valid amount');
+      return;
+    }
     recordMutation.mutate({
       studentId,
       year: Number(formYear),
@@ -147,7 +154,7 @@ export function AdminPaymentsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <CreditCard className="w-7 h-7 text-brand-600 dark:text-brand-400" />
             <span>{t('payments.title')}</span>
           </h1>
@@ -176,7 +183,7 @@ export function AdminPaymentsPage() {
                 key={y}
                 type="button"
                 onClick={() => setSelectedYear(y)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition ${selectedYear === y ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'}`}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${selectedYear === y ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'}`}
               >
                 {y}
               </button>
@@ -207,7 +214,7 @@ export function AdminPaymentsPage() {
             key={m.num}
             type="button"
             onClick={() => setSelectedMonth(m.num)}
-            className={`px-4 py-2 rounded-2xl text-xs font-black transition whitespace-nowrap ${selectedMonth === m.num ? 'bg-brand-600 text-white shadow-md shadow-brand-500/20 scale-105' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
+            className={`px-4 py-2 rounded-2xl text-xs font-semibold transition whitespace-nowrap ${selectedMonth === m.num ? 'bg-brand-600 text-white shadow-md shadow-brand-500/20 scale-105' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`}
           >
             {t('payments.month')} {m.name}
           </button>
@@ -404,8 +411,11 @@ export function AdminPaymentsPage() {
             <Input
               label={t('payments.amount')}
               type="number"
+              min={1}
+              step={1}
+              placeholder={isRtl ? 'المبلغ بالجنيه...' : 'Amount in EGP...'}
               value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
+              onChange={(e) => setAmount(e.target.value === '' ? '' : Number(e.target.value))}
               required
             />
             <Select

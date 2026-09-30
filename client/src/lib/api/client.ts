@@ -141,6 +141,21 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // Sanitize any internal database/framework error leaks from reaching UI toasts
+    const errorData = (error.response?.data as any)?.error;
+    if (errorData && typeof errorData.message === 'string') {
+      const msg = errorData.message;
+      if (
+        msg.includes('prisma') ||
+        msg.includes('\\') ||
+        msg.includes('findFirst') ||
+        msg.includes('SELECT ') ||
+        msg.includes('ECONNREFUSED')
+      ) {
+        errorData.message = 'An unexpected server error occurred. Please try again.';
+      }
+    }
+
     return Promise.reject(error);
   }
 );
@@ -372,7 +387,7 @@ export const api = {
     delete: (id: string) => apiClient.delete<ApiResponse<{ success: boolean }>>(`/users/${id}`)
   },
   students: {
-    list: (params?: { groupId?: string; search?: string }) => apiClient.get<ApiResponse<any[]>>('/students', { params }),
+    list: (params?: { groupId?: string; search?: string; grade?: string }) => apiClient.get<ApiResponse<any[]>>('/students', { params }),
     getById: (id: string) => apiClient.get<ApiResponse<any>>(`/students/${id}`),
     getProgress: (id: string) => apiClient.get<ApiResponse<any>>(`/students/${id}/progress`),
     create: (data: any) => apiClient.post<ApiResponse<{ user: User; student: any; temporaryPassword: string; group?: any }>>('/users/students', data),
@@ -419,7 +434,11 @@ export const api = {
     bulkApprove: (data: { registrationIds: string[]; groupId?: string | null }) =>
       apiClient.post<ApiResponse<{ success: boolean; successful: any[]; failed: any[] }>>('/admin/registrations/bulk-approve', data),
     approve: (id: string, data?: { groupId?: string | null; adminNotes?: string | null }) =>
-      apiClient.post<ApiResponse<ApproveRegistrationResponse>>(`/admin/registrations/${id}/approve`, data || {})
+      apiClient.post<ApiResponse<ApproveRegistrationResponse>>(`/admin/registrations/${id}/approve`, data || {}),
+    deleteAdmin: (id: string) =>
+      apiClient.delete<ApiResponse<{ success: boolean; id: string }>>(`/admin/registrations/${id}`),
+    bulkDeleteAdmin: (registrationIds: string[]) =>
+      apiClient.post<ApiResponse<{ success: boolean; count: number; registrationIds: string[] }>>('/admin/registrations/bulk-delete', { registrationIds })
   },
   access: {
     getLessonAccess: (lessonId: string) =>
@@ -439,7 +458,7 @@ export const api = {
       apiClient.post<ApiResponse<EducationalAccessGrant>>(`/access/grants/${id}/revoke`, { reason })
   },
   subscriptions: {
-    listPlans: () => apiClient.get<ApiResponse<SubscriptionPlan[]>>('/access/plans'),
+    listPlans: (params?: { grade?: string }) => apiClient.get<ApiResponse<SubscriptionPlan[]>>('/access/plans', { params }),
     createPlan: (data: {
       name: string;
       code: string;
@@ -460,6 +479,8 @@ export const api = {
       apiClient.get<ApiResponse<Array<{ id: string; nameAr: string; nameEn: string; isAutomatic: boolean; receivingAccount?: string; instructions?: string }>>>('/billing/payment-methods'),
     checkout: (data?: { planId?: string; paymentMethod?: string }) =>
       apiClient.post<ApiResponse<any>>('/billing/checkout', data || {}),
+    verifyRedirect: (data: Record<string, any>) =>
+      apiClient.post<ApiResponse<any>>('/billing/verify-redirect', data),
     submitManualPayment: (transactionId: string, data: { senderPhone?: string; referenceNumber?: string; receiptUrl?: string; notes?: string }) =>
       apiClient.post<ApiResponse<any>>(`/billing/manual-payments/${transactionId}/submit`, data),
     getMySubscription: () =>
@@ -485,7 +506,7 @@ export const api = {
       apiClient.get<{ data: PaymentTransaction[]; pagination: PaginationMeta; meta: any }>('/billing/admin/transactions', { params }),
     adminRefund: (id: string, reason: string) =>
       apiClient.post<ApiResponse<PaymentTransaction>>(`/billing/admin/transactions/${id}/refund`, { reason }),
-    adminRecordManualPayment: (data: { studentId: string; notes?: string; idempotencyKey?: string }) =>
+    adminRecordManualPayment: (data: { studentId: string; amount?: number; notes?: string; idempotencyKey?: string }) =>
       apiClient.post<ApiResponse<{ transaction: PaymentTransaction; subscription: Subscription; isDuplicate?: boolean }>>('/billing/admin/manual-record', data),
     adminGetSettings: () =>
       apiClient.get<ApiResponse<any>>('/billing/admin/settings'),
@@ -495,6 +516,10 @@ export const api = {
       apiClient.post<ApiResponse<any>>(`/billing/admin/manual-payments/${transactionId}/confirm`),
     adminRejectManualPayment: (transactionId: string, reason: string) =>
       apiClient.post<ApiResponse<any>>(`/billing/admin/manual-payments/${transactionId}/reject`, { reason }),
+    adminApproveTransaction: (transactionId: string) =>
+      apiClient.post<ApiResponse<any>>(`/billing/admin/transactions/${transactionId}/approve`),
+    adminRejectTransaction: (transactionId: string, reason: string) =>
+      apiClient.post<ApiResponse<any>>(`/billing/admin/transactions/${transactionId}/reject`, { reason }),
     adminBulkConfirmManualPayments: (ids: string[]) =>
       apiClient.post<ApiResponse<any>>('/billing/admin/manual-payments/bulk-confirm', { ids }),
     adminBulkRejectManualPayments: (ids: string[], reason: string) =>
@@ -509,5 +534,11 @@ export const api = {
       apiClient.patch<ApiResponse<SubscriptionPlan>>(`/billing/admin/plans/${id}`, data),
     adminDeletePlan: (id: string) =>
       apiClient.delete<ApiResponse<{ success: boolean; deleted?: boolean; deactivated?: boolean; message: string }>>(`/billing/admin/plans/${id}`)
+  },
+  settings: {
+    getSecuritySettings: () =>
+      apiClient.get<ApiResponse<{ watermarkEnabled: boolean; antiScreenshotEnabled: boolean; watermarkOpacity: number }>>('/settings/security'),
+    updateSecuritySettings: (data: { watermarkEnabled?: boolean; antiScreenshotEnabled?: boolean; watermarkOpacity?: number }) =>
+      apiClient.patch<ApiResponse<{ watermarkEnabled: boolean; antiScreenshotEnabled: boolean; watermarkOpacity: number }>>('/settings/admin/security', data)
   }
 };

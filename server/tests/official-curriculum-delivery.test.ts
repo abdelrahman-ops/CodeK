@@ -29,6 +29,12 @@ describe('Phase 11: Official Curriculum Delivery, Shielding & Quiz Idempotency',
     studentId = omarRes.json().data.user.student.id;
     studentUserId = omarRes.json().data.user.id;
 
+    // Ensure student is assigned GRADE_2 to match G11 official curriculum
+    await prisma.student.update({
+      where: { id: studentId },
+      data: { grade: 'GRADE_2' }
+    });
+
     // Retrieve official curriculum G11-T1-EB-2026
     const officialCourse = await prisma.curriculum.findUnique({
       where: { code: 'G11-T1-EB-2026' },
@@ -132,7 +138,8 @@ describe('Phase 11: Official Curriculum Delivery, Shielding & Quiz Idempotency',
             create: {
               studentCode: `STU-LOCK-${suffix}`,
               anonymousLeaderboardCode: `CODEK-${suffix}`,
-              learningModeSelected: true
+              learningModeSelected: true,
+              grade: 'GRADE_2'
             }
           }
         },
@@ -425,7 +432,8 @@ describe('Phase 11: Official Curriculum Delivery, Shielding & Quiz Idempotency',
             create: {
               studentCode: `STU-IDEM-${suffix}`,
               anonymousLeaderboardCode: `CODEK-${suffix}`,
-              learningModeSelected: true
+              learningModeSelected: true,
+              grade: 'GRADE_2'
             }
           }
         },

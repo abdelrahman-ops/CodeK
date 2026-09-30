@@ -1,8 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Aref+Ruqaa:wght@400;700&family=Square+Peg&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playpen+Sans+Arabic:wght@100..800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Controlled Theme Palettes (CSS Variables) with High Specificity */
+@layer utilities {
+  .font-ruqaa {
+    font-family: 'Aref Ruqaa', serif !important;
+  }
+  .font-square-peg {
+    font-family: 'Square Peg', cursive !important;
+  }
+  .font-playpen-sans-arabic {
+    font-family: 'Playpen Sans Arabic', sans-serif !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Typography Design Tokens
+   ═══════════════════════════════════════════════════════════════ */
+:root {
+  /* UI Surface Colors */
+  --color-background: 255 255 255;
+  --color-foreground: 15 23 42;
+  --color-card: 255 255 255;
+  --color-card-foreground: 15 23 42;
+  --color-muted: 241 245 249;
+  --color-muted-foreground: 100 116 139;
+  --color-border: 226 232 240;
+
+  /* Font families */
+  --font-sans: 'Inter', 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Typography scale (reference — used via Tailwind classes) */
+  --text-display: 2.5rem;      /* 40px */
+  --text-h1: 2rem;             /* 32px */
+  --text-h2: 1.625rem;         /* 26px */
+  --text-h3: 1.375rem;         /* 22px */
+  --text-h4: 1.125rem;         /* 18px */
+  --text-body-lg: 1.0625rem;   /* 17px */
+  --text-body: 0.9375rem;      /* 15px */
+  --text-body-sm: 0.8125rem;   /* 13px */
+  --text-caption: 0.75rem;     /* 12px */
+  --text-overline: 0.6875rem;  /* 11px — smallest allowed */
+
+  /* Line heights */
+  --leading-tight: 1.2;
+  --leading-heading: 1.35;
+  --leading-body: 1.6;
+  --leading-relaxed: 1.75;
+
+  /* Font weights */
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Controlled Theme Palettes (CSS Variables) with High Specificity
+   ═══════════════════════════════════════════════════════════════ */
 :root,
 html,
 [data-accent="default"],
@@ -117,23 +176,46 @@ body[data-accent="monochrome"] {
   --color-brand-950: 2 6 23;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Base Layer
+   ═══════════════════════════════════════════════════════════════ */
 @layer base {
-  html, body, #root {
-    height: 100%;
-    overflow: hidden;
-  }
-
   html {
     scroll-behavior: smooth;
-    font-family: 'Inter', 'Cairo', system-ui, -apple-system, sans-serif;
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: var(--leading-body);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  
-  html[dir="rtl"] {
-    font-family: 'Cairo', 'Tajawal', system-ui, -apple-system, sans-serif;
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  /* Optimized font stack with high-contrast legibility */
+  body {
+    font-family: var(--font-sans);
+  }
+
+  html[dir="rtl"],
+  body[dir="rtl"] {
+    font-family: 'IBM Plex Sans Arabic', 'Inter', system-ui, -apple-system, sans-serif;
+    font-weight: 500;
   }
 
   .font-brand {
-    font-family: 'Eczar', serif;
+    font-family: var(--font-sans);
+  }
+
+  /* ── Arabic RTL: prevent letter-spacing on connected script ── */
+  [dir="rtl"] .tracking-wider,
+  [dir="rtl"] .tracking-widest,
+  [dir="rtl"] .tracking-wide {
+    letter-spacing: 0em !important;
   }
 
   /* Custom Scrollbar */
@@ -152,7 +234,24 @@ body[data-accent="monochrome"] {
   }
 }
 
-/* Custom Keyframe Animations for Gamification */
+/* ═══════════════════════════════════════════════════════════════
+   Weight Normalization
+   Keep the interface calm and readable: hierarchy comes from
+   spacing, size, and color — not oversized, heavy type.
+   ═══════════════════════════════════════════════════════════════ */
+html .font-black,
+html .font-extrabold {
+  font-weight: 600;
+}
+
+html h1.font-black,
+html h1.font-extrabold {
+  letter-spacing: -0.015em;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Custom Keyframe Animations for Gamification
+   ═══════════════════════════════════════════════════════════════ */
 @keyframes pulse-subtle {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.92; transform: scale(1.02); }
@@ -170,3 +269,14 @@ body[data-accent="monochrome"] {
 .animate-float {
   animation: float 2.5s ease-in-out infinite;
 }
+
+.dark {
+  --color-background: 15 23 42;
+  --color-foreground: 248 250 252;
+  --color-card: 15 23 42;
+  --color-card-foreground: 248 250 252;
+  --color-muted: 30 41 59;
+  --color-muted-foreground: 148 163 184;
+  --color-border: 30 41 59;
+}
+

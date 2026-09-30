@@ -98,7 +98,7 @@ export function LearningModePage() {
               <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
                 {t('onboarding.fullOnlineTitle', 'Full Online Track')}
               </h2>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+              <span className="text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
                 {t('onboarding.onlineTag', 'Online-First')}
               </span>
             </div>
@@ -124,13 +124,9 @@ export function LearningModePage() {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>{t('onboarding.featOnlinePayment', 'Online card / wallet payment (250 EGP/30 days)')}</span>
+                <span>{t('onboarding.featOnlinePayment', 'Online card / smart wallet payment')}</span>
               </div>
             </div>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-slate-200/60 dark:border-slate-800 text-xs font-semibold text-slate-500">
-            {t('onboarding.cost250', '250 EGP / 30 Days')}
           </div>
         </div>
 
@@ -160,7 +156,7 @@ export function LearningModePage() {
               <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
                 {t('onboarding.hybridTitle', 'Hybrid Physical Track')}
               </h2>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300">
+              <span className="text-[11px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300">
                 {t('onboarding.hybridTag', 'Physical + Online')}
               </span>
             </div>
@@ -186,13 +182,9 @@ export function LearningModePage() {
               </div>
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                <span>{t('onboarding.featInPersonPayment', 'Paid in-person at academy desk (250 EGP/30 days)')}</span>
+                <span>{t('onboarding.featInPersonPayment', 'Cash or electronic payment at academy reception')}</span>
               </div>
             </div>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-slate-200/60 dark:border-slate-800 text-xs font-semibold text-slate-500">
-            {t('onboarding.cost250', '250 EGP / 30 Days')}
           </div>
         </div>
       </div>
@@ -220,7 +212,7 @@ export function LearningModePage() {
           className="w-full sm:w-auto px-8 py-3 rounded-xl font-semibold flex items-center justify-center gap-2"
         >
           <span>{submitting ? t('common.saving', 'Saving...') : t('onboarding.confirmAndEnter', 'Confirm & Enter Academy')}</span>
-          <ArrowRight className="w-4 h-4" />
+          <ArrowRight className="w-4 h-4 rtl:rotate-180" />
         </Button>
       </div>
     </div>

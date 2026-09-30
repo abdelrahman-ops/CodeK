@@ -131,7 +131,7 @@ export function CourseDetailPage() {
             </span>
           </div>
 
-          <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-white">
+          <h1 className="text-2xl sm:text-4xl font-bold tracking-tight text-white">
             {localizeText(course.title)}
           </h1>
           {course.description && (
@@ -198,7 +198,7 @@ export function CourseDetailPage() {
       {/* Syllabus / Sections List */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Layers className="w-5 h-5 text-brand-600 dark:text-brand-400" />
             <span>{t('courses.syllabus')}</span>
           </h2>
@@ -290,7 +290,7 @@ export function CourseDetailPage() {
                                 {sIdx + 1}.{lIdx + 1}
                               </span>
                               {lesson.code && (
-                                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                <span className="px-1.5 py-0.5 rounded text-[11px] font-mono font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                                   {lesson.code}
                                 </span>
                               )}
@@ -298,24 +298,24 @@ export function CourseDetailPage() {
                                 {localizeText(lesson.title)}
                               </h4>
                               {lesson.pageRange && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                                   <Bookmark className="w-2.5 h-2.5" />
                                   <span>ص {lesson.pageRange.replace(/^ص\s*/, '')}</span>
                                 </span>
                               )}
                               {isFree ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                                   <Sparkles className="w-3 h-3" />
                                   {isRtl ? 'معاينة مجانية' : 'Free Preview'}
                                 </span>
                               ) : isLocked ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20">
                                   <Lock className="w-2.5 h-2.5" />
                                   {isRtl ? 'محتوى باشتراك' : 'Subscription'}
                                 </span>
                               ) : null}
                               {lesson.videoUrl && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
                                   <Video className="w-3 h-3" />
                                 </span>
                               )}
@@ -323,7 +323,7 @@ export function CourseDetailPage() {
 
                             {isLocked && (
                               <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                {isRtl ? 'متاح بالكامل ضمن اشتراك CodeK (250 ج.م / 30 يوماً)' : 'Included with CodeK Subscription (250 EGP / 30 Days)'}
+                                {isRtl ? 'متاح بالكامل ضمن اشتراك منصة CodeK' : 'Included with CodeK Platform Subscription'}
                               </p>
                             )}
                           </div>

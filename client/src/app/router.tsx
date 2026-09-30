@@ -51,10 +51,17 @@ import { AdminBillingPage } from '../pages/admin/admin-billing-page.js';
 import { AdminNotificationsPage } from '../pages/admin/admin-notifications-page.js';
 import { AdminAuditLogsPage } from '../pages/admin/admin-audit-logs-page.js';
 import { PublicRegistrationPage } from '../pages/public/public-registration-page.js';
+import { LandingPage } from '../pages/public/landing-page.js';
 import { AdminRegistrationsPage } from '../pages/admin/admin-registrations-page.js';
 import { AdminRegistrationDetailPage } from '../pages/admin/admin-registration-detail-page.js';
 
 export const router = createBrowserRouter([
+  // Public Landing Page (Homepage)
+  {
+    path: '/',
+    element: <LandingPage />
+  },
+
   // Public / Auth Routes
   {
     element: <AuthLayout />,
@@ -141,6 +148,6 @@ export const router = createBrowserRouter([
   // Fallback Catch-all
   {
     path: '*',
-    element: <Navigate to="/login" replace />
+    element: <Navigate to="/" replace />
   }
 ]);

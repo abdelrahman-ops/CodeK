@@ -120,7 +120,7 @@ export function CreateSessionModal({ isOpen, onClose, initialGroupId }: CreateSe
               <div className="text-xs text-brand-600 dark:text-brand-400 font-bold uppercase tracking-wider">
                 {isArabic ? 'تاريخ اليوم:' : 'Date:'}
               </div>
-              <div className="text-sm font-black text-slate-900 dark:text-slate-100">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                 {todayFormattedDate}
               </div>
             </div>
@@ -171,7 +171,7 @@ export function CreateSessionModal({ isOpen, onClose, initialGroupId }: CreateSe
                     >
                       <div className="flex items-start justify-between w-full">
                         <div>
-                          <div className="font-black text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                          <div className="font-semibold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
                             <span>{localizeText(g.groupName)}</span>
                             {isSelected && <CheckCircle2 className="w-4 h-4 text-brand-600 shrink-0" />}
                           </div>

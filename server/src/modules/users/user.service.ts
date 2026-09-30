@@ -20,6 +20,8 @@ import {
 import { AuthTokenType, Role } from '@prisma/client';
 import { BadRequestError, NotFoundError } from '../../common/errors/app-error.js';
 import { createAuditLog } from '../audit/audit.service.js';
+import { emailQueue } from '../../queues/email/email.queue.js';
+import { encryptDeliverySecret } from '../../utils/crypto-delivery.js';
 
 export async function createStudentUser(input: CreateStudentUserInput, actorUserId?: string) {
   let loginId = generateStudentCode();
@@ -218,14 +220,23 @@ export async function generateOneTimeResetLink(userId: string, actorUserId?: str
     }
   });
 
-  await prisma.authToken.create({
+  const resetRecord = await prisma.authToken.create({
     data: {
       userId,
       tokenHash,
+      encryptedToken: encryptDeliverySecret(rawToken),
       type: AuthTokenType.PASSWORD_RESET,
       expiresAt
     }
   });
+
+  if (user.email) {
+    await emailQueue.enqueuePasswordReset({
+      email: user.email,
+      authTokenId: resetRecord.id,
+      userName: `${user.firstName} ${user.lastName}`.trim()
+    });
+  }
 
   await createAuditLog({
     actorUserId,

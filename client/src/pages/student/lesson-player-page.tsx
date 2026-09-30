@@ -35,6 +35,7 @@ import { VideoPlayer } from '../../components/shared/video-player.js';
 import { useToast } from '../../components/ui/toast.js';
 import { useLearningStore } from '../../store/learning-store.js';
 import { localizeText, formatStatus, formatDuration } from '../../lib/i18n-helpers.js';
+import { cn } from '../../lib/utils.js';
 import { Lesson, Curriculum } from '../../types/api.js';
 import {
   LessonHeader,
@@ -57,6 +58,7 @@ export function LessonPlayerPage() {
   const isRtl = i18n.language === 'ar';
   const { isMobileSyllabusOpen, toggleMobileSyllabus, setLastActiveLesson } = useLearningStore();
   const [isQuizDrawerOpen, setIsQuizDrawerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'content' | 'concepts' | 'tasks' | 'quiz'>('content');
 
   const { data: lesson, isLoading: isLessonLoading } = useQuery<Lesson>({
     queryKey: ['studentLesson', id],
@@ -201,14 +203,14 @@ export function LessonPlayerPage() {
             </div>
 
             <div className="space-y-1.5">
-              <div className="inline-block px-3 py-1 rounded-full text-xs font-black bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-300 dark:border-brand-800">
-                {isRtl ? 'محتوى حصري للمشتركين • 250 ج.م / 30 يوماً' : 'Subscription Required • 250 EGP / 30 Days'}
+              <div className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-brand-100 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-300 dark:border-brand-800">
+                {isRtl ? 'محتوى حصري للمشتركين' : 'Subscription Required'}
               </div>
-              <h2 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+              <h2 className="text-2xl sm:text-3xl font-semibold text-slate-900 dark:text-slate-100 tracking-tight">
                 {t('paywall.title', 'هذا الدرس متاح حصرياً لمشتركي CodeK')}
               </h2>
               <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-lg mx-auto leading-relaxed">
-                {t('paywall.subtitle', 'اشترك الآن مقابل 250 ج.م فقط لمدة 30 يوماً لفتح الوصول لجميع الدروس، الفيديوهات، التحديات والمشاريع التفاعلية.')}
+                {t('paywall.subtitle', 'اشترك الآن لفتح الوصول لجميع الدروس، الفيديوهات، التحديات والمشاريع التفاعلية.')}
               </p>
             </div>
           </div>
@@ -216,7 +218,7 @@ export function LessonPlayerPage() {
           {/* Value Proposition List */}
           <div className="bg-white/80 dark:bg-slate-800/60 p-4 sm:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-2.5">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              {t('paywall.benefitsTitle', 'ماذا يشمل اشتراك 250 ج.م / 30 يوماً؟')}
+              {t('paywall.benefitsTitle', 'ماذا يشمل اشتراك منصة CodeK؟')}
             </h3>
             <ul className="space-y-2 text-xs sm:text-sm text-slate-700 dark:text-slate-300">
               <li className="flex items-center gap-2">
@@ -247,10 +249,10 @@ export function LessonPlayerPage() {
             <Button
               size="lg"
               onClick={() => navigate('/student/subscription')}
-              className="w-full sm:w-auto px-8 gap-2 text-sm font-black bg-brand-600 hover:bg-brand-700 text-white shadow-lg shadow-brand-500/20"
+              className="w-full sm:w-auto px-8 gap-2 text-sm font-semibold bg-brand-600 hover:bg-brand-700 text-white shadow-lg shadow-brand-500/20"
             >
               <CreditCard className="w-4 h-4" />
-              <span>{t('paywall.subscribeCta', 'اشترك الآن — 250 ج.م / 30 يوماً')}</span>
+              <span>{t('paywall.subscribeCta', 'اشترك الآن لفتح المحتوى')}</span>
               <ArrowRight className="w-4 h-4 rtl:rotate-180" />
             </Button>
             <Button
@@ -279,29 +281,36 @@ export function LessonPlayerPage() {
   const hasEngineeringTask = Boolean(lesson.engineeringTask);
   const hasAdvancedChallenge = Boolean(lesson.advancedChallenge);
   const hasLegacyTasks = !hasEngineeringTask && !hasAdvancedChallenge && Boolean(lesson.tasks && lesson.tasks.length > 0);
+  const taskCount = (hasEngineeringTask ? 1 : 0) + (hasAdvancedChallenge ? 1 : 0) + (hasLegacyTasks ? (lesson.tasks?.length || 0) : 0);
+  const hasConceptCards = Boolean(lesson.conceptCards && lesson.conceptCards.length > 0);
 
   return (
-    <div className="space-y-6 pb-24 lg:pb-16">
-      {/* Top Breadcrumb Bar & Syllabus Toggle for Mobile */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <button
+    <div className="max-w-4xl mx-auto space-y-6 pb-24 lg:pb-16">
+      {/* Top Action Bar: Clean, unified and aligned with the lesson container */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/60 dark:border-slate-800/60">
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => navigate(activeCourseId ? `/student/courses/${activeCourseId}` : '/student/courses')}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+          className="gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 -ms-2"
         >
           <ChevronLeft className="w-4 h-4 rtl:rotate-180" />
-          <span>{course ? localizeText(course.title) : t('courses.title')}</span>
-        </button>
+          <span>{isRtl ? 'العودة للمقرر' : 'Back to Course'}</span>
+        </Button>
 
         <div className="flex items-center gap-2">
-          {/* Mobile Syllabus Toggle Button */}
+          {/* Course Syllabus Trigger */}
           <Button
             size="sm"
             variant="outline"
             onClick={() => toggleMobileSyllabus(true)}
-            className="lg:hidden gap-1.5 text-xs font-bold"
+            className="gap-2 text-xs font-bold bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 hover:border-brand-500 shadow-xs"
           >
-            <List className="w-4 h-4" />
-            <span>{t('courses.syllabus')}</span>
+            <List className="w-4 h-4 text-brand-600" />
+            <span>{isRtl ? 'فهرس الدروس' : 'Course Syllabus'}</span>
+            <Badge variant="primary" size="sm" className="font-mono">
+              {currentIndex + 1} / {orderedLessons.length}
+            </Badge>
           </Button>
 
           {/* Direct Quiz Trigger if present */}
@@ -331,12 +340,8 @@ export function LessonPlayerPage() {
         </div>
       </div>
 
-      {/* Main Two-Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left/Main Column: Modular Curriculum Components */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* 1. Lesson Header with official metadata */}
-          <LessonHeader
+      {/* 1. Lesson Header with official metadata */}
+      <LessonHeader
             title={localizeText(lesson.title)}
             code={lesson.code}
             description={localizeText(lesson.description)}
@@ -349,165 +354,297 @@ export function LessonPlayerPage() {
             chapterCode={currentSection?.code}
           />
 
-          {/* 2. Factual Ministry Curriculum & Textbook Provenance Banner */}
-          <TextbookProvenance
-            authority={lesson.authority || course?.authority}
-            academicYear={course?.academicYear}
-            term={course?.term}
-            track={course?.track}
-            pageRange={lesson.pageRange}
-          />
+          {/* 2. Interactive Segmented Navigation Tabs */}
+          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-100/90 dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700/80 overflow-x-auto scrollbar-none">
+            <button
+              type="button"
+              onClick={() => setActiveTab('content')}
+              className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                activeTab === 'content'
+                  ? 'bg-white dark:bg-slate-900 text-brand-600 dark:text-brand-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Video className="w-4 h-4 text-brand-500" />
+              <span>{isRtl ? 'الشرح والمحتوى' : 'Lesson & Content'}</span>
+            </button>
 
-          {/* 3. Video / Video Blueprint Player */}
-          <VideoBlueprintCard
-            videoBlueprint={lesson.videoBlueprint}
-            videoUrl={playbackData?.playbackUrl || lesson.video?.playbackUrl || lesson.videoUrl}
-            playbackId={playbackData?.playbackId || lesson.video?.playbackId}
-            playbackToken={playbackData?.token}
-            videoDurationSeconds={playbackData?.durationSeconds || lesson.videoBlueprint?.durationSeconds || lesson.video?.durationSeconds || (lesson.estimatedDurationMinutes ? lesson.estimatedDurationMinutes * 60 : null)}
-            lastWatchedPosition={lesson.progress?.lastWatchedPosition || 0}
-            onTimeUpdate={handleVideoProgress}
-            onVideoEnded={handleVideoEnded}
-          />
+            <button
+              type="button"
+              onClick={() => setActiveTab('concepts')}
+              className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                activeTab === 'concepts'
+                  ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-amber-500" />
+              <span>{isRtl ? 'المفاهيم والملخص' : 'Concepts & Summary'}</span>
+              {hasConceptCards && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
+                  {lesson.conceptCards!.length}
+                </span>
+              )}
+            </button>
 
-          {/* 4. Interactive Concept Cards Deck */}
-          {lesson.conceptCards && lesson.conceptCards.length > 0 && (
-            <ConceptCardsDeck
-              cards={lesson.conceptCards}
-              onDeckCompleted={() => {
-                // Concept deck completed in current session
-              }}
-            />
-          )}
+            <button
+              type="button"
+              onClick={() => setActiveTab('tasks')}
+              className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                activeTab === 'tasks'
+                  ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <CheckSquare className="w-4 h-4 text-emerald-500" />
+              <span>{isRtl ? 'المهام والتطبيقات' : 'Tasks & Challenges'}</span>
+              {taskCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
+                  {taskCount}
+                </span>
+              )}
+            </button>
 
-          {/* 5. Rich Markdown Lesson Content */}
-          {lesson.content && (
-            <Card className="p-6 sm:p-8 space-y-4">
-              <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800 pb-2">
-                {t('lessons.lessonContent')}
-              </h2>
-              <MarkdownViewer content={lesson.content} />
-            </Card>
-          )}
-
-          {/* External Presentation Resource (e.g. Canva) */}
-          {lesson.externalResourceUrl && (
-            <div className="pt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-brand-50/50 dark:bg-brand-950/20 p-4 rounded-2xl border border-brand-200/60 dark:border-brand-800/40">
-              <div className="space-y-0.5">
-                <div className="text-xs font-bold text-brand-900 dark:text-brand-200 flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
-                  <span>{localizeText(lesson.externalResourceTitle) || t('lessons.externalPresentation')}</span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {t('lessons.openExternalHint')}
-                </p>
-              </div>
-              <a
-                href={lesson.externalResourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-sm transition shrink-0"
+            {activeQuiz && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('quiz')}
+                className={`flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+                  activeTab === 'quiz'
+                    ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-sm'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                }`}
               >
-                <span>{t('lessons.openResource')}</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+                <HelpCircle className="w-4 h-4 text-amber-500" />
+                <span>{isRtl ? 'الاختبار التقييمي' : 'Assessment Quiz'}</span>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
+                  {activeQuiz.myAttempt ? `${activeQuiz.myAttempt.percentage}%` : `+${activeQuiz.xpReward || 30} XP`}
+                </span>
+              </button>
+            )}
+          </div>
+
+          {/* TAB 1: Content & Video */}
+          {activeTab === 'content' && (
+            <div className="space-y-6">
+              <TextbookProvenance
+                authority={lesson.authority || course?.authority}
+                academicYear={course?.academicYear}
+                term={course?.term}
+                track={course?.track}
+                pageRange={lesson.pageRange}
+              />
+
+              <VideoBlueprintCard
+                videoBlueprint={lesson.videoBlueprint}
+                videoUrl={playbackData?.playbackUrl || lesson.video?.playbackUrl || lesson.videoUrl}
+                playbackId={playbackData?.playbackId || lesson.video?.playbackId}
+                playbackToken={playbackData?.token}
+                videoDurationSeconds={playbackData?.durationSeconds || lesson.videoBlueprint?.durationSeconds || lesson.video?.durationSeconds || (lesson.estimatedDurationMinutes ? lesson.estimatedDurationMinutes * 60 : null)}
+                lastWatchedPosition={lesson.progress?.lastWatchedPosition || 0}
+                onTimeUpdate={handleVideoProgress}
+                onVideoEnded={handleVideoEnded}
+              />
+
+              {lesson.externalResourceUrl && (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-brand-50/50 dark:bg-brand-950/20 p-4 rounded-2xl border border-brand-200/60 dark:border-brand-800/40">
+                  <div className="space-y-0.5">
+                    <div className="text-xs font-bold text-brand-900 dark:text-brand-200 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-brand-600 dark:text-brand-400" />
+                      <span>{localizeText(lesson.externalResourceTitle) || t('lessons.externalPresentation')}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {t('lessons.openExternalHint')}
+                    </p>
+                  </div>
+                  <a
+                    href={lesson.externalResourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs shadow-sm transition shrink-0"
+                  >
+                    <span>{t('lessons.openResource')}</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+
+              {lesson.content && (
+                <Card className="p-6 sm:p-8 space-y-4">
+                  <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800 pb-2">
+                    {t('lessons.lessonContent')}
+                  </h2>
+                  <MarkdownViewer content={lesson.content} />
+                </Card>
+              )}
             </div>
           )}
 
-          {/* 6. Applied Engineering Task */}
-          {hasEngineeringTask && (
-            <EngineeringTaskCard
-              task={lesson.engineeringTask}
-              onSubmitClick={(t) => navigate(`/student/tasks/${t.id}`)}
-            />
-          )}
+          {/* TAB 2: Concepts & Summary */}
+          {activeTab === 'concepts' && (
+            <div className="space-y-6">
+              <TextbookProvenance
+                authority={lesson.authority || course?.authority}
+                academicYear={course?.academicYear}
+                term={course?.term}
+                track={course?.track}
+                pageRange={lesson.pageRange}
+              />
 
-          {/* 7. Advanced Challenge */}
-          {hasAdvancedChallenge && (
-            <AdvancedChallengeCard
-              challenge={lesson.advancedChallenge}
-              onSubmitClick={(c) => navigate(`/student/tasks/${c.id}`)}
-            />
-          )}
-
-          {/* 8. Fallback for Legacy Tasks */}
-          {hasLegacyTasks && (
-            <Card className="p-6 space-y-4">
-              <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <CheckSquare className="w-5 h-5 text-brand-600" />
-                <span>{t('nav.tasks')} ({lesson.tasks!.length})</span>
-              </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {lesson.tasks!.map((task: any) => (
-                  <div
-                    key={task.id}
-                    onClick={() => navigate(`/student/tasks/${task.id}`)}
-                    className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-brand-300 transition cursor-pointer flex flex-col justify-between gap-2"
-                  >
-                    <div>
-                      <Badge variant="outline" size="sm">{formatStatus(task.difficulty)}</Badge>
-                      <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100 mt-1">{task.title}</h4>
-                    </div>
-                    <span className="text-[11px] font-bold text-brand-600 flex items-center gap-1">
-                      <span>{t('tasks.viewTask')}</span>
-                      <ArrowRight className="w-3 h-3 rtl:rotate-180" />
-                    </span>
+              {hasConceptCards ? (
+                <ConceptCardsDeck
+                  cards={lesson.conceptCards!}
+                  onDeckCompleted={() => {}}
+                />
+              ) : (
+                <Card className="p-8 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
+                    <Sparkles className="w-6 h-6" />
                   </div>
-                ))}
-              </div>
-            </Card>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    {isRtl ? 'لا توجد بطاقات مفاهيم مخصصة لهذا الدرس حالياً' : 'No Concept Cards for this Lesson'}
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    {isRtl
+                      ? 'يمكنك متابعة شرح ومفاهيم الدرس من تبويب "الشرح والمحتوى" وقراءة محاور المنهج المعتمد.'
+                      : 'You can follow the lesson explanation and concepts in the "Lesson & Content" tab.'}
+                  </p>
+                </Card>
+              )}
+            </div>
           )}
 
-          {/* 9. Interactive Quiz Card */}
-          {activeQuiz && (
-            <Card className="p-5 sm:p-6 border-amber-500/20 bg-gradient-to-br from-amber-50/40 via-white to-amber-50/10 dark:from-amber-950/10 dark:via-slate-900 dark:to-slate-900 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="p-2.5 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+          {/* TAB 3: Tasks & Applications */}
+          {activeTab === 'tasks' && (
+            <div className="space-y-6">
+              {hasEngineeringTask && (
+                <EngineeringTaskCard
+                  task={lesson.engineeringTask}
+                  onSubmitClick={(t) => navigate(`/student/tasks/${t.id}`)}
+                />
+              )}
+
+              {hasAdvancedChallenge && (
+                <AdvancedChallengeCard
+                  challenge={lesson.advancedChallenge}
+                  onSubmitClick={(c) => navigate(`/student/tasks/${c.id}`)}
+                />
+              )}
+
+              {hasLegacyTasks && (
+                <Card className="p-6 space-y-4">
+                  <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <CheckSquare className="w-5 h-5 text-brand-600" />
+                    <span>{t('nav.tasks')} ({lesson.tasks!.length})</span>
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {lesson.tasks!.map((task: any) => (
+                      <div
+                        key={task.id}
+                        onClick={() => navigate(`/student/tasks/${task.id}`)}
+                        className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-brand-300 transition cursor-pointer flex flex-col justify-between gap-2"
+                      >
+                        <div>
+                          <Badge variant="outline" size="sm">{formatStatus(task.difficulty)}</Badge>
+                          <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100 mt-1">{task.title}</h4>
+                        </div>
+                        <span className="text-[11px] font-bold text-brand-600 flex items-center gap-1">
+                          <span>{t('tasks.viewTask')}</span>
+                          <ArrowRight className="w-3 h-3 rtl:rotate-180" />
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {taskCount === 0 && (
+                <Card className="p-8 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto">
+                    <CheckSquare className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    {isRtl ? 'لا توجد مهام أو واجبات مطلوبة لهذا الدرس' : 'No Tasks Required for this Lesson'}
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    {isRtl
+                      ? 'تم التركيز في هذا الدرس على المفاهيم النظرية وتطبيقاتها المعرفية. يمكنك الانتقال إلى الكويز أو الدرس التالي.'
+                      : 'This lesson focuses on foundational concepts. Move to the quiz or next lesson.'}
+                  </p>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: Quiz & Assessment */}
+          {activeTab === 'quiz' && (
+            <div className="space-y-6">
+              {activeQuiz ? (
+                <Card className="p-6 sm:p-8 border-amber-500/20 bg-gradient-to-br from-amber-50/40 via-white to-amber-50/10 dark:from-amber-950/10 dark:via-slate-900 dark:to-slate-900 shadow-sm space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 shrink-0">
+                        <HelpCircle className="w-7 h-7" />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100">
+                            {activeQuiz.title}
+                          </h3>
+                          {activeQuiz.code && (
+                            <span className="px-2 py-0.5 rounded text-[11px] font-mono font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                              {activeQuiz.code}
+                            </span>
+                          )}
+                          {activeQuiz.myAttempt ? (
+                            <Badge variant="success" size="sm" className="gap-1 text-xs">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>{activeQuiz.myAttempt.percentage}%</span>
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" size="sm" className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800">
+                              +{activeQuiz.xpReward || 30} XP
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                          {activeQuiz.myAttempt
+                            ? (isRtl ? 'تم تسليم الاختبار التقييمي بنجاح وحصد نقاط الخبرة. يمكنك مراجعة إجاباتك في أي وقت.' : 'Quiz completed successfully. You can review your attempts at any time.')
+                            : (isRtl ? 'اختبر فهمك لمفاهيم الدرس التفاعلية واحصد نقاط XP الفورية عند تحقيق نسبة النجاح.' : 'Test your comprehension of lesson concepts and earn instant XP!')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Button
+                      onClick={() => setIsQuizDrawerOpen(true)}
+                      size="lg"
+                      className="gap-2 text-sm font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-sm shrink-0 w-full sm:w-auto"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>{activeQuiz.myAttempt ? t('exams.reviewAttempt', 'مراجعة الاختبار') : t('exams.startQuiz', 'بدء الاختبار')}</span>
+                    </Button>
+                  </div>
+                </Card>
+              ) : (
+                <Card className="p-8 text-center space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center mx-auto">
                     <HelpCircle className="w-6 h-6" />
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
-                        {activeQuiz.title}
-                      </h3>
-                      {activeQuiz.code && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-                          {activeQuiz.code}
-                        </span>
-                      )}
-                      {activeQuiz.myAttempt ? (
-                        <Badge variant="success" size="sm" className="gap-1 text-[10px]">
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>{activeQuiz.myAttempt.percentage}%</span>
-                        </Badge>
-                      ) : (
-                        <Badge variant="outline" size="sm" className="bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800">
-                          +{activeQuiz.xpReward || 30} XP
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      {activeQuiz.myAttempt
-                        ? 'تم تسليم الاختبار التقييمي بنجاح وحصد نقاط الخبرة. يمكنك مراجعة إجاباتك في أي وقت.'
-                        : 'اختبر فهمك لمفاهيم الدرس التفاعلية واحصد نقاط XP الفورية عند تحقيق نسبة النجاح.'}
-                    </p>
-                  </div>
-                </div>
-
-                <Button
-                  onClick={() => setIsQuizDrawerOpen(true)}
-                  className="gap-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-sm shrink-0 w-full sm:w-auto"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{activeQuiz.myAttempt ? t('exams.reviewAttempt', 'مراجعة الاختبار') : t('exams.startQuiz', 'بدء الاختبار')}</span>
-                </Button>
-              </div>
-            </Card>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                    {isRtl ? 'لا يوجد اختبار تقييمي لهذا الدرس حالياً' : 'No Quiz Available'}
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    {isRtl
+                      ? 'يمكنك الانتقال إلى المهام التطبيقية أو متابعة الدرس التالي.'
+                      : 'You can proceed to tasks or the next lesson.'}
+                  </p>
+                </Card>
+              )}
+            </div>
           )}
 
           {/* Navigation Controls: Previous / Next Lesson */}
-          <div className="flex items-center justify-between gap-3 pt-4">
+          <div className="flex items-center justify-between gap-3 pt-6 border-t border-slate-100 dark:border-slate-800">
             {prevLesson ? (
               <Button
                 variant="outline"
@@ -539,23 +676,46 @@ export function LessonPlayerPage() {
               </Button>
             ) : <div />}
           </div>
-        </div>
 
-        {/* Right Column: Desktop Syllabus Sidebar */}
-        <div className="hidden lg:block lg:col-span-4 sticky top-6 space-y-4">
-          <Card className="p-4 space-y-4 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <List className="w-4 h-4 text-brand-600" />
-                <span>{t('courses.syllabus')}</span>
-              </h3>
-              <span className="text-xs font-semibold text-slate-400">
-                {orderedLessons.filter((l) => l.progress?.status === 'COMPLETED').length}/{orderedLessons.length}
-              </span>
+      {/* Universal Slide-Over Syllabus Drawer (Desktop & Mobile) */}
+      {isMobileSyllabusOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden" dir={isRtl ? 'rtl' : 'ltr'}>
+          {/* Backdrop Click */}
+          <div
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
+            onClick={() => toggleMobileSyllabus(false)}
+          />
+
+          <div
+            className={cn(
+              "fixed inset-y-0 z-50 w-full max-w-md bg-white dark:bg-slate-900 shadow-2xl flex flex-col transition-all duration-300",
+              isRtl
+                ? "start-0 border-e border-slate-200/80 dark:border-slate-800 animate-in slide-in-from-right"
+                : "end-0 border-s border-slate-200/80 dark:border-slate-800 animate-in slide-in-from-right"
+            )}
+          >
+            {/* Header */}
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/40">
+              <div className="space-y-0.5">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <List className="w-4 h-4 text-brand-600" />
+                  <span>{t('courses.syllabus')}</span>
+                </h3>
+                <p className="text-[11px] text-slate-400">
+                  {orderedLessons.filter((l) => l.progress?.status === 'COMPLETED').length} / {orderedLessons.length} {isRtl ? 'دروس مكتملة' : 'completed'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => toggleMobileSyllabus(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            {/* Course Sections Tree */}
-            <div className="space-y-3">
+            {/* Syllabus Sections & Lessons */}
+            <div className="p-4 space-y-4 overflow-y-auto flex-1">
               {(course?.sections || []).map((sec, sIdx) => (
                 <div key={sec.id} className="space-y-1.5">
                   <div className="flex items-center justify-between px-1">
@@ -568,89 +728,6 @@ export function LessonPlayerPage() {
                       </span>
                     )}
                   </div>
-                  <div className="space-y-1">
-                    {(sec.lessons || []).map((l, lIdx) => {
-                      const isCurrent = l.id === id;
-                      const isDone = l.progress?.status === 'COMPLETED';
-
-                      return (
-                        <div
-                          key={l.id}
-                          onClick={() => {
-                            if (l.isLocked) {
-                              toast.error(l.lockMessage || t('lessons.lockedExplanation'));
-                            } else {
-                              navigate(`/student/courses/${activeCourseId}/lessons/${l.id}`);
-                            }
-                          }}
-                          className={`p-2.5 rounded-xl text-xs flex items-center justify-between gap-2 transition cursor-pointer ${
-                            isCurrent
-                              ? 'bg-brand-600 text-white font-bold shadow-md shadow-brand-500/20'
-                              : isDone
-                              ? 'bg-slate-50 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                              : l.isLocked
-                              ? 'opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800/20'
-                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            {isDone ? (
-                              <CheckCircle2 className={`w-3.5 h-3.5 shrink-0 ${isCurrent ? 'text-white' : 'text-emerald-500'}`} />
-                            ) : l.isLocked ? (
-                              <Lock className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                            ) : (
-                              <PlayCircle className={`w-3.5 h-3.5 shrink-0 ${isCurrent ? 'text-white' : 'text-brand-500'}`} />
-                            )}
-                            <span className="truncate">{localizeText(l.title)}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {l.code && (
-                              <span className={`text-[9px] font-mono px-1 py-0.2 rounded border ${
-                                isCurrent
-                                  ? 'border-white/30 text-white'
-                                  : 'border-slate-200 dark:border-slate-700 text-slate-400'
-                              }`}>
-                                {l.code}
-                              </span>
-                            )}
-                            <span className={`text-[10px] ${isCurrent ? 'text-brand-100' : 'text-slate-400'}`}>
-                              {formatDuration(l.estimatedDurationMinutes)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      </div>
-
-      {/* Mobile Drawer Syllabus */}
-      {isMobileSyllabusOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex flex-col justify-end bg-black/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-900 rounded-t-3xl max-h-[80vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-200">
-            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <List className="w-4 h-4 text-brand-600" />
-                <span>{t('courses.syllabus')}</span>
-              </h3>
-              <button
-                onClick={() => toggleMobileSyllabus(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-4 space-y-4 overflow-y-auto">
-              {(course?.sections || []).map((sec, sIdx) => (
-                <div key={sec.id} className="space-y-1.5">
-                  <h4 className="text-xs font-bold text-slate-500 uppercase px-1">
-                    {sIdx + 1}. {localizeText(sec.title)}
-                  </h4>
                   <div className="space-y-1">
                     {(sec.lessons || []).map((l) => {
                       const isCurrent = l.id === id;
@@ -667,31 +744,37 @@ export function LessonPlayerPage() {
                               navigate(`/student/courses/${activeCourseId}/lessons/${l.id}`);
                             }
                           }}
-                          className={`p-3 rounded-xl text-xs flex items-center justify-between gap-2 ${
+                          className={`p-3 rounded-xl text-xs flex items-center justify-between gap-2 transition cursor-pointer ${
                             isCurrent
-                              ? 'bg-brand-600 text-white font-bold'
+                              ? 'bg-brand-600 text-white font-bold shadow-md shadow-brand-500/20'
                               : isDone
-                              ? 'bg-slate-50 dark:bg-slate-800/40'
-                              : 'hover:bg-slate-50 dark:hover:bg-slate-800'
+                              ? 'bg-slate-50 dark:bg-slate-800/40 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                              : l.isLocked
+                              ? 'opacity-50 hover:bg-slate-50 dark:hover:bg-slate-800/20'
+                              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200'
                           }`}
                         >
-                          <div className="flex items-center gap-2 min-w-0">
+                          <div className="flex items-center gap-2.5 min-w-0">
                             {isDone ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                              <CheckCircle2 className={`w-4 h-4 shrink-0 ${isCurrent ? 'text-white' : 'text-emerald-500'}`} />
                             ) : l.isLocked ? (
-                              <Lock className="w-4 h-4 text-slate-400 shrink-0" />
+                              <Lock className="w-4 h-4 shrink-0 text-slate-400" />
                             ) : (
-                              <PlayCircle className="w-4 h-4 text-brand-500 shrink-0" />
+                              <PlayCircle className={`w-4 h-4 shrink-0 ${isCurrent ? 'text-white' : 'text-brand-500'}`} />
                             )}
-                            <span className="truncate">{localizeText(l.title)}</span>
+                            <span className="font-medium truncate">{localizeText(l.title)}</span>
                           </div>
                           <div className="flex items-center gap-1.5 shrink-0">
                             {l.code && (
-                              <span className="text-[9px] font-mono px-1 py-0.2 rounded border border-slate-200 dark:border-slate-700 text-slate-400">
+                              <span className={`text-[9px] font-mono px-1 py-0.5 rounded border ${
+                                isCurrent
+                                  ? 'border-white/30 text-white'
+                                  : 'border-slate-200 dark:border-slate-700 text-slate-400'
+                              }`}>
                                 {l.code}
                               </span>
                             )}
-                            <span className="text-[10px] text-slate-400 shrink-0">
+                            <span className={`text-[11px] ${isCurrent ? 'text-brand-100' : 'text-slate-400'}`}>
                               {formatDuration(l.estimatedDurationMinutes)}
                             </span>
                           </div>
@@ -705,22 +788,6 @@ export function LessonPlayerPage() {
           </div>
         </div>
       )}
-
-      {/* Sticky Bottom Progress Footer */}
-      <LessonProgressFooter
-        isCompleted={isCompleted}
-        progressPercentage={lesson.progress?.progressPercentage || (isCompleted ? 100 : 0)}
-        isLocked={lesson.isLocked}
-        nextLesson={nextLesson}
-        curriculumId={activeCourseId}
-        onMarkComplete={async () => {
-          await toggleCompleteMutation.mutateAsync(Boolean(isCompleted));
-        }}
-        isCompleting={toggleCompleteMutation.isPending}
-        hasQuiz={Boolean(activeQuiz)}
-        quizCompleted={Boolean(activeQuiz?.myAttempt)}
-        onOpenQuiz={() => setIsQuizDrawerOpen(true)}
-      />
 
       {/* Quiz Modal / Slide-Out Drawer */}
       <LessonQuizDrawer

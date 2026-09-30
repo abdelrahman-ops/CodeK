@@ -173,12 +173,12 @@ export function AdminSessionQrPage() {
         <div className="lg:col-span-7 space-y-4">
           <Card className="p-8 flex flex-col items-center justify-center text-center gap-6 bg-white dark:bg-slate-900 shadow-2xl border-slate-200/80 dark:border-slate-800">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 text-xs font-extrabold mb-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 text-xs font-semibold mb-2">
                 <span>{session.group?.name ? localizeText(session.group.name) : t('students.group')}</span>
                 <span>•</span>
                 <span>{t('sessions.sessionNumber')} #{session.sessionNumber}</span>
               </div>
-              <h1 className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-slate-100">
+              <h1 className="text-2xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100">
                 {t('sessions.qrProjector')}
               </h1>
               <p className="text-sm text-slate-500 mt-1">
@@ -199,7 +199,7 @@ export function AdminSessionQrPage() {
                   <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
                     {t('sessions.manualToken')}
                   </div>
-                  <div className="font-mono text-xl font-black text-slate-900 tracking-wider bg-slate-100 px-4 py-1.5 rounded-xl border border-slate-300">
+                  <div className="font-mono text-xl font-semibold text-slate-900 tracking-wider bg-slate-100 px-4 py-1.5 rounded-xl border border-slate-300">
                     {activeQrToken}
                   </div>
                 </div>
@@ -232,17 +232,17 @@ export function AdminSessionQrPage() {
             {/* Live Counter */}
             <div className="flex items-center gap-6 pt-4 border-t border-slate-100 dark:border-slate-800 w-full justify-around">
               <div>
-                <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{presentCount}</div>
+                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{presentCount}</div>
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('attendance.present')}</div>
               </div>
               <div className="w-px h-8 bg-slate-200 dark:bg-slate-700" />
               <div>
-                <div className="text-2xl font-black text-rose-600 dark:text-rose-400">{Math.max(0, totalEnrolled - presentCount)}</div>
+                <div className="text-2xl font-bold text-rose-600 dark:text-rose-400">{Math.max(0, totalEnrolled - presentCount)}</div>
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('attendance.absent')}</div>
               </div>
               <div className="w-px h-8 bg-slate-200 dark:bg-slate-700" />
               <div>
-                <div className="text-2xl font-black text-slate-900 dark:text-slate-100">{totalEnrolled}</div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{totalEnrolled}</div>
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('groups.maxCapacity')}</div>
               </div>
             </div>
@@ -269,7 +269,7 @@ export function AdminSessionQrPage() {
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-                <h3 className="font-black text-base text-slate-900 dark:text-slate-100">
+                <h3 className="font-semibold text-base text-slate-900 dark:text-slate-100">
                   {t('attendance.roster')}
                 </h3>
               </div>

@@ -52,8 +52,42 @@ export function AdminVideoManager({
 
   // Preview and Replace modals
   const [isPreviewOpen, setIsPreviewOpen] = useState<boolean>(false);
+  const [previewToken, setPreviewToken] = useState<string | null>(null);
+  const [previewPlaybackUrl, setPreviewPlaybackUrl] = useState<string | null>(null);
+  const [isLoadingPreview, setIsLoadingPreview] = useState<boolean>(false);
   const [isReplaceMode, setIsReplaceMode] = useState<boolean>(false);
   const [isConfirmRemoveOpen, setIsConfirmRemoveOpen] = useState<boolean>(false);
+
+  const handleOpenPreview = async () => {
+    setIsPreviewOpen(true);
+    if (attachedVideo?.id) {
+      try {
+        setIsLoadingPreview(true);
+        const res = await api.videos.getById(attachedVideo.id);
+        const assetData = res.data.data;
+        const preview = assetData?.previewPlayback;
+        if (preview?.token) setPreviewToken(preview.token);
+        if (preview?.playbackUrl) setPreviewPlaybackUrl(preview.playbackUrl);
+        else if (assetData?.playbackUrl) setPreviewPlaybackUrl(assetData.playbackUrl);
+      } catch (err) {
+        console.error('Failed to load signed video preview token', err);
+      } finally {
+        setIsLoadingPreview(false);
+      }
+    } else if (lessonId) {
+      try {
+        setIsLoadingPreview(true);
+        const res = await api.lessons.getPlayback(lessonId);
+        const preview = res.data.data;
+        if (preview?.token) setPreviewToken(preview.token);
+        if (preview?.playbackUrl) setPreviewPlaybackUrl(preview.playbackUrl);
+      } catch (err) {
+        console.error('Failed to load signed lesson playback token', err);
+      } finally {
+        setIsLoadingPreview(false);
+      }
+    }
+  };
 
   const hasAttachedVideo = Boolean(attachedVideo || legacyVideoUrl);
   const videoStatus = attachedVideo?.status || (legacyVideoUrl ? 'READY' : 'NOT_UPLOADED');
@@ -171,6 +205,7 @@ export function AdminVideoManager({
   const currentThumbnail = attachedVideo?.thumbnailUrl || (legacyVideoUrl?.includes('youtube.com') ? 'https://img.youtube.com/vi/default.jpg' : null);
   const currentDuration = attachedVideo?.durationSeconds || legacyVideoDuration || 0;
   const currentPlaybackUrl = attachedVideo?.playbackUrl || legacyVideoUrl;
+  const isPreviewable = videoStatus === 'READY' && Boolean(attachedVideo?.id || attachedVideo?.playbackId || currentPlaybackUrl || lessonId);
 
   return (
     <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/50 dark:bg-slate-900/40 p-4 space-y-4">
@@ -193,25 +228,25 @@ export function AdminVideoManager({
         {/* STATUS PILL */}
         <div>
           {videoStatus === 'READY' && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 flex items-center gap-1">
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 flex items-center gap-1">
               <CheckCircle2 className="w-3 h-3" />
               {t('videos.ready')}
             </span>
           )}
           {(videoStatus === 'PROCESSING' || videoStatus === 'PENDING_UPLOAD') && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 flex items-center gap-1 animate-pulse">
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300 flex items-center gap-1 animate-pulse">
               <Loader2 className="w-3 h-3 animate-spin" />
               {t('videos.processing')}
             </span>
           )}
           {videoStatus === 'ERROR' && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 flex items-center gap-1">
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" />
               {t('videos.failed')}
             </span>
           )}
           {videoStatus === 'NOT_UPLOADED' && !hasAttachedVideo && (
-            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+            <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
               {t('videos.notUploaded')}
             </span>
           )}
@@ -248,10 +283,10 @@ export function AdminVideoManager({
               ) : (
                 <Video className="w-6 h-6 text-slate-500" />
               )}
-              {currentPlaybackUrl && videoStatus === 'READY' && (
+              {isPreviewable && (
                 <button
                   type="button"
-                  onClick={() => setIsPreviewOpen(true)}
+                  onClick={handleOpenPreview}
                   className="absolute inset-0 bg-black/40 hover:bg-black/60 flex items-center justify-center text-white transition-colors"
                   title="Preview"
                 >
@@ -270,7 +305,7 @@ export function AdminVideoManager({
                   {currentDuration ? formatDuration(Math.ceil(currentDuration / 60)) : t('videos.processing')}
                 </span>
                 <span>•</span>
-                <span className="uppercase text-[10px] font-semibold text-slate-400">
+                <span className="uppercase text-[11px] font-semibold text-slate-400">
                   {attachedVideo?.provider || 'EXTERNAL'}
                 </span>
               </div>
@@ -278,12 +313,12 @@ export function AdminVideoManager({
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            {currentPlaybackUrl && videoStatus === 'READY' && (
+            {isPreviewable && (
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => setIsPreviewOpen(true)}
+                onClick={handleOpenPreview}
                 className="text-xs gap-1.5"
               >
                 <Play className="w-3.5 h-3.5" />
@@ -371,7 +406,7 @@ export function AdminVideoManager({
                   <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
                     {selectedFile ? selectedFile.name : t('videos.selectFilePrompt')}
                   </p>
-                  <p className="text-[10px] text-slate-400">
+                  <p className="text-[11px] text-slate-400">
                     MP4, WebM, MOV (Mux Encoded with HLS & Signed Playback)
                   </p>
                 </label>
@@ -459,16 +494,26 @@ export function AdminVideoManager({
       {/* VIDEO PREVIEW DIALOG */}
       <Dialog
         isOpen={isPreviewOpen}
-        onClose={() => setIsPreviewOpen(false)}
+        onClose={() => {
+          setIsPreviewOpen(false);
+          setPreviewToken(null);
+          setPreviewPlaybackUrl(null);
+        }}
         title={attachedVideo?.title || 'Video Preview'}
         className="max-w-3xl"
       >
         <div className="space-y-3 pt-2">
           <div className="aspect-video w-full rounded-2xl bg-black overflow-hidden flex items-center justify-center">
-            {currentPlaybackUrl || attachedVideo?.playbackId ? (
+            {isLoadingPreview ? (
+              <div className="flex flex-col items-center gap-2 text-slate-400">
+                <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
+                <span className="text-xs">جاري تجهيز مشغل الفيديو المشفر...</span>
+              </div>
+            ) : (previewPlaybackUrl || currentPlaybackUrl || attachedVideo?.playbackId) ? (
               <VideoPlayer
-                url={currentPlaybackUrl || undefined}
+                url={previewPlaybackUrl || currentPlaybackUrl || undefined}
                 playbackId={attachedVideo?.playbackId || undefined}
+                playbackToken={previewToken || undefined}
               />
             ) : (
               <p className="text-xs text-slate-400">No playback URL available</p>
@@ -476,7 +521,11 @@ export function AdminVideoManager({
           </div>
 
           <div className="flex justify-end">
-            <Button size="sm" variant="outline" onClick={() => setIsPreviewOpen(false)}>
+            <Button size="sm" variant="outline" onClick={() => {
+              setIsPreviewOpen(false);
+              setPreviewToken(null);
+              setPreviewPlaybackUrl(null);
+            }}>
               {t('common.close', 'Close')}
             </Button>
           </div>

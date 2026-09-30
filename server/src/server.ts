@@ -37,6 +37,7 @@ async function start() {
   }
 }
 
+// Platform Server Entrypoint
 if (process.env.VERCEL !== '1') {
   start();
 }

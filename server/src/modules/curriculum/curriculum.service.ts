@@ -2,7 +2,7 @@ import { prisma } from '../../db/prisma.js';
 import { CreateCurriculumInput, ListCurriculumQuery, UpdateCurriculumInput } from './curriculum.schema.js';
 import { BadRequestError, NotFoundError } from '../../common/errors/app-error.js';
 import { createAuditLog } from '../audit/audit.service.js';
-import { Role, StudentGrade } from '@prisma/client';
+import { ContentAuthority, Role, StudentGrade } from '@prisma/client';
 import { canAccessLesson, LOCKED_EXPLANATION_AR } from '../lessons/lesson-access.service.js';
 import { getStudentGrade, assertGradeAccess } from './curriculum-auth.js';
 
@@ -14,6 +14,7 @@ export async function createCurriculum(input: CreateCurriculumInput, actorUserId
       type: input.type,
       track: input.track,
       grade: input.grade || StudentGrade.GRADE_2,
+      authority: (input as any).authority || ContentAuthority.PROPOSED,
       isPublished: input.isPublished
     }
   });
@@ -382,6 +383,23 @@ export async function updateCurriculum(
   return updated;
 }
 
+export function isCanonicalOfficialCurriculum(c: {
+  code?: string | null;
+  title?: string | null;
+  authority: ContentAuthority;
+}): boolean {
+  if (c.authority !== ContentAuthority.OFFICIAL) {
+    return false;
+  }
+  return (
+    c.code === 'G11-T1-EB-2026' ||
+    (c.code === null && (
+      c.title === 'Egyptian Baccalaureate Programming & AI' ||
+      c.title === 'البرمجة والذكاء الاصطناعي — الصف الثاني الثانوي (الترم الأول)'
+    ))
+  );
+}
+
 export async function deleteCurriculaBulk(curriculumIds: string[], actorUserId?: string) {
   if (!curriculumIds || curriculumIds.length === 0) {
     return { success: true, count: 0, ids: [] };
@@ -389,12 +407,12 @@ export async function deleteCurriculaBulk(curriculumIds: string[], actorUserId?:
 
   const curricula = await prisma.curriculum.findMany({
     where: { id: { in: curriculumIds } },
-    select: { id: true, code: true, title: true, authority: true }
+    select: { id: true, code: true, title: true, authority: true, type: true }
   });
 
-  // Protect official curriculum from accidental deletion
+  // Protect official curriculum from accidental deletion based on authoritative invariant
   for (const c of curricula) {
-    if (c.code === 'G11-T1-EB-2026' || (c.authority === 'OFFICIAL' && c.code?.startsWith('G11'))) {
+    if (isCanonicalOfficialCurriculum(c)) {
       throw new BadRequestError(`The official curriculum ("${c.title}") is protected and cannot be deleted.`);
     }
   }
@@ -493,11 +511,11 @@ export async function deleteCurriculaBulk(curriculumIds: string[], actorUserId?:
 export async function deleteCurriculum(id: string, actorUserId?: string) {
   const existing = await prisma.curriculum.findUnique({
     where: { id },
-    select: { id: true, code: true, title: true, authority: true }
+    select: { id: true, code: true, title: true, authority: true, type: true }
   });
   if (!existing) throw new NotFoundError('Curriculum not found');
 
-  if (existing.code === 'G11-T1-EB-2026' || (existing.authority === 'OFFICIAL' && existing.code?.startsWith('G11'))) {
+  if (isCanonicalOfficialCurriculum(existing)) {
     throw new BadRequestError(`The official curriculum ("${existing.title}") is protected and cannot be deleted.`);
   }
 

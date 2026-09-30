@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { getTestApp, loginAdmin } from './helpers/test-app.js';
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../src/db/prisma.js';
-import { emailService } from '../src/services/email/email.service.js';
+import { emailQueue } from '../src/queues/email/email.queue.js';
 import { env } from '../src/config/env.js';
 
 describe('Admin 2FA OTP Authentication & Session Lifecycle Module', () => {
@@ -15,12 +15,12 @@ describe('Admin 2FA OTP Authentication & Session Lifecycle Module', () => {
 
   beforeEach(async () => {
     await prisma.authToken.deleteMany();
-    sendEmailSpy = vi.spyOn(emailService, 'sendAdminLoginOtp');
+    sendEmailSpy = vi.spyOn(emailQueue, 'enqueueAdminLoginOtp');
     sendEmailSpy.mockClear();
   });
 
   it('Test 1 — Normal login creates exactly ONE OTP challenge and sends ONE email', async () => {
-    sendEmailSpy = vi.spyOn(emailService, 'sendAdminLoginOtp');
+    sendEmailSpy = vi.spyOn(emailQueue, 'enqueueAdminLoginOtp');
 
     // Perform Admin Login
     const res = await app.inject({
@@ -57,7 +57,7 @@ describe('Admin 2FA OTP Authentication & Session Lifecycle Module', () => {
   });
 
   it('Test 2 — Verify OTP authenticates Admin session and sends ZERO additional emails', async () => {
-    sendEmailSpy = vi.spyOn(emailService, 'sendAdminLoginOtp');
+    sendEmailSpy = vi.spyOn(emailQueue, 'enqueueAdminLoginOtp');
 
     // Step 1: Login to get tempToken & devOtp
     const loginRes = await app.inject({
@@ -95,7 +95,7 @@ describe('Admin 2FA OTP Authentication & Session Lifecycle Module', () => {
 
   it('Test 3 — Dashboard & resource fetching produces ZERO OTP challenges and ZERO emails', async () => {
     const token = await loginAdmin(app);
-    sendEmailSpy = vi.spyOn(emailService, 'sendAdminLoginOtp');
+    sendEmailSpy = vi.spyOn(emailQueue, 'enqueueAdminLoginOtp');
 
     // Fetch /auth/me
     const meRes = await app.inject({
@@ -161,7 +161,7 @@ describe('Admin 2FA OTP Authentication & Session Lifecycle Module', () => {
     });
 
     const { refreshToken: rawRefreshToken } = verifyRes.json().data;
-    sendEmailSpy = vi.spyOn(emailService, 'sendAdminLoginOtp');
+    sendEmailSpy = vi.spyOn(emailQueue, 'enqueueAdminLoginOtp');
 
     // Call /auth/refresh
     const refreshRes = await app.inject({
@@ -180,7 +180,7 @@ describe('Admin 2FA OTP Authentication & Session Lifecycle Module', () => {
   });
 
   it('Test 5 — Duplicate OTP login requests within 30s reuse active challenge without sending multiple emails', async () => {
-    sendEmailSpy = vi.spyOn(emailService, 'sendAdminLoginOtp');
+    sendEmailSpy = vi.spyOn(emailQueue, 'enqueueAdminLoginOtp');
 
     // Request 1
     const res1 = await app.inject({
@@ -226,7 +226,7 @@ describe('Admin 2FA OTP Authentication & Session Lifecycle Module', () => {
   });
 
   it('Test 6 — Resend OTP within 30s cooldown is rejected without sending emails', async () => {
-    sendEmailSpy = vi.spyOn(emailService, 'sendAdminLoginOtp');
+    sendEmailSpy = vi.spyOn(emailQueue, 'enqueueAdminLoginOtp');
 
     // Step 1: Initiate login
     const loginRes = await app.inject({
@@ -257,7 +257,7 @@ describe('Admin 2FA OTP Authentication & Session Lifecycle Module', () => {
 
   it('Test 7 — Page refresh / session check after login generates ZERO OTP emails', async () => {
     const token = await loginAdmin(app);
-    sendEmailSpy = vi.spyOn(emailService, 'sendAdminLoginOtp');
+    sendEmailSpy = vi.spyOn(emailQueue, 'enqueueAdminLoginOtp');
 
     // Simulate multiple F5 page refreshes (/auth/me calls)
     for (let i = 0; i < 5; i++) {
@@ -274,7 +274,7 @@ describe('Admin 2FA OTP Authentication & Session Lifecycle Module', () => {
   });
 
   it('Test 8 — React StrictMode / double-mounting simulation produces ZERO duplicate emails', async () => {
-    sendEmailSpy = vi.spyOn(emailService, 'sendAdminLoginOtp');
+    sendEmailSpy = vi.spyOn(emailQueue, 'enqueueAdminLoginOtp');
 
     // Simulate React StrictMode mounting component twice with same parameters
     const [mount1, mount2] = await Promise.all([

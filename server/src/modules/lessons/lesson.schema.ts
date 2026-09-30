@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Difficulty, LessonAccessType } from '@prisma/client';
+import { Difficulty, LessonAccessType, ContentAuthority } from '@prisma/client';
 
 export const createLessonSchema = z.object({
   curriculumId: z.string().uuid(),
@@ -7,6 +7,9 @@ export const createLessonSchema = z.object({
   title: z.string().min(1, 'Title is required').trim(),
   description: z.string().optional().nullable(),
   content: z.string().min(1, 'Content is required'), // Markdown or HTML
+  pageRange: z.string().optional().nullable(),
+  authority: z.nativeEnum(ContentAuthority).optional().default(ContentAuthority.OFFICIAL),
+  conceptCards: z.any().optional().nullable(),
   difficulty: z.nativeEnum(Difficulty).default(Difficulty.BEGINNER),
   estimatedDurationMinutes: z.coerce.number().int().min(1).default(45),
   order: z.coerce.number().int().min(1).default(1),
@@ -27,6 +30,9 @@ export const updateLessonSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional().nullable(),
   content: z.string().min(1).optional(),
+  pageRange: z.string().optional().nullable(),
+  authority: z.nativeEnum(ContentAuthority).optional(),
+  conceptCards: z.any().optional().nullable(),
   difficulty: z.nativeEnum(Difficulty).optional(),
   estimatedDurationMinutes: z.coerce.number().int().min(1).optional(),
   order: z.coerce.number().int().min(1).optional(),

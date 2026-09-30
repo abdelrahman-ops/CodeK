@@ -163,7 +163,10 @@ export async function listTasks(query: ListTasksQuery, user: { userId: string; r
     }
   });
 
-  return tasks;
+  return tasks.map((t: any) => ({
+    ...t,
+    mySubmission: user.studentId && Array.isArray(t.submissions) ? t.submissions[0] || null : null
+  }));
 }
 
 export async function getTaskById(taskId: string, user: { userId: string; role: Role; studentId?: string }) {
@@ -206,7 +209,15 @@ export async function getTaskById(taskId: string, user: { userId: string; role: 
     assertGradeAccess(studentGrade, task.lesson.curriculum.grade, 'Task');
   }
 
-  return task;
+  const mySubmission =
+    user.role === Role.STUDENT && user.studentId && Array.isArray((task as any).submissions)
+      ? (task as any).submissions[0] || null
+      : null;
+
+  return {
+    ...task,
+    mySubmission
+  };
 }
 
 export async function updateTask(taskId: string, input: UpdateTaskInput, actorUserId?: string) {

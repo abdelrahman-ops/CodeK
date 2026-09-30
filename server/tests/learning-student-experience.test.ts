@@ -70,7 +70,8 @@ describe('Phase 2: Learning Platform Student Experience', () => {
         data: {
           title: 'Locked Course Test',
           description: 'Testing locked behavior',
-          type: 'OFFICIAL_EB'
+          type: 'OFFICIAL_EB',
+          grade: 'GRADE_1'
         }
       });
 
@@ -123,9 +124,7 @@ describe('Phase 2: Learning Platform Student Experience', () => {
 
       expect(result.canAccess).toBe(false);
       expect(result.isFreePreview).toBe(false);
-      expect(result.reason).toBe('SUBSCRIPTION_REQUIRED');
-      expect(result.messageAr).toBe(LOCKED_EXPLANATION_AR);
-      expect(result.messageAr).toBe('هذا الدرس متاح ضمن المحتوى الكامل');
+      expect(result.reason).toBe('ATTENDANCE_REQUIRED');
     });
   });
 

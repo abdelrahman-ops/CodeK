@@ -24,7 +24,12 @@ import {
   Layers,
   FolderTree,
   ShieldCheck,
-  ExternalLink
+  ExternalLink,
+  CheckSquare,
+  HelpCircle,
+  Unlink,
+  Link as LinkIcon,
+  Search
 } from 'lucide-react';
 import { Card } from '../../components/ui/card.js';
 import { Button } from '../../components/ui/button.js';
@@ -60,6 +65,9 @@ export function AdminCurriculumPage() {
   const [curriculumDescription, setCurriculumDescription] = useState('');
   const [curriculumType, setCurriculumType] = useState('OFFICIAL_EB');
   const [curriculumGrade, setCurriculumGrade] = useState<StudentGrade>('GRADE_1');
+  const [curriculumTrack, setCurriculumTrack] = useState('');
+  const [curriculumAuthority, setCurriculumAuthority] = useState('OFFICIAL');
+  const [editingCurriculum, setEditingCurriculum] = useState<any | null>(null);
   const [gradeFilter, setGradeFilter] = useState<string>('ALL');
 
   // Section Form
@@ -178,9 +186,30 @@ export function AdminCurriculumPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['adminCurricula'] });
       setIsCurriculumModalOpen(false);
+      setEditingCurriculum(null);
       setCurriculumTitle('');
       setCurriculumDescription('');
       setCurriculumGrade('GRADE_1');
+      setCurriculumTrack('');
+      setCurriculumAuthority('OFFICIAL');
+      toast.success(t('common.success'));
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  const updateCurriculumMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string; data: any }) => (await api.curriculum.update(id, data)).data.data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminCurricula'] });
+      setIsCurriculumModalOpen(false);
+      setEditingCurriculum(null);
+      setCurriculumTitle('');
+      setCurriculumDescription('');
+      setCurriculumGrade('GRADE_1');
+      setCurriculumTrack('');
+      setCurriculumAuthority('OFFICIAL');
       toast.success(t('common.success'));
     },
     onError: (err: any) => {
@@ -315,14 +344,22 @@ export function AdminCurriculumPage() {
     }
   });
 
-  const handleCreateCurriculum = (e: React.FormEvent) => {
+  const handleSaveCurriculum = (e: React.FormEvent) => {
     e.preventDefault();
-    createCurriculumMutation.mutate({
+    const payload = {
       title: curriculumTitle,
       description: curriculumDescription || undefined,
       type: curriculumType,
-      grade: curriculumGrade
-    });
+      grade: curriculumGrade,
+      track: curriculumTrack || undefined,
+      authority: curriculumAuthority
+    };
+
+    if (editingCurriculum) {
+      updateCurriculumMutation.mutate({ id: editingCurriculum.id, data: payload });
+    } else {
+      createCurriculumMutation.mutate(payload);
+    }
   };
 
   const handleSaveSection = (e: React.FormEvent) => {
@@ -399,7 +436,7 @@ export function AdminCurriculumPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
             <BookOpen className="w-7 h-7 text-brand-600 dark:text-brand-400" />
             <span>{t('curriculum.title')}</span>
           </h1>
@@ -552,7 +589,7 @@ export function AdminCurriculumPage() {
                   <div className="space-y-1 flex-1 min-w-0">
                     <div className="flex items-center gap-2.5 flex-wrap">
                       <h2
-                        className="text-lg sm:text-xl font-black text-slate-900 dark:text-slate-100 cursor-pointer hover:text-brand-600 transition"
+                        className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-slate-100 cursor-pointer hover:text-brand-600 transition"
                         onClick={() => toggleCurriculum(curriculum.id)}
                       >
                         {localizeText(curriculum.title)}
@@ -597,6 +634,25 @@ export function AdminCurriculumPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditingCurriculum(curriculum);
+                      setCurriculumTitle(localizeText(curriculum.title));
+                      setCurriculumDescription(curriculum.description || '');
+                      setCurriculumType(curriculum.type);
+                      setCurriculumGrade(curriculum.grade || 'GRADE_1');
+                      setCurriculumTrack(curriculum.track || '');
+                      setCurriculumAuthority(curriculum.authority || 'OFFICIAL');
+                      setIsCurriculumModalOpen(true);
+                    }}
+                    className="text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    <Edit className="w-3.5 h-3.5 mr-1" />
+                    <span>{isArabic ? 'تعديل المنهج' : 'Edit Track'}</span>
+                  </Button>
+
                   <Button
                     size="sm"
                     variant="outline"
@@ -778,18 +834,18 @@ export function AdminCurriculumPage() {
                                         </button>
                                         <Badge variant="outline" size="sm">{formatStatus(lesson.difficulty)}</Badge>
                                         {lesson.isFree && (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                                             <Sparkles className="w-3 h-3" />
                                             {t('curriculum.isFree')}
                                           </span>
                                         )}
                                         {lesson.videoUrl || lesson.video?.playbackId ? (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
                                             <Video className="w-3 h-3" />
                                             <span>فيديو جاهز</span>
                                           </span>
                                         ) : (
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-500 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                             <span>بدون فيديو</span>
                                           </span>
                                         )}
@@ -1093,14 +1149,17 @@ export function AdminCurriculumPage() {
         </form>
       </Dialog>
 
-      {/* New Curriculum Modal */}
+      {/* Curriculum Modal (Create / Edit) */}
       <Dialog
         isOpen={isCurriculumModalOpen}
-        onClose={() => setIsCurriculumModalOpen(false)}
-        title={t('curriculum.createCurriculum')}
+        onClose={() => {
+          setIsCurriculumModalOpen(false);
+          setEditingCurriculum(null);
+        }}
+        title={editingCurriculum ? (isArabic ? 'تعديل المنهج الدراسي' : 'Edit Curriculum Track') : t('curriculum.createCurriculum')}
         maxWidth="md"
       >
-        <form onSubmit={handleCreateCurriculum} className="space-y-4 py-2">
+        <form onSubmit={handleSaveCurriculum} className="space-y-4 py-2">
           <Input
             label={t('curriculum.title')}
             value={curriculumTitle}
@@ -1133,12 +1192,39 @@ export function AdminCurriculumPage() {
               ]}
             />
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label={isArabic ? 'المسار / التخصص (Track Code / Title)' : 'Track / Specialty'}
+              value={curriculumTrack}
+              onChange={(e) => setCurriculumTrack(e.target.value)}
+              placeholder="e.g. AI & Web Architecture 2030"
+            />
+            <Select
+              label={isArabic ? 'جهة الاعتماد والصفة' : 'Authority'}
+              value={curriculumAuthority}
+              onChange={(e) => setCurriculumAuthority(e.target.value)}
+              options={[
+                { value: 'OFFICIAL', label: isArabic ? 'المنهج الرسمي المعتمد (وزارة التربية والتعليم)' : 'Official EB Track (Ministry of Ed)' },
+                { value: 'COMMUNITY', label: isArabic ? 'مسار أكاديمي مخصص / حر' : 'Academy / Custom Track' }
+              ]}
+            />
+          </div>
           <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="ghost" onClick={() => setIsCurriculumModalOpen(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setIsCurriculumModalOpen(false);
+                setEditingCurriculum(null);
+              }}
+            >
               {t('common.cancel')}
             </Button>
-            <Button type="submit" isLoading={createCurriculumMutation.isPending}>
-              {t('curriculum.createCurriculum')}
+            <Button
+              type="submit"
+              isLoading={editingCurriculum ? updateCurriculumMutation.isPending : createCurriculumMutation.isPending}
+            >
+              {editingCurriculum ? (isArabic ? 'حفظ التعديلات' : 'Save Changes') : t('curriculum.createCurriculum')}
             </Button>
           </div>
         </form>
@@ -1396,13 +1482,18 @@ export function AdminCurriculumPage() {
 export function AdminLessonEditorPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isArabic = i18n.language === 'ar';
   const toast = useToast();
   const queryClient = useQueryClient();
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [description, setDescription] = useState('');
+  const [pageRange, setPageRange] = useState('');
+  const [authority, setAuthority] = useState('OFFICIAL');
+  const [difficulty, setDifficulty] = useState('BEGINNER');
+  const [estimatedDurationMinutes, setEstimatedDurationMinutes] = useState(45);
   const [sectionId, setSectionId] = useState<string | null>(null);
   const [isFree, setIsFree] = useState(false);
   const [accessType, setAccessType] = useState<LessonAccessType>('ATTENDANCE_REQUIRED');
@@ -1414,6 +1505,15 @@ export function AdminLessonEditorPage() {
   const [isPublished, setIsPublished] = useState(true);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
 
+  // Concept Cards Management
+  const [conceptCards, setConceptCards] = useState<any[]>([]);
+  const [isConceptModalOpen, setIsConceptModalOpen] = useState(false);
+  const [editingCardIndex, setEditingCardIndex] = useState<number | null>(null);
+  const [cardTitle, setCardTitle] = useState('');
+  const [cardExplanation, setCardExplanation] = useState('');
+  const [cardKeyConcept, setCardKeyConcept] = useState('');
+  const [cardSummary, setCardSummary] = useState('');
+
   const { data: lesson, isLoading } = useQuery({
     queryKey: ['adminLesson', id],
     queryFn: async () => {
@@ -1422,6 +1522,11 @@ export function AdminLessonEditorPage() {
       setTitle(res.title);
       setContent(res.content || '');
       setDescription(res.description || '');
+      setPageRange(res.pageRange || '');
+      setAuthority(res.authority || 'OFFICIAL');
+      setDifficulty(res.difficulty || 'BEGINNER');
+      setEstimatedDurationMinutes(res.estimatedDurationMinutes || 45);
+      setConceptCards(Array.isArray(res.conceptCards) ? res.conceptCards : []);
       setSectionId(res.sectionId || null);
       setIsFree(res.isFree ?? false);
       setAccessType(res.accessType || 'ATTENDANCE_REQUIRED');
@@ -1445,6 +1550,155 @@ export function AdminLessonEditorPage() {
     enabled: Boolean(lesson?.curriculumId)
   });
 
+  // Task Linking & Quick Create
+  const [isLinkTaskModalOpen, setIsLinkTaskModalOpen] = useState(false);
+  const [isCreateTaskModalOpen, setIsCreateTaskModalOpen] = useState(false);
+  const [taskSearchQuery, setTaskSearchQuery] = useState('');
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskType, setNewTaskType] = useState('DAILY_TASK');
+  const [newTaskDifficulty, setNewTaskDifficulty] = useState('BEGINNER');
+  const [newTaskXp, setNewTaskXp] = useState(30);
+  const [newTaskInstructions, setNewTaskInstructions] = useState('');
+
+  const { data: allTasksList, isLoading: isAllTasksLoading } = useQuery({
+    queryKey: ['adminAllTasks'],
+    queryFn: async () => (await api.tasks.list()).data.data,
+    enabled: isLinkTaskModalOpen
+  });
+
+  const linkTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      if (!id) return;
+      return (await api.tasks.update(taskId, { lessonId: id })).data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminLesson', id] });
+      queryClient.invalidateQueries({ queryKey: ['adminAllTasks'] });
+      setIsLinkTaskModalOpen(false);
+      toast.success(isArabic ? 'تم ربط المهمة بالدرس بنجاح' : 'Task linked to lesson');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  const unlinkTaskMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      return (await api.tasks.update(taskId, { lessonId: null })).data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminLesson', id] });
+      queryClient.invalidateQueries({ queryKey: ['adminAllTasks'] });
+      toast.success(isArabic ? 'تم فك ارتباط المهمة بالدرس' : 'Task unlinked from lesson');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  const createTaskMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) return;
+      return (await api.tasks.create({
+        lessonId: id,
+        title: newTaskTitle.trim(),
+        description: newTaskTitle.trim(),
+        instructions: newTaskInstructions.trim() || newTaskTitle.trim(),
+        taskType: newTaskType,
+        difficulty: newTaskDifficulty,
+        xpReward: Number(newTaskXp) || 30,
+        estimatedDurationMinutes: 45,
+        isPublished: true
+      })).data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminLesson', id] });
+      setIsCreateTaskModalOpen(false);
+      setNewTaskTitle('');
+      setNewTaskInstructions('');
+      toast.success(isArabic ? 'تم إنشاء المهمة وربطها بالدرس بنجاح' : 'Task created and linked');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  // Quiz Linking & Quick Create
+  const [isLinkQuizModalOpen, setIsLinkQuizModalOpen] = useState(false);
+  const [isCreateQuizModalOpen, setIsCreateQuizModalOpen] = useState(false);
+  const [quizSearchQuery, setQuizSearchQuery] = useState('');
+  const [newQuizTitle, setNewQuizTitle] = useState('');
+  const [newQuizDescription, setNewQuizDescription] = useState('');
+  const [newQuizDuration, setNewQuizDuration] = useState(15);
+  const [newQuizTotalMarks, setNewQuizTotalMarks] = useState(20);
+  const [newQuizXp, setNewQuizXp] = useState(30);
+
+  const { data: allExamsList, isLoading: isAllExamsLoading } = useQuery({
+    queryKey: ['adminAllExams'],
+    queryFn: async () => (await api.exams.list()).data.data,
+    enabled: isLinkQuizModalOpen
+  });
+
+  const linkQuizMutation = useMutation({
+    mutationFn: async (examId: string) => {
+      if (!id) return;
+      return (await api.exams.update(examId, { lessonId: id, isQuiz: true })).data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminLesson', id] });
+      queryClient.invalidateQueries({ queryKey: ['adminAllExams'] });
+      setIsLinkQuizModalOpen(false);
+      toast.success(isArabic ? 'تم ربط الكويز بالدرس بنجاح' : 'Quiz linked to lesson');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  const unlinkQuizMutation = useMutation({
+    mutationFn: async (examId: string) => {
+      return (await api.exams.update(examId, { lessonId: null })).data.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['adminLesson', id] });
+      queryClient.invalidateQueries({ queryKey: ['adminAllExams'] });
+      toast.success(isArabic ? 'تم فك ارتباط الكويز بالدرس' : 'Quiz unlinked from lesson');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  const createQuizMutation = useMutation({
+    mutationFn: async () => {
+      if (!id) return;
+      return (await api.exams.create({
+        lessonId: id,
+        curriculumId: lesson?.curriculumId,
+        title: newQuizTitle.trim(),
+        description: newQuizDescription.trim() || undefined,
+        durationMinutes: Number(newQuizDuration) || 15,
+        totalMarks: Number(newQuizTotalMarks) || 20,
+        xpReward: Number(newQuizXp) || 30,
+        isQuiz: true,
+        isPublished: true
+      })).data.data;
+    },
+    onSuccess: (newExam) => {
+      queryClient.invalidateQueries({ queryKey: ['adminLesson', id] });
+      setIsCreateQuizModalOpen(false);
+      setNewQuizTitle('');
+      setNewQuizDescription('');
+      toast.success(isArabic ? 'تم إنشاء الكويز بنجاح! سيتم تحويلك لإضافة الأسئلة' : 'Quiz created! Redirecting to add questions');
+      if (newExam?.id) {
+        navigate(`/admin/exams/${newExam.id}/builder`);
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!id) return;
@@ -1452,6 +1706,11 @@ export function AdminLessonEditorPage() {
         title,
         content,
         description,
+        pageRange: pageRange.trim() || null,
+        authority,
+        difficulty,
+        estimatedDurationMinutes: Number(estimatedDurationMinutes),
+        conceptCards,
         sectionId: sectionId || null,
         isFree,
         accessType,
@@ -1473,10 +1732,54 @@ export function AdminLessonEditorPage() {
     }
   });
 
+  const openAddConceptModal = () => {
+    setEditingCardIndex(null);
+    setCardTitle('');
+    setCardExplanation('');
+    setCardKeyConcept('');
+    setCardSummary('');
+    setIsConceptModalOpen(true);
+  };
+
+  const openEditConceptModal = (index: number) => {
+    const card = conceptCards[index];
+    if (!card) return;
+    setEditingCardIndex(index);
+    setCardTitle(card.title || '');
+    setCardExplanation(card.explanation || '');
+    setCardKeyConcept(card.keyConcept || '');
+    setCardSummary(card.summary || '');
+    setIsConceptModalOpen(true);
+  };
+
+  const handleSaveConceptCard = (e: React.FormEvent) => {
+    e.preventDefault();
+    const newCard = {
+      title: cardTitle.trim(),
+      explanation: cardExplanation.trim() || undefined,
+      keyConcept: cardKeyConcept.trim() || undefined,
+      summary: cardSummary.trim() || undefined
+    };
+
+    if (editingCardIndex !== null) {
+      const updated = [...conceptCards];
+      updated[editingCardIndex] = newCard;
+      setConceptCards(updated);
+    } else {
+      setConceptCards([...conceptCards, newCard]);
+    }
+    setIsConceptModalOpen(false);
+  };
+
+  const handleDeleteConceptCard = (index: number) => {
+    setConceptCards(conceptCards.filter((_, i) => i !== index));
+  };
+
   if (isLoading) return <CardSkeleton />;
 
   return (
     <div className="space-y-6">
+      {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button
           onClick={() => navigate('/admin/curriculum')}
@@ -1487,6 +1790,18 @@ export function AdminLessonEditorPage() {
         </button>
 
         <div className="flex items-center gap-2">
+          {lesson?.curriculumId && (
+            <a
+              href={`/student/courses/${lesson.curriculumId}/lessons/${id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm transition"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-brand-600" />
+              <span>{isArabic ? 'معاينة تجربة الطالب' : 'Student View'}</span>
+            </a>
+          )}
+
           <Button
             type="button"
             variant="outline"
@@ -1510,14 +1825,20 @@ export function AdminLessonEditorPage() {
       {isPreviewMode ? (
         <Card className="p-6 sm:p-8 space-y-4">
           <div className="border-b border-slate-100 dark:border-slate-800 pb-4">
-            <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100">{title}</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{title}</h1>
             {description && <p className="text-sm text-slate-500 mt-1">{description}</p>}
           </div>
           <MarkdownViewer content={content} />
         </Card>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-6">
+          {/* Card 1: Core Lesson Information & Provenance */}
           <Card className="p-6 space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-brand-600" />
+              <span>{isArabic ? 'بيانات الدرس والاعتماد والتوثيق' : 'Core Lesson & Provenance'}</span>
+            </h3>
+
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
                 <Input
@@ -1542,13 +1863,58 @@ export function AdminLessonEditorPage() {
               />
             </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <Input
+                label={isArabic ? 'صفحات كتاب الوزارة (Page Range)' : 'Textbook Page Range'}
+                placeholder="e.g. ص 4 - 11"
+                value={pageRange}
+                onChange={(e) => setPageRange(e.target.value)}
+              />
+
+              <Select
+                label={isArabic ? 'جهة الاعتماد' : 'Authority'}
+                value={authority}
+                onChange={(e) => setAuthority(e.target.value)}
+                options={[
+                  { value: 'OFFICIAL', label: isArabic ? 'المنهج الرسمي المعتمد (وزارة التربية والتعليم)' : 'Official EB Track' },
+                  { value: 'COMMUNITY', label: isArabic ? 'محتوى أكاديمي مخصص / حر' : 'Academy Track' }
+                ]}
+              />
+
+              <Select
+                label={t('tasks.difficulty')}
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value)}
+                options={[
+                  { value: 'BEGINNER', label: formatStatus('BEGINNER') },
+                  { value: 'INTERMEDIATE', label: formatStatus('INTERMEDIATE') },
+                  { value: 'ADVANCED', label: formatStatus('ADVANCED') }
+                ]}
+              />
+
+              <Input
+                label={t('curriculum.estimatedDuration')}
+                type="number"
+                value={estimatedDurationMinutes}
+                onChange={(e) => setEstimatedDurationMinutes(Number(e.target.value))}
+                required
+              />
+            </div>
+
             <Input
               label={t('curriculum.lessonDescription')}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </Card>
 
-            {/* Video & Free Preview Configuration */}
+          {/* Card 2: Media, Video & Presentation Configuration */}
+          <Card className="p-6 space-y-4">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800 pb-2 flex items-center gap-2">
+              <Video className="w-4 h-4 text-brand-600" />
+              <span>{isArabic ? 'وسائط الشرح والفيديو والعروض التقديمية' : 'Media, Video & Presentations'}</span>
+            </h3>
+
             <div className="p-4 rounded-2xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -1604,17 +1970,98 @@ export function AdminLessonEditorPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 rounded-2xl bg-brand-50/50 dark:bg-brand-950/20 border border-brand-200/60 dark:border-brand-800/40">
               <Input
                 label={t('curriculum.externalResourceUrl')}
+                placeholder="https://www.canva.com/..."
                 value={externalResourceUrl}
                 onChange={(e) => setExternalResourceUrl(e.target.value)}
               />
               <Input
                 label={t('curriculum.externalResourceTitle')}
+                placeholder={t('lessons.externalPresentation')}
                 value={externalResourceTitle}
                 onChange={(e) => setExternalResourceTitle(e.target.value)}
               />
             </div>
           </Card>
 
+          {/* Card 3: Interactive Concept Cards Deck Manager */}
+          <Card className="p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-500" />
+                  <span>{isArabic ? 'بطاقات المفاهيم التفاعلية (Concept Flashcards)' : 'Interactive Concept Cards'}</span>
+                  <Badge variant="outline" size="sm">{conceptCards.length}</Badge>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {isArabic
+                    ? 'البطاقات التعليمية التي يتفاعل معها الطالب في تبويب المفاهيم والملخص.'
+                    : 'Interactive cards students flip and study in the Concepts & Summary tab.'}
+                </p>
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={openAddConceptModal}
+                className="gap-1.5 text-xs font-bold border-brand-200 text-brand-600 hover:bg-brand-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>{isArabic ? 'إضافة بطاقة مفهوم' : 'Add Concept Card'}</span>
+              </Button>
+            </div>
+
+            {conceptCards.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-400 italic bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                {isArabic
+                  ? 'لم تتم إضافة أي بطاقات مفاهيم لهذا الدرس بعد. اضغط على الزر أعلاه لإضافة بطاقة.'
+                  : 'No concept cards added yet. Click the button above to add a card.'}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {conceptCards.map((card: any, idx: number) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 space-y-2 flex flex-col justify-between"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-xs text-slate-900 dark:text-slate-100">{card.title}</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => openEditConceptModal(idx)}
+                            className="p-1 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteConceptCard(idx)}
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {card.explanation && (
+                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">{card.explanation}</p>
+                      )}
+
+                      {card.keyConcept && (
+                        <p className="text-[11px] text-brand-600 font-semibold mt-1">
+                          <strong>{isArabic ? 'المفهوم الأساسي: ' : 'Key Concept: '}</strong>{card.keyConcept}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Card 4: Detailed Lesson Content */}
           <Card className="p-6 space-y-2">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
               {t('curriculum.lessonContent')}
@@ -1625,8 +2072,593 @@ export function AdminLessonEditorPage() {
               minHeight="350px"
             />
           </Card>
+
+          {/* Card 5: Connected Tasks & Applications */}
+          <Card className="p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <CheckSquare className="w-4 h-4 text-emerald-600" />
+                  <span>{isArabic ? 'المهام والتطبيقات العملية المرتبطة بالدرس' : 'Connected Tasks & Challenges'}</span>
+                  <Badge variant="outline" size="sm">{lesson?.tasks?.length || 0}</Badge>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {isArabic
+                    ? 'المهام التطبيقية والتحديات البرمجية التي تظهر للطالب في تبويب المهام.'
+                    : 'Engineering tasks and challenges displayed in the student Tasks tab.'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsLinkTaskModalOpen(true)}
+                  className="gap-1.5 text-xs font-bold border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                >
+                  <LinkIcon className="w-3.5 h-3.5" />
+                  <span>{isArabic ? 'ربط مهمة موجودة' : 'Link Existing Task'}</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setIsCreateTaskModalOpen(true)}
+                  className="gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isArabic ? 'إنشاء مهمة سريعة للدرس' : 'Quick Create Task'}</span>
+                </Button>
+              </div>
+            </div>
+
+            {(!lesson?.tasks || lesson.tasks.length === 0) ? (
+              <div className="p-8 text-center text-xs text-slate-400 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
+                <CheckSquare className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+                <p className="font-semibold text-slate-600 dark:text-slate-400">
+                  {isArabic
+                    ? 'لا توجد مهام مرتبطة بهذا الدرس حالياً.'
+                    : 'No tasks connected to this lesson yet.'}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  {isArabic
+                    ? 'يمكنك ربط مهمة موجودة من بنك المهام أو إنشاء مهمة جديدة تظهر للطالب فوراً.'
+                    : 'You can link an existing task from the task bank or create a new one.'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {lesson.tasks.map((task: any) => (
+                  <div
+                    key={task.id}
+                    className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/40 hover:border-emerald-300 transition flex flex-col justify-between gap-3 shadow-xs"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="outline" size="sm">{formatStatus(task.taskType || task.difficulty)}</Badge>
+                        <Badge variant="success" size="sm">+{task.xpReward || 30} XP</Badge>
+                        {task.isPublished === false && (
+                          <Badge variant="warning" size="sm">{isArabic ? 'مسودة' : 'Draft'}</Badge>
+                        )}
+                      </div>
+                      <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100">{task.title}</h4>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/admin/tasks?id=${task.id}`)}
+                        className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>{isArabic ? 'تعديل في بنك المهام' : 'Edit in Tasks Bank'}</span>
+                        <ChevronRight className="w-3 h-3 rtl:rotate-180" />
+                      </button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (window.confirm(isArabic ? 'هل أنت متأكد من فك ارتباط هذه المهمة بالدرس؟' : 'Unlink task from lesson?')) {
+                            unlinkTaskMutation.mutate(task.id);
+                          }
+                        }}
+                        isLoading={unlinkTaskMutation.isPending}
+                        className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1 px-2"
+                        title={isArabic ? 'فك ارتباط هذه المهمة بالدرس' : 'Unlink task from lesson'}
+                      >
+                        <Unlink className="w-3.5 h-3.5" />
+                        <span>{isArabic ? 'فك الارتباط' : 'Unlink'}</span>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          {/* Card 6: Connected Assessment Quizzes */}
+          <Card className="p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                  <HelpCircle className="w-4 h-4 text-amber-500" />
+                  <span>{isArabic ? 'الاختبارات والكويزات التقييمية المرتبطة بالدرس' : 'Connected Assessment Quizzes'}</span>
+                  <Badge variant="outline" size="sm">{lesson?.exams?.length || 0}</Badge>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {isArabic
+                    ? 'الكويزات التفاعلية التي تظهر للطالب في تبويب الاختبار التقييمي.'
+                    : 'Interactive quizzes that appear in the student Quiz tab.'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setIsLinkQuizModalOpen(true)}
+                  className="gap-1.5 text-xs font-bold border-amber-300 text-amber-700 hover:bg-amber-50"
+                >
+                  <LinkIcon className="w-3.5 h-3.5" />
+                  <span>{isArabic ? 'ربط كويز أو امتحان موجود' : 'Link Existing Quiz'}</span>
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setIsCreateQuizModalOpen(true)}
+                  className="gap-1.5 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isArabic ? 'إنشاء كويز سريع للدرس' : 'Quick Create Quiz'}</span>
+                </Button>
+              </div>
+            </div>
+
+            {(!lesson?.exams || lesson.exams.length === 0) ? (
+              <div className="p-8 text-center text-xs text-slate-400 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 space-y-2">
+                <HelpCircle className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
+                <p className="font-semibold text-slate-600 dark:text-slate-400">
+                  {isArabic
+                    ? 'لا يوجد كويز تقييمي مرتبط بهذا الدرس حالياً.'
+                    : 'No quiz connected to this lesson yet.'}
+                </p>
+                <p className="text-[11px] text-slate-400">
+                  {isArabic
+                    ? 'يمكنك ربط امتحان/كويز من بنك الامتحانات أو إنشاء كويز سريع وإضافة أسئلته.'
+                    : 'You can link an existing quiz or create a new quick quiz.'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {lesson.exams.map((exam: any) => (
+                  <div
+                    key={exam.id}
+                    className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/40 hover:border-amber-300 transition flex flex-col justify-between gap-3 shadow-xs"
+                  >
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="outline" size="sm">{exam.durationMinutes} min</Badge>
+                        <Badge variant="warning" size="sm">+{exam.xpReward || 30} XP</Badge>
+                        {exam.totalMarks && (
+                          <Badge variant="secondary" size="sm">{exam.totalMarks} {isArabic ? 'درجة' : 'pts'}</Badge>
+                        )}
+                        {exam.isPublished === false && (
+                          <Badge variant="outline" size="sm">{isArabic ? 'مسودة' : 'Draft'}</Badge>
+                        )}
+                      </div>
+                      <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100">{exam.title}</h4>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/admin/exams/${exam.id}/builder`)}
+                        className="text-[11px] font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>{isArabic ? 'تعديل الأسئلة في المنشئ' : 'Edit Questions in Builder'}</span>
+                        <ChevronRight className="w-3 h-3 rtl:rotate-180" />
+                      </button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          if (window.confirm(isArabic ? 'هل أنت متأكد من فك ارتباط هذا الكويز بالدرس؟' : 'Unlink quiz from lesson?')) {
+                            unlinkQuizMutation.mutate(exam.id);
+                          }
+                        }}
+                        isLoading={unlinkQuizMutation.isPending}
+                        className="h-7 text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 gap-1 px-2"
+                        title={isArabic ? 'فك ارتباط هذا الكويز بالدرس' : 'Unlink quiz from lesson'}
+                      >
+                        <Unlink className="w-3.5 h-3.5" />
+                        <span>{isArabic ? 'فك الارتباط' : 'Unlink'}</span>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
         </div>
       )}
+
+      {/* Modal: Add / Edit Concept Card */}
+      <Dialog
+        isOpen={isConceptModalOpen}
+        onClose={() => setIsConceptModalOpen(false)}
+        title={editingCardIndex !== null ? (isArabic ? 'تعديل بطاقة مفهوم' : 'Edit Concept Card') : (isArabic ? 'إضافة بطاقة مفهوم جديدة' : 'Add Concept Card')}
+        maxWidth="md"
+      >
+        <form onSubmit={handleSaveConceptCard} className="space-y-4 py-2">
+          <Input
+            label={isArabic ? 'عنوان المفهوم (Title)' : 'Concept Title'}
+            value={cardTitle}
+            onChange={(e) => setCardTitle(e.target.value)}
+            placeholder="e.g. قانون مور (Moore's Law)"
+            required
+          />
+          <Input
+            label={isArabic ? 'المفهوم الأساسي المركز (Key Concept)' : 'Key Concept'}
+            value={cardKeyConcept}
+            onChange={(e) => setCardKeyConcept(e.target.value)}
+            placeholder="e.g. تضاعف الترانزستورات كل سنتين"
+          />
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+              {isArabic ? 'الشرح والتوضيح (Explanation)' : 'Explanation'}
+            </label>
+            <textarea
+              value={cardExplanation}
+              onChange={(e) => setCardExplanation(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-500 min-h-[80px]"
+              placeholder="شرح مبسط وواضح يستوعبه الطالب..."
+            />
+          </div>
+          <Input
+            label={isArabic ? 'الخلاصة المستفادة (Summary Takeaway)' : 'Summary'}
+            value={cardSummary}
+            onChange={(e) => setCardSummary(e.target.value)}
+            placeholder="e.g. خفض التكلفة العالمية للأجهزة وزيادة سرعتها"
+          />
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={() => setIsConceptModalOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit">
+              {isArabic ? 'حفظ البطاقة' : 'Save Card'}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* Modal: Link Existing Task */}
+      <Dialog
+        isOpen={isLinkTaskModalOpen}
+        onClose={() => setIsLinkTaskModalOpen(false)}
+        title={isArabic ? 'ربط مهمة موجودة بهذا الدرس' : 'Link Existing Task to Lesson'}
+        maxWidth="lg"
+      >
+        <div className="space-y-4 py-2">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute top-3 start-3 text-slate-400" />
+            <input
+              type="text"
+              placeholder={isArabic ? 'بحث في بنك المهام بالعنوان...' : 'Search tasks by title...'}
+              value={taskSearchQuery}
+              onChange={(e) => setTaskSearchQuery(e.target.value)}
+              className="w-full ps-9 pe-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+
+          <div className="max-h-[350px] overflow-y-auto space-y-2 pe-1">
+            {isAllTasksLoading ? (
+              <div className="py-8 text-center text-xs text-slate-400">{t('common.loading')}</div>
+            ) : (() => {
+              const currentTaskIds = new Set((lesson?.tasks || []).map((t: any) => t.id));
+              const filtered = (allTasksList || []).filter((t: any) =>
+                !taskSearchQuery || t.title.toLowerCase().includes(taskSearchQuery.toLowerCase())
+              );
+
+              if (filtered.length === 0) {
+                return (
+                  <div className="py-8 text-center text-xs text-slate-400">
+                    {isArabic ? 'لا توجد مهام مطابقة للبحث' : 'No matching tasks found'}
+                  </div>
+                );
+              }
+
+              return filtered.map((task: any) => {
+                const isAlreadyLinked = currentTaskIds.has(task.id);
+                return (
+                  <div
+                    key={task.id}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-emerald-300 dark:hover:border-emerald-700 transition flex items-center justify-between gap-3 bg-white dark:bg-slate-900"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="outline" size="sm">{formatStatus(task.taskType || task.difficulty)}</Badge>
+                        <Badge variant="success" size="sm">+{task.xpReward || 30} XP</Badge>
+                        {task.lessonId && task.lessonId !== id && (
+                          <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                            {isArabic ? 'مرتبطة بدرس آخر' : 'Linked to another lesson'}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{task.title}</h4>
+                    </div>
+
+                    {isAlreadyLinked ? (
+                      <Badge variant="success" size="sm" className="shrink-0">
+                        {isArabic ? 'مرتبطة بالفعل' : 'Already Linked'}
+                      </Badge>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => linkTaskMutation.mutate(task.id)}
+                        isLoading={linkTaskMutation.isPending}
+                        className="shrink-0 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 gap-1 h-8"
+                      >
+                        <LinkIcon className="w-3.5 h-3.5" />
+                        <span>{isArabic ? 'ربط بالدرس' : 'Link to Lesson'}</span>
+                      </Button>
+                    )}
+                  </div>
+                );
+              });
+            })()}
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+            <Button variant="ghost" onClick={() => setIsLinkTaskModalOpen(false)}>
+              {t('common.close')}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Modal: Quick Create Task */}
+      <Dialog
+        isOpen={isCreateTaskModalOpen}
+        onClose={() => setIsCreateTaskModalOpen(false)}
+        title={isArabic ? 'إنشاء مهمة سريعة للدرس' : 'Quick Create Task for Lesson'}
+        maxWidth="md"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            createTaskMutation.mutate();
+          }}
+          className="space-y-4 py-2"
+        >
+          <Input
+            label={isArabic ? 'عنوان المهمة' : 'Task Title'}
+            value={newTaskTitle}
+            onChange={(e) => setNewTaskTitle(e.target.value)}
+            placeholder="e.g. تطبيق خوارزمية البحث الخطي"
+            required
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Select
+              label={isArabic ? 'نوع المهمة' : 'Task Type'}
+              value={newTaskType}
+              onChange={(e) => setNewTaskType(e.target.value)}
+              options={[
+                { value: 'DAILY_TASK', label: isArabic ? 'مهمة تطبيقية (Daily)' : 'Daily Task' },
+                { value: 'ENGINEERING_TASK', label: isArabic ? 'تحدي هندسي (Engineering)' : 'Engineering Challenge' },
+                { value: 'PROJECT', label: isArabic ? 'مشروع برمجي (Project)' : 'Project' }
+              ]}
+            />
+
+            <Select
+              label={isArabic ? 'مستوى الصعوبة' : 'Difficulty'}
+              value={newTaskDifficulty}
+              onChange={(e) => setNewTaskDifficulty(e.target.value)}
+              options={[
+                { value: 'BEGINNER', label: isArabic ? 'مبتدئ' : 'Beginner' },
+                { value: 'INTERMEDIATE', label: isArabic ? 'متوسط' : 'Intermediate' },
+                { value: 'ADVANCED', label: isArabic ? 'متقدم' : 'Advanced' }
+              ]}
+            />
+
+            <Input
+              label={isArabic ? 'نقاط الخبرة (XP)' : 'XP Reward'}
+              type="number"
+              value={newTaskXp}
+              onChange={(e) => setNewTaskXp(Number(e.target.value))}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+              {isArabic ? 'تعليمات المهمة والمطلوب' : 'Instructions & Requirements'}
+            </label>
+            <textarea
+              value={newTaskInstructions}
+              onChange={(e) => setNewTaskInstructions(e.target.value)}
+              placeholder="اكتب خطوات الحل أو المطلوب تنفيذه من الطالب..."
+              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 min-h-[90px]"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="ghost" onClick={() => setIsCreateTaskModalOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="submit"
+              isLoading={createTaskMutation.isPending}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              {isArabic ? 'إنشاء وربط بالدرس' : 'Create & Link'}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* Modal: Link Existing Quiz */}
+      <Dialog
+        isOpen={isLinkQuizModalOpen}
+        onClose={() => setIsLinkQuizModalOpen(false)}
+        title={isArabic ? 'ربط كويز أو امتحان بهذا الدرس' : 'Link Existing Quiz to Lesson'}
+        maxWidth="lg"
+      >
+        <div className="space-y-4 py-2">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute top-3 start-3 text-slate-400" />
+            <input
+              type="text"
+              placeholder={isArabic ? 'بحث في الامتحانات والكويزات بالعنوان...' : 'Search quizzes by title...'}
+              value={quizSearchQuery}
+              onChange={(e) => setQuizSearchQuery(e.target.value)}
+              className="w-full ps-9 pe-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+
+          <div className="max-h-[350px] overflow-y-auto space-y-2 pe-1">
+            {isAllExamsLoading ? (
+              <div className="py-8 text-center text-xs text-slate-400">{t('common.loading')}</div>
+            ) : (() => {
+              const currentExamIds = new Set((lesson?.exams || []).map((e: any) => e.id));
+              const filtered = (allExamsList || []).filter((ex: any) =>
+                !quizSearchQuery || ex.title.toLowerCase().includes(quizSearchQuery.toLowerCase())
+              );
+
+              if (filtered.length === 0) {
+                return (
+                  <div className="py-8 text-center text-xs text-slate-400">
+                    {isArabic ? 'لا توجد امتحانات أو كويزات مطابقة للبحث' : 'No matching quizzes found'}
+                  </div>
+                );
+              }
+
+              return filtered.map((exam: any) => {
+                const isAlreadyLinked = currentExamIds.has(exam.id);
+                return (
+                  <div
+                    key={exam.id}
+                    className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-amber-300 dark:hover:border-amber-700 transition flex items-center justify-between gap-3 bg-white dark:bg-slate-900"
+                  >
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="outline" size="sm">{exam.durationMinutes} min</Badge>
+                        <Badge variant="warning" size="sm">+{exam.xpReward || 30} XP</Badge>
+                        {exam.totalMarks && (
+                          <Badge variant="secondary" size="sm">{exam.totalMarks} {isArabic ? 'درجة' : 'pts'}</Badge>
+                        )}
+                        {exam.lessonId && exam.lessonId !== id && (
+                          <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                            {isArabic ? 'مرتبط بدرس آخر' : 'Linked to another lesson'}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{exam.title}</h4>
+                    </div>
+
+                    {isAlreadyLinked ? (
+                      <Badge variant="success" size="sm" className="shrink-0">
+                        {isArabic ? 'مرتبط بالفعل' : 'Already Linked'}
+                      </Badge>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => linkQuizMutation.mutate(exam.id)}
+                        isLoading={linkQuizMutation.isPending}
+                        className="shrink-0 text-xs border-amber-300 text-amber-700 hover:bg-amber-50 gap-1 h-8"
+                      >
+                        <LinkIcon className="w-3.5 h-3.5" />
+                        <span>{isArabic ? 'ربط بالدرس' : 'Link to Lesson'}</span>
+                      </Button>
+                    )}
+                  </div>
+                );
+              });
+            })()}
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-slate-100 dark:border-slate-800">
+            <Button variant="ghost" onClick={() => setIsLinkQuizModalOpen(false)}>
+              {t('common.close')}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Modal: Quick Create Quiz */}
+      <Dialog
+        isOpen={isCreateQuizModalOpen}
+        onClose={() => setIsCreateQuizModalOpen(false)}
+        title={isArabic ? 'إنشاء كويز تقييمي جديد للدرس' : 'Quick Create Quiz for Lesson'}
+        maxWidth="md"
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            createQuizMutation.mutate();
+          }}
+          className="space-y-4 py-2"
+        >
+          <Input
+            label={isArabic ? 'عنوان الكويز' : 'Quiz Title'}
+            value={newQuizTitle}
+            onChange={(e) => setNewQuizTitle(e.target.value)}
+            placeholder="e.g. كويز تقييمي سريع على المفاهيم الأساسية"
+            required
+          />
+
+          <Input
+            label={isArabic ? 'الوصف (اختياري)' : 'Description (Optional)'}
+            value={newQuizDescription}
+            onChange={(e) => setNewQuizDescription(e.target.value)}
+            placeholder="e.g. اختبار قصير لاختبار مدى استيعاب الدرس"
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Input
+              label={isArabic ? 'المدة (بالدقائق)' : 'Duration (min)'}
+              type="number"
+              value={newQuizDuration}
+              onChange={(e) => setNewQuizDuration(Number(e.target.value))}
+            />
+
+            <Input
+              label={isArabic ? 'الدرجة الكلية' : 'Total Marks'}
+              type="number"
+              value={newQuizTotalMarks}
+              onChange={(e) => setNewQuizTotalMarks(Number(e.target.value))}
+            />
+
+            <Input
+              label={isArabic ? 'نقاط الخبرة (XP)' : 'XP Reward'}
+              type="number"
+              value={newQuizXp}
+              onChange={(e) => setNewQuizXp(Number(e.target.value))}
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <Button type="button" variant="ghost" onClick={() => setIsCreateQuizModalOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="submit"
+              isLoading={createQuizMutation.isPending}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {isArabic ? 'إنشاء والانتقال لإضافة الأسئلة' : 'Create & Add Questions'}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
     </div>
   );
 }

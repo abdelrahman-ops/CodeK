@@ -1,4 +1,4 @@
-import { Role, Difficulty, TaskType, QuestionType, RelationshipType, AttendanceStatus, SubmissionStatus, PaymentStatus, CurriculumType, SessionStatus } from '@prisma/client';
+import { Role, Difficulty, TaskType, QuestionType, RelationshipType, AttendanceStatus, SubmissionStatus, PaymentStatus, CurriculumType, SessionStatus, StudentGrade } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../src/db/prisma.js';
 import { env } from '../src/config/env.js';
@@ -204,7 +204,8 @@ async function main() {
       title: 'Egyptian Baccalaureate Programming & AI',
       description: 'Official curriculum for Egyptian Baccalaureate secondary students.',
       type: CurriculumType.OFFICIAL_EB,
-      track: 'Fundamentals & AI'
+      track: 'Fundamentals & AI',
+      grade: StudentGrade.GRADE_1
     }
   });
 

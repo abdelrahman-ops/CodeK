@@ -70,6 +70,17 @@ export async function billingRoutes(app: FastifyInstance) {
     }
   );
 
+  // Verify payment redirect return from gateway (Paymob, etc.)
+  app.post(
+    '/verify-redirect',
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      const input = (request.body || {}) as Record<string, any>;
+      const result = await billingService.verifyPaymentRedirect(input, request.user!);
+      return reply.send({ data: result });
+    }
+  );
+
   // Get current subscription status
   app.get(
     '/my-subscription',
@@ -229,6 +240,28 @@ export async function billingRoutes(app: FastifyInstance) {
 
   app.post(
     '/admin/manual-payments/:transactionId/reject',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const { transactionId } = z.object({ transactionId: z.string().uuid() }).parse(request.params);
+      const input = rejectManualPaymentSchema.parse(request.body || {});
+      const result = await billingService.adminRejectManualPayment(transactionId, input.reason, request.user!.userId);
+      return reply.send({ data: result });
+    }
+  );
+
+  // General Transaction Approval & Rejection (Any provider: Paymob, Vodafone Cash, InstaPay, etc.)
+  app.post(
+    '/admin/transactions/:transactionId/approve',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const { transactionId } = z.object({ transactionId: z.string().uuid() }).parse(request.params);
+      const result = await billingService.adminConfirmManualPayment(transactionId, request.user!.userId);
+      return reply.send({ data: result });
+    }
+  );
+
+  app.post(
+    '/admin/transactions/:transactionId/reject',
     { preHandler: [authenticate, requireAdmin] },
     async (request, reply) => {
       const { transactionId } = z.object({ transactionId: z.string().uuid() }).parse(request.params);

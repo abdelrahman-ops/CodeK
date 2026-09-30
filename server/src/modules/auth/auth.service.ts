@@ -35,7 +35,9 @@ import {
 } from '../../common/utils/code-gen.js';
 import { createAuditLog } from '../audit/audit.service.js';
 import { emailService } from '../../services/email/email.service.js';
-import { AuthTokenType, Difficulty, Role, SubscriptionStatus } from '@prisma/client';
+import { emailQueue } from '../../queues/email/email.queue.js';
+import { encryptDeliverySecret } from '../../utils/crypto-delivery.js';
+import { AuthTokenType, Difficulty, Role, SubscriptionStatus, StudentGrade } from '@prisma/client';
 import { env } from '../../config/env.js';
 import { getPlanForGrade } from '../billing/billing.service.js';
 
@@ -104,7 +106,8 @@ export async function login(input: LoginInput) {
     const now = new Date();
     const recipientEmail = user.email || env.ADMIN_EMAIL || 'admin@codek.local';
     const adminName = `${user.firstName} ${user.lastName}`.trim();
-    const isTest = env.NODE_ENV === 'test';
+    const isTest = env.NODE_ENV === 'test' || process.env.NODE_ENV === 'test';
+    const isDev = env.NODE_ENV === 'development' || process.env.NODE_ENV === 'development';
 
     // Execute check and challenge creation inside an interactive Prisma transaction to prevent race conditions
     const tokenResult = await prisma.$transaction(async (tx) => {
@@ -158,6 +161,7 @@ export async function login(input: LoginInput) {
         data: {
           userId: user.id,
           tokenHash: hashedOtp,
+          encryptedToken: encryptDeliverySecret(rawOtp),
           type: AuthTokenType.ADMIN_LOGIN_OTP,
           status: 'PENDING',
           expiresAt,
@@ -184,14 +188,18 @@ export async function login(input: LoginInput) {
         requires2FA: true,
         tempToken,
         emailMasked: maskEmail(recipientEmail),
-        devOtp: isTest ? devOtpCache.get(tokenResult.record.id) : undefined
+        devOtp: (isTest || isDev) ? devOtpCache.get(tokenResult.record.id) : undefined
       };
     }
 
     const tempToken = sign2FATempToken(user.id, user.role, tokenResult.record.id);
 
-    // Send OTP via Email Service
-    await emailService.sendAdminLoginOtp(recipientEmail, tokenResult.rawOtp!, adminName);
+    // Enqueue OTP delivery via BullMQ email queue (secret-free reference)
+    await emailQueue.enqueueAdminLoginOtp({
+      email: recipientEmail,
+      authTokenId: tokenResult.record.id,
+      adminName
+    });
 
     await createAuditLog({
       actorUserId: user.id,
@@ -213,7 +221,7 @@ export async function login(input: LoginInput) {
       requires2FA: true,
       tempToken,
       emailMasked: maskEmail(recipientEmail),
-      devOtp: isTest ? tokenResult.rawOtp : undefined
+      devOtp: (isTest || isDev) ? tokenResult.rawOtp : undefined
     };
   }
 
@@ -521,6 +529,7 @@ export async function resendAdminOtp(input: ResendAdminOtpInput) {
     data: {
       userId: user.id,
       tokenHash: hashedOtp,
+      encryptedToken: encryptDeliverySecret(rawOtp),
       type: AuthTokenType.ADMIN_LOGIN_OTP,
       status: 'PENDING',
       expiresAt,
@@ -532,7 +541,11 @@ export async function resendAdminOtp(input: ResendAdminOtpInput) {
 
   const recipientEmail = user.email || env.ADMIN_EMAIL || 'admin@codek.local';
   const adminName = `${user.firstName} ${user.lastName}`.trim();
-  await emailService.sendAdminLoginOtp(recipientEmail, rawOtp, adminName);
+  await emailQueue.enqueueAdminLoginOtp({
+    email: recipientEmail,
+    authTokenId: newRecord.id,
+    adminName
+  });
 
   await createAuditLog({
     actorUserId: user.id,
@@ -551,13 +564,14 @@ export async function resendAdminOtp(input: ResendAdminOtpInput) {
   });
 
   const newTempToken = sign2FATempToken(user.id, user.role, newRecord.id);
-  const isTest = env.NODE_ENV === 'test';
+  const isTest = env.NODE_ENV === 'test' || process.env.NODE_ENV === 'test';
+  const isDev = env.NODE_ENV === 'development' || process.env.NODE_ENV === 'development';
 
   return {
     success: true,
     tempToken: newTempToken,
     emailMasked: maskEmail(recipientEmail),
-    devOtp: isTest ? rawOtp : undefined
+    devOtp: (isTest || isDev) ? rawOtp : undefined
   };
 }
 
@@ -971,7 +985,7 @@ export async function registerStudent(input: RegisterStudentInput) {
           userId: newUser.id,
           studentCode: loginId,
           anonymousLeaderboardCode: anonymousCode,
-          grade: input.grade || null,
+          grade: input.grade || StudentGrade.GRADE_1,
           programmingLevel: input.programmingLevel || Difficulty.BEGINNER,
           attendanceRequired: false,
           learningModeSelected: false,
@@ -989,6 +1003,7 @@ export async function registerStudent(input: RegisterStudentInput) {
         data: {
           userId: newUser.id,
           tokenHash: hashedOtp,
+          encryptedToken: encryptDeliverySecret(rawOtp),
           type: AuthTokenType.EMAIL_VERIFICATION,
           status: 'PENDING',
           expiresAt,
@@ -1002,9 +1017,13 @@ export async function registerStudent(input: RegisterStudentInput) {
     devOtpCache.set(user.id, rawOtp);
     devOtpCache.set(otpId, rawOtp);
 
-    // Send verification email via EmailService
+    // Enqueue verification email delivery via BullMQ email queue (secret-free reference)
     if (user.email) {
-      await emailService.sendEmailVerificationOtp(user.email, rawOtp, user.firstName);
+      await emailQueue.enqueueEmailVerification({
+        email: user.email,
+        authTokenId: otpId,
+        studentName: user.firstName
+      });
     }
 
     // Resolve active subscription plan & price from the selected grade (server-authoritative)
@@ -1031,26 +1050,7 @@ export async function registerStudent(input: RegisterStudentInput) {
           grade: input.grade
         };
 
-        // Create initial subscription record permanently locking historical pricing in metadata
-        const now = new Date();
-        const periodEnd = new Date();
-        periodEnd.setDate(periodEnd.getDate() + 30);
-
-        await prisma.subscription.create({
-          data: {
-            studentId: student.id,
-            planId: plan.id,
-            status: SubscriptionStatus.ACTIVE,
-            currentPeriodStart: now,
-            currentPeriodEnd: periodEnd,
-            metadata: {
-              grade: input.grade,
-              assignedPrice: plan.price,
-              assignedCurrency: plan.currency,
-              assignedAt: now.toISOString()
-            }
-          }
-        });
+        // Student registers without active subscription until payment is completed
       }
     }
 
@@ -1371,6 +1371,7 @@ export async function resendVerificationOtp(input: ResendVerificationInput) {
     data: {
       userId: user.id,
       tokenHash: hashedOtp,
+      encryptedToken: encryptDeliverySecret(rawOtp),
       type: AuthTokenType.EMAIL_VERIFICATION,
       status: 'PENDING',
       expiresAt,
@@ -1382,7 +1383,11 @@ export async function resendVerificationOtp(input: ResendVerificationInput) {
   devOtpCache.set(newRecord.id, rawOtp);
 
   if (user.email) {
-    await emailService.sendEmailVerificationOtp(user.email, rawOtp, user.firstName);
+    await emailQueue.enqueueEmailVerification({
+      email: user.email,
+      authTokenId: newRecord.id,
+      studentName: user.firstName
+    });
   }
 
   await createAuditLog({

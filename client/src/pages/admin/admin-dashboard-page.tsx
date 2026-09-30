@@ -72,7 +72,7 @@ export function AdminDashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
             {t('dashboard.commandCenter')}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -128,7 +128,7 @@ export function AdminDashboardPage() {
               <CalendarCheck2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-black text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
+              <h2 className="font-semibold text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <span>{isArabic ? 'جدول حصص اليوم' : "Today's Scheduled Classes"}</span>
                 <span className="text-xs font-normal text-slate-500">• {todayDateStr}</span>
               </h2>
@@ -161,7 +161,7 @@ export function AdminDashboardPage() {
                   <div className="space-y-2">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h3 className="font-black text-base text-slate-900 dark:text-slate-100">
+                        <h3 className="font-semibold text-base text-slate-900 dark:text-slate-100">
                           {localizeText(item.groupName)}
                         </h3>
                         {item.schedule && (
@@ -286,7 +286,7 @@ export function AdminDashboardPage() {
                   >
                     <div className="flex items-center justify-between font-bold text-slate-800 dark:text-slate-200">
                       <span>{log.action}</span>
-                      <span className="text-[10px] text-slate-400">
+                      <span className="text-[11px] text-slate-400">
                         {new Date(log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>

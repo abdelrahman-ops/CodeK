@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { buildApp } from '../../src/app.js';
 import { env } from '../../src/config/env.js';
 import { prisma } from '../../src/db/prisma.js';
+import { decryptForDelivery } from '../../src/utils/crypto-delivery.js';
 
 let app: FastifyInstance | null = null;
 
@@ -53,7 +54,17 @@ export async function loginAdmin(testApp: FastifyInstance): Promise<string> {
       where: { type: 'ADMIN_LOGIN_OTP' },
       orderBy: { createdAt: 'desc' }
     });
-    const otpCode = body.data.devOtp || (otpRecord ? otpRecord.token : '123456');
+    let otpCode = body.data.devOtp;
+    if (!otpCode && otpRecord?.encryptedToken) {
+      try {
+        otpCode = decryptForDelivery(otpRecord.encryptedToken);
+      } catch {
+        // fallback
+      }
+    }
+    if (!otpCode) {
+      otpCode = '123456';
+    }
     const verifyRes = await testApp.inject({
       method: 'POST',
       url: '/api/v1/auth/verify-2fa',

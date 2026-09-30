@@ -1,4 +1,4 @@
-import { AccessGrantScope, LessonAccessType, Role } from '@prisma/client';
+import { AccessGrantScope, LessonAccessType, Role, StudentGrade } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import { NotFoundError, BadRequestError } from '../../common/errors/app-error.js';
 import { createAuditLog } from '../audit/audit.service.js';
@@ -450,11 +450,29 @@ export async function createSubscriptionPlan(
 }
 
 /**
- * List Subscription Plans
+ * List Subscription Plans (supports grade-scoping)
  */
-export async function listSubscriptionPlans(onlyActive = true) {
-  return prisma.subscriptionPlan.findMany({
+export async function listSubscriptionPlans(onlyActive = true, grade?: StudentGrade) {
+  const plans = await prisma.subscriptionPlan.findMany({
     where: onlyActive ? { isActive: true } : {},
     orderBy: { price: 'asc' }
+  });
+
+  if (!grade) {
+    return plans;
+  }
+
+  return plans.filter((p) => {
+    const meta = (p.features as any) || {};
+    const planGrade =
+      meta.grade ||
+      (p.code.startsWith('GRADE_1')
+        ? StudentGrade.GRADE_1
+        : p.code.startsWith('GRADE_2')
+        ? StudentGrade.GRADE_2
+        : p.code.startsWith('GRADE_3')
+        ? StudentGrade.GRADE_3
+        : null);
+    return planGrade === grade;
   });
 }

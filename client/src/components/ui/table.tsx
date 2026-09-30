@@ -43,7 +43,7 @@ export function TableRow({ className, children, ...props }: React.HTMLAttributes
 
 export function TableHead({ className, children, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <th className={cn('px-4 py-3.5 text-start font-bold', className)} {...props}>
+    <th className={cn('px-4 py-3.5 text-start font-semibold', className)} {...props}>
       {children}
     </th>
   );
@@ -51,7 +51,7 @@ export function TableHead({ className, children, ...props }: React.ThHTMLAttribu
 
 export function TableCell({ className, children, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
   return (
-    <td className={cn('px-4 py-3.5 text-slate-700 dark:text-slate-300 align-middle', className)} {...props}>
+    <td className={cn('px-4 py-3.5 text-sm text-slate-700 dark:text-slate-300 align-middle', className)} {...props}>
       {children}
     </td>
   );

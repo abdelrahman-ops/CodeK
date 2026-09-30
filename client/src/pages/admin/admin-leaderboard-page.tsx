@@ -46,7 +46,7 @@ export function AdminLeaderboardPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Trophy className="w-7 h-7 text-amber-500" />
             <span>{t('nav.leaderboard')}</span>
           </h1>
@@ -97,7 +97,7 @@ export function AdminLeaderboardPage() {
               className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 flex items-center justify-between text-sm"
             >
               <div className="flex items-center gap-4">
-                <span className="w-8 text-center font-black text-base text-slate-500">
+                <span className="w-8 text-center font-semibold text-base text-slate-500">
                   #{entry.rank}
                 </span>
                 <div>
@@ -110,7 +110,7 @@ export function AdminLeaderboardPage() {
                 </div>
               </div>
 
-              <div className="font-extrabold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+              <div className="font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
                 <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
                 <span>{entry.monthlyXp} XP</span>
               </div>

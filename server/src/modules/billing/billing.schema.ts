@@ -5,10 +5,22 @@ export const checkoutSchema = z.object({
   paymentMethod: z.enum(['PAYMOB', 'VODAFONE_CASH', 'INSTAPAY']).default('PAYMOB')
 });
 
+export const verifyPaymentRedirectSchema = z.object({
+  transactionId: z.string().optional(),
+  txn: z.string().optional(),
+  id: z.union([z.string(), z.number()]).optional(),
+  merchant_order_id: z.string().optional(),
+  order: z.union([z.string(), z.number()]).optional(),
+  success: z.union([z.boolean(), z.string()]).optional(),
+  pending: z.union([z.boolean(), z.string()]).optional(),
+  amount_cents: z.union([z.number(), z.string()]).optional(),
+  hmac: z.string().optional()
+}).passthrough();
+
 export const submitManualPaymentSchema = z.object({
   senderPhone: z.string().max(30).optional(),
   referenceNumber: z.string().max(100).optional(),
-  receiptUrl: z.string().url().optional(),
+  receiptUrl: z.string().max(10_000_000).optional(),
   notes: z.string().max(500).optional()
 });
 
@@ -70,6 +82,7 @@ export const adminRefundSchema = z.object({
 
 export const adminRecordManualPaymentSchema = z.object({
   studentId: z.string().uuid('Valid student ID is required'),
+  amount: z.number().int().positive('Amount must be positive').optional(),
   notes: z.string().max(500).optional(),
   idempotencyKey: z.string().max(100).optional()
 });
@@ -78,7 +91,7 @@ export const planBenefitSchema = z.object({
   id: z.string().min(1),
   textAr: z.string().min(1, 'Arabic benefit text is required'),
   textEn: z.string().optional().default(''),
-  icon: z.enum(['check', 'star', 'code', 'video', 'trophy', 'sparkles', 'book', 'shield']).default('check'),
+  icon: z.string().max(50).default('check'),
   sortOrder: z.number().int().default(0)
 });
 
@@ -90,6 +103,8 @@ export const createPlanSchema = z.object({
   currency: z.string().default('EGP'),
   billingInterval: z.enum(['MONTHLY', 'QUARTERLY', 'YEARLY']).default('MONTHLY'),
   isActive: z.boolean().default(true),
+  targetGrade: z.enum(['ALL', 'GRADE_1', 'GRADE_2', 'GRADE_3']).optional(),
+  targetGroup: z.string().max(100).optional().nullable(),
   features: z.array(planBenefitSchema).max(20).optional()
 });
 
@@ -101,6 +116,8 @@ export const updatePlanSchema = z.object({
   currency: z.string().optional(),
   billingInterval: z.enum(['MONTHLY', 'QUARTERLY', 'YEARLY']).optional(),
   isActive: z.boolean().optional(),
+  targetGrade: z.enum(['ALL', 'GRADE_1', 'GRADE_2', 'GRADE_3']).optional(),
+  targetGroup: z.string().max(100).optional().nullable(),
   features: z.array(planBenefitSchema).max(20).optional()
 });
 

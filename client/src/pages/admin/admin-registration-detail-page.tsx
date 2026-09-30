@@ -19,7 +19,9 @@ import {
   User,
   ShieldCheck,
   Sparkles,
-  Users
+  Users,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { Card, CardTitle, CardContent } from '../../components/ui/card.js';
 import { Button } from '../../components/ui/button.js';
@@ -50,6 +52,7 @@ export function AdminRegistrationDetailPage() {
   // Modals state
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedGroupId, setSelectedGroupId] = useState<string>('');
 
   // Credentials Generated Success Modal
@@ -81,6 +84,21 @@ export function AdminRegistrationDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['adminRegistrationDetail', id] });
       queryClient.invalidateQueries({ queryKey: ['adminRegistrations'] });
       setIsRejectModalOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  // Delete Registration Mutation
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      return (await api.registrations.deleteAdmin(id!)).data;
+    },
+    onSuccess: () => {
+      toast.success(isArabic ? 'تم حذف طلب التسجيل بنجاح' : 'Registration deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['adminRegistrations'] });
+      navigate('/admin/registrations');
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.error?.message || t('common.error'));
@@ -137,7 +155,7 @@ export function AdminRegistrationDetailPage() {
 
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
                 {registration.firstName} {registration.lastName}
               </h1>
               <Badge variant={registration.status === 'APPROVED' ? 'success' : 'warning'}>
@@ -151,30 +169,40 @@ export function AdminRegistrationDetailPage() {
         </div>
 
         {/* Action Controls Header */}
-        {!isApproved && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={() => setIsRejectModalOpen(true)}>
-              <XCircle className="w-4 h-4 text-rose-500" />
-              <span>{isArabic ? 'رفض الطلب' : 'Reject'}</span>
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => updateMutation.mutate({ status: 'WAITLISTED' })}
-            >
-              <Clock className="w-4 h-4 text-amber-500" />
-              <span>{isArabic ? 'إضافة لقائمة الانتظار' : 'Waitlist'}</span>
-            </Button>
-            <Button onClick={() => {
-              if (registration.preferredGroupId) {
-                setSelectedGroupId(registration.preferredGroupId);
-              }
-              setIsApproveModalOpen(true);
-            }}>
-              <UserCheck className="w-4 h-4" />
-              <span>{isArabic ? 'قبول وتفعيل حساب الطالب' : 'Approve & Create Account'}</span>
-            </Button>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {!isApproved && (
+            <>
+              <Button variant="outline" onClick={() => setIsRejectModalOpen(true)}>
+                <XCircle className="w-4 h-4 text-rose-500" />
+                <span>{isArabic ? 'رفض الطلب' : 'Reject'}</span>
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => updateMutation.mutate({ status: 'WAITLISTED' })}
+              >
+                <Clock className="w-4 h-4 text-amber-500" />
+                <span>{isArabic ? 'إضافة لقائمة الانتظار' : 'Waitlist'}</span>
+              </Button>
+              <Button onClick={() => {
+                if (registration.preferredGroupId) {
+                  setSelectedGroupId(registration.preferredGroupId);
+                }
+                setIsApproveModalOpen(true);
+              }}>
+                <UserCheck className="w-4 h-4" />
+                <span>{isArabic ? 'قبول وتفعيل حساب الطالب' : 'Approve & Create Account'}</span>
+              </Button>
+            </>
+          )}
+          <Button
+            variant="outline"
+            className="text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-900/50 dark:hover:bg-rose-950/20"
+            onClick={() => setIsDeleteModalOpen(true)}
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>{isArabic ? 'حذف الطلب نهائياً' : 'Delete Registration'}</span>
+          </Button>
+        </div>
       </div>
 
       {/* Main Grid Details */}
@@ -191,7 +219,7 @@ export function AdminRegistrationDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs">
               <div>
                 <span className="text-slate-400 font-bold block">{isArabic ? 'الاسم بالكامل' : 'Full Name'}</span>
-                <span className="font-black text-slate-900 dark:text-slate-100 text-sm">
+                <span className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
                   {registration.firstName} {registration.lastName}
                 </span>
               </div>
@@ -238,7 +266,7 @@ export function AdminRegistrationDetailPage() {
               {registration.preferredGroup ? (
                 <div className="p-4 rounded-2xl bg-brand-50/50 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-900 space-y-1">
                   <span className="text-slate-400 font-bold block">{isArabic ? 'المجموعة المختارة:' : 'Selected Group:'}</span>
-                  <div className="font-black text-sm text-brand-600 dark:text-brand-400">
+                  <div className="font-semibold text-sm text-brand-600 dark:text-brand-400">
                     {registration.preferredGroup.name}
                   </div>
                   {registration.preferredGroup.scheduleInfo && (
@@ -345,7 +373,7 @@ export function AdminRegistrationDetailPage() {
                   <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold block">
                     {isArabic ? 'تم إنشاء حساب الطالب مرتبط:' : 'Linked Student Account:'}
                   </span>
-                  <div className="flex items-center justify-between font-mono font-black text-emerald-700 dark:text-emerald-300">
+                  <div className="flex items-center justify-between font-mono font-semibold text-emerald-700 dark:text-emerald-300">
                     <span>{registration.createdStudent.user.loginId}</span>
                     <Button
                       size="sm"
@@ -391,7 +419,7 @@ export function AdminRegistrationDetailPage() {
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
             <div className="flex items-center gap-3 text-emerald-600 dark:text-emerald-400">
               <UserCheck className="w-6 h-6" />
-              <h3 className="font-black text-lg text-slate-900 dark:text-slate-100">
+              <h3 className="font-semibold text-lg text-slate-900 dark:text-slate-100">
                 {isArabic ? 'قبول وتأهيل حساب الطالب' : 'Approve Student Application'}
               </h3>
             </div>
@@ -438,7 +466,7 @@ export function AdminRegistrationDetailPage() {
       {isRejectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
-            <h3 className="font-black text-lg text-rose-600 dark:text-rose-400">
+            <h3 className="font-semibold text-lg text-rose-600 dark:text-rose-400">
               {isArabic ? 'رفض طلب التسجيل' : 'Reject Registration'}
             </h3>
 
@@ -482,7 +510,7 @@ export function AdminRegistrationDetailPage() {
                 <Sparkles className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-black text-lg text-slate-900 dark:text-slate-100">
+                <h3 className="font-semibold text-lg text-slate-900 dark:text-slate-100">
                   {isArabic ? 'تم قبول الطالب وإصدار الحساب! 🎉' : 'Account Created Successfully! 🎉'}
                 </h3>
                 <p className="text-xs text-slate-500">
@@ -496,7 +524,7 @@ export function AdminRegistrationDetailPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <span className="text-[11px] text-slate-400 font-bold block">{isArabic ? 'اسم المستخدم (Login ID)' : 'Login ID'}</span>
-                  <span className="font-mono font-black text-sm text-brand-600 dark:text-brand-400">
+                  <span className="font-mono font-semibold text-sm text-brand-600 dark:text-brand-400">
                     {approvalResult.credentials.loginId}
                   </span>
                 </div>
@@ -508,7 +536,7 @@ export function AdminRegistrationDetailPage() {
               <div className="flex items-center justify-between border-t border-slate-200/60 dark:border-slate-700/60 pt-3">
                 <div>
                   <span className="text-[11px] text-slate-400 font-bold block">{isArabic ? 'كلمة المرور المؤقتة' : 'Temporary Password'}</span>
-                  <span className="font-mono font-black text-sm text-emerald-600 dark:text-emerald-400">
+                  <span className="font-mono font-semibold text-sm text-emerald-600 dark:text-emerald-400">
                     {approvalResult.credentials.temporaryPassword}
                   </span>
                 </div>
@@ -534,6 +562,55 @@ export function AdminRegistrationDetailPage() {
                 onClick={() => setApprovalResult(null)}
               >
                 {t('common.close')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+            <h3 className="font-semibold text-lg text-rose-600 dark:text-rose-400 flex items-center gap-2">
+              <Trash2 className="w-5 h-5" />
+              <span>{isArabic ? 'حذف طلب التسجيل نهائياً' : 'Delete Registration'}</span>
+            </h3>
+
+            <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-200 text-xs">
+              <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                {isArabic ? (
+                  <>
+                    هل أنت متأكد من حذف طلب تسجيل الطالب{' '}
+                    <span className="font-bold underline">{registration?.firstName} {registration?.lastName}</span> نهائياً؟
+                    سيتم إزالة هذا الطلب وبياناته من سجلات النظام بالكامل.
+                  </>
+                ) : (
+                  <>
+                    Are you sure you want to permanently delete registration for{' '}
+                    <span className="font-bold underline">{registration?.firstName} {registration?.lastName}</span>?
+                    This action cannot be undone.
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                variant="ghost"
+                onClick={() => setIsDeleteModalOpen(false)}
+                disabled={deleteMutation.isPending}
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="danger"
+                isLoading={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate()}
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" />
+                <span>{isArabic ? 'تأكيد الحذف نهائياً' : 'Delete Permanently'}</span>
               </Button>
             </div>
           </div>

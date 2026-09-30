@@ -181,4 +181,110 @@ describe('P1 Student Grade → Plan/Price Assignment Architecture', () => {
     expect(grade2).toBeDefined();
     expect(grade2.price).toBe(250);
   });
+
+  it('scopes GET /api/v1/access/plans to authenticated student grade and rejects cross-grade query', async () => {
+    const timestamp = Date.now();
+    const email = `plan_scope_${timestamp}@codek.test`;
+    const regRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      payload: {
+        firstName: 'Scoped',
+        lastName: 'Student',
+        email,
+        password: 'Password123!',
+        phone: `+2012${timestamp.toString().slice(-8)}`,
+        grade: 'GRADE_1'
+      }
+    });
+    expect(regRes.statusCode).toBe(201);
+    const regData = regRes.json().data;
+    
+    // Verify email to obtain accessToken
+    const verifyRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/verify-email',
+      payload: {
+        userId: regData.userId,
+        otpCode: regData.devOtp
+      }
+    });
+    expect(verifyRes.statusCode).toBe(200);
+    const token = verifyRes.json().data.accessToken;
+
+    // Student calls /access/plans -> should only receive plans for GRADE_1
+    const plansRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/access/plans',
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(plansRes.statusCode).toBe(200);
+    const studentPlans = plansRes.json().data;
+    expect(studentPlans.length).toBeGreaterThanOrEqual(1);
+    for (const p of studentPlans) {
+      const pGrade = p.features?.grade || (p.code.startsWith('GRADE_1') ? 'GRADE_1' : p.code.startsWith('GRADE_2') ? 'GRADE_2' : 'GRADE_3');
+      expect(pGrade).toBe('GRADE_1');
+    }
+
+    // Student attempts to query for a different grade -> 403 Forbidden
+    const crossRes = await app.inject({
+      method: 'GET',
+      url: '/api/v1/access/plans?grade=GRADE_2',
+      headers: { authorization: `Bearer ${token}` }
+    });
+    expect(crossRes.statusCode).toBe(403);
+  });
+
+  it('rejects checkout when student attempts to purchase plan for different grade', async () => {
+    const timestamp = Date.now();
+    const email = `checkout_cross_${timestamp}@codek.test`;
+    const regRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/register',
+      payload: {
+        firstName: 'CrossGrade',
+        lastName: 'Shopper',
+        email,
+        password: 'Password123!',
+        phone: `+2015${timestamp.toString().slice(-8)}`,
+        grade: 'GRADE_1'
+      }
+    });
+    expect(regRes.statusCode).toBe(201);
+    const regData = regRes.json().data;
+
+    // Verify email to obtain accessToken
+    const verifyRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/verify-email',
+      payload: {
+        userId: regData.userId,
+        otpCode: regData.devOtp
+      }
+    });
+    expect(verifyRes.statusCode).toBe(200);
+    const token = verifyRes.json().data.accessToken;
+
+    // GRADE_1 student tries to checkout GRADE_2 plan
+    const crossCheckout = await app.inject({
+      method: 'POST',
+      url: '/api/v1/billing/checkout',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { planId: 'GRADE_2_MONTHLY', paymentMethod: 'VODAFONE_CASH' }
+    });
+    expect(crossCheckout.statusCode).toBe(400);
+
+    // GRADE_1 student checkouts GRADE_1 plan -> succeeds and returns manualPayment payload
+    const validCheckout = await app.inject({
+      method: 'POST',
+      url: '/api/v1/billing/checkout',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { planId: 'GRADE_1_MONTHLY', paymentMethod: 'VODAFONE_CASH' }
+    });
+    expect(validCheckout.statusCode).toBe(201);
+    const checkoutBody = validCheckout.json().data;
+    expect(checkoutBody.manualPayment).toBeDefined();
+    expect(checkoutBody.manualPayment.receivingAccount).toBeDefined();
+    expect(checkoutBody.amount).toBe(150);
+  });
 });

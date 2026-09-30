@@ -58,6 +58,18 @@ describe('Phase 5: Centralized Entitlements & Subscription-Ready Access Engine',
     });
     unenrolledStudentId = unenrolledUser.student!.id;
 
+    // Ensure unenrolled student is assigned GRADE_1
+    await prisma.student.update({
+      where: { id: unenrolledStudentId },
+      data: { grade: 'GRADE_1' }
+    });
+
+    // Ensure enrolled student is assigned GRADE_1
+    await prisma.student.update({
+      where: { id: enrolledStudentId },
+      data: { grade: 'GRADE_1' }
+    });
+
     const stu2Res = await app.inject({
       method: 'POST',
       url: '/api/v1/auth/login',
@@ -65,14 +77,15 @@ describe('Phase 5: Centralized Entitlements & Subscription-Ready Access Engine',
     });
     unenrolledStudentToken = stu2Res.json().data.accessToken;
 
-    // Create Test Course
+    // Create Test Course with GRADE_1
     const courseRes = await app.inject({
       method: 'POST',
       url: '/api/v1/curriculum',
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         title: 'Phase 5 Entitlements Track ' + uniqueSuffix,
-        description: 'Course testing access models'
+        description: 'Course testing access models',
+        grade: 'GRADE_1'
       }
     });
     courseId = courseRes.json().data.id;
@@ -423,6 +436,45 @@ describe('Phase 5: Centralized Entitlements & Subscription-Ready Access Engine',
       expect(listRes.statusCode).toBe(200);
       const plans = listRes.json().data;
       expect(plans.some((p: any) => p.code === planCode)).toBe(true);
+    });
+  });
+
+  describe('7. Grade Isolation vs Entitlement Differentiation', () => {
+    it('Case A: wrong-grade student accessing lesson returns 404 regardless of entitlement', async () => {
+      // Create a GRADE_2 curriculum and lesson
+      const g2CourseRes = await app.inject({
+        method: 'POST',
+        url: '/api/v1/curriculum',
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          title: 'Grade 2 Track for Cross-Grade Check',
+          grade: 'GRADE_2'
+        }
+      });
+      const g2CourseId = g2CourseRes.json().data.id;
+
+      const g2LessonRes = await app.inject({
+        method: 'POST',
+        url: '/api/v1/lessons',
+        headers: { authorization: `Bearer ${adminToken}` },
+        payload: {
+          curriculumId: g2CourseId,
+          title: 'Grade 2 Free Preview Lesson',
+          content: '# Grade 2 Content',
+          order: 1,
+          isFree: true,
+          accessType: 'FREE'
+        }
+      });
+      const g2LessonId = g2LessonRes.json().data.id;
+
+      // unenrolledStudent is GRADE_1, accessing GRADE_2 lesson -> must return 404
+      const accessRes = await app.inject({
+        method: 'GET',
+        url: `/api/v1/lessons/${g2LessonId}`,
+        headers: { authorization: `Bearer ${unenrolledStudentToken}` }
+      });
+      expect(accessRes.statusCode).toBe(404);
     });
   });
 });

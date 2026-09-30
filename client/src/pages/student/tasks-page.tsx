@@ -39,7 +39,7 @@ export function TasksPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
           {t('tasks.title')}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -49,7 +49,7 @@ export function TasksPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {tasks?.map((task) => {
-          const submission = task.mySubmission;
+          const submission = task.mySubmission || (task as any).submissions?.[0] || null;
           const isApproved = submission?.status === 'APPROVED';
 
           return (
@@ -117,6 +117,7 @@ export function TaskViewPage() {
   const [githubUrl, setGithubUrl] = useState('');
   const [fileUrl, setFileUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [celebration, setCelebration] = useState<{ isOpen: boolean; title: string; subtitle?: string; xp?: number } | null>(null);
 
   const { data: task, isLoading, refetch } = useQuery<Task>({
@@ -144,6 +145,7 @@ export function TaskViewPage() {
         fileUrl: fileUrl.trim() || undefined
       });
       toast.success(t('tasks.submitted') + ' - ' + t('common.success'));
+      setIsEditing(false);
       await refetch();
     } catch (err: any) {
       toast.error(err.response?.data?.error?.message || t('common.error'));
@@ -156,7 +158,7 @@ export function TaskViewPage() {
 
   if (!task) return <div className="p-8 text-center text-slate-500">{t('common.noData')}</div>;
 
-  const submission = task.mySubmission;
+  const submission = task.mySubmission || (task as any).submissions?.[0] || null;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -182,7 +184,7 @@ export function TaskViewPage() {
         </div>
 
         <div>
-          <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100">{localizeText(task.title)}</h1>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{localizeText(task.title)}</h1>
           <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 leading-relaxed">
             {localizeText(task.description)}
           </p>
@@ -200,7 +202,7 @@ export function TaskViewPage() {
       </Card>
 
       {/* Submission Status or Submission Form */}
-      {submission ? (
+      {submission && !isEditing ? (
         <Card className="p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
             <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
@@ -237,6 +239,15 @@ export function TaskViewPage() {
             </div>
           )}
 
+          {submission.fileUrl && (
+            <div className="flex items-center gap-2 text-xs">
+              <LinkIcon className="w-4 h-4 text-slate-500" />
+              <a href={submission.fileUrl} target="_blank" rel="noreferrer" className="text-brand-600 dark:text-brand-400 font-mono underline">
+                {submission.fileUrl}
+              </a>
+            </div>
+          )}
+
           {submission.feedback && (
             <div className="p-4 rounded-2xl bg-brand-50/50 dark:bg-brand-950/30 border border-brand-200 dark:border-brand-800 space-y-1">
               <span className="text-xs font-bold text-brand-900 dark:text-brand-300">
@@ -245,12 +256,41 @@ export function TaskViewPage() {
               <p className="text-sm text-slate-700 dark:text-slate-300">{submission.feedback}</p>
             </div>
           )}
+
+          {submission.status !== 'APPROVED' && (
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setContent(submission.content || '');
+                  setGithubUrl(submission.githubUrl || '');
+                  setFileUrl(submission.fileUrl || '');
+                  setIsEditing(true);
+                }}
+              >
+                تعديل الحل أو إعادة الإرسال
+              </Button>
+            </div>
+          )}
         </Card>
       ) : (
         <Card className="p-6 space-y-4">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-            {t('tasks.submitSolution')}
-          </h3>
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              {isEditing ? 'تعديل حل المهمة البرمجية' : t('tasks.submitSolution')}
+            </h3>
+            {isEditing && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsEditing(false)}
+              >
+                {t('common.cancel')}
+              </Button>
+            )}
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <Textarea
@@ -280,10 +320,17 @@ export function TaskViewPage() {
               disabled={isSubmitting}
             />
 
-            <Button type="submit" size="lg" className="w-full" isLoading={isSubmitting}>
-              <Send className="w-4 h-4" />
-              <span>{t('tasks.submitSolution')}</span>
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button type="submit" size="lg" className="flex-1" isLoading={isSubmitting}>
+                <Send className="w-4 h-4" />
+                <span>{isEditing ? 'حفظ وإعادة تسليم الحل' : t('tasks.submitSolution')}</span>
+              </Button>
+              {isEditing && (
+                <Button type="button" variant="outline" size="lg" onClick={() => setIsEditing(false)}>
+                  {t('common.cancel')}
+                </Button>
+              )}
+            </div>
           </form>
         </Card>
       )}

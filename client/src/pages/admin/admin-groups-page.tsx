@@ -110,7 +110,7 @@ export function AdminGroupsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
             <Presentation className="w-7 h-7 text-brand-600 dark:text-brand-400" />
             <span>{t('nav.groups')}</span>
           </h1>

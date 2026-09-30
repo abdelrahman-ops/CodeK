@@ -32,13 +32,34 @@ export default {
           700: '#c2410c',
           800: '#9a3412',
           900: '#7c2d12',
+        },
+        background: 'rgb(var(--color-background, 255 255 255) / <alpha-value>)',
+        foreground: 'rgb(var(--color-foreground, 15 23 42) / <alpha-value>)',
+        card: {
+          DEFAULT: 'rgb(var(--color-card, 255 255 255) / <alpha-value>)',
+          foreground: 'rgb(var(--color-card-foreground, 15 23 42) / <alpha-value>)',
+        },
+        muted: {
+          DEFAULT: 'rgb(var(--color-muted, 241 245 249) / <alpha-value>)',
+          foreground: 'rgb(var(--color-muted-foreground, 100 116 139) / <alpha-value>)',
+        },
+        border: 'rgb(var(--color-border, 226 232 240) / <alpha-value>)',
+        primary: {
+          DEFAULT: 'rgb(var(--color-brand-600, 79 70 229) / <alpha-value>)',
+          foreground: '#ffffff',
+        },
+        destructive: {
+          DEFAULT: '#ef4444',
+          foreground: '#ffffff',
         }
       },
       fontFamily: {
-        brand: ['Eczar', 'serif'],
-        sans: ['Inter', 'Cairo', 'system-ui', 'sans-serif'],
-        arabic: ['Cairo', 'Tajawal', 'sans-serif'],
-        mono: ['Fira Code', 'JetBrains Mono', 'monospace'],
+        brand: ['Inter', '"IBM Plex Sans Arabic"', 'sans-serif'],
+        sans: ['Inter', '"IBM Plex Sans Arabic"', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
+        ruqaa: ['"Aref Ruqaa"', 'serif'],
+        'square-peg': ['"Square Peg"', 'cursive'],
+        playpen: ['"Playpen Sans Arabic"', 'sans-serif'],
       }
     },
   },

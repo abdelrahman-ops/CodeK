@@ -36,7 +36,7 @@ export function ExamsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
           {t('exams.title')}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -165,22 +165,22 @@ export function ExamTakePage() {
             <CheckCircle2 className="w-8 h-8" />
           </div>
 
-          <h2 className="text-2xl font-black text-slate-900 dark:text-slate-100">
+          <h2 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
             {localizeText(exam.title)} - {t('common.completed')}
           </h2>
 
           <div className="grid grid-cols-3 gap-3 max-w-md mx-auto py-4">
             <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
               <span className="text-xs text-slate-500">{t('exams.score')}</span>
-              <div className="text-xl font-black">{attempt.score} / {exam.totalMarks}</div>
+              <div className="text-xl font-semibold">{attempt.score} / {exam.totalMarks}</div>
             </div>
             <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
               <span className="text-xs text-slate-500">{t('dashboard.level')}</span>
-              <div className="text-xl font-black text-emerald-600">{attempt.percentage}%</div>
+              <div className="text-xl font-semibold text-emerald-600">{attempt.percentage}%</div>
             </div>
             <div className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
               <span className="text-xs text-slate-500">{t('dashboard.totalXp')}</span>
-              <div className="text-xl font-black text-brand-600">+{attempt.xpEarned} XP</div>
+              <div className="text-xl font-semibold text-brand-600">+{attempt.xpEarned} XP</div>
             </div>
           </div>
 
@@ -218,26 +218,43 @@ export function ExamTakePage() {
           </h3>
 
           {/* MCQ Options */}
-          {currentQuestion.questionType === 'MULTIPLE_CHOICE' && currentQuestion.options && (
-            <div className="space-y-2.5">
-              {currentQuestion.options.map((opt, idx) => {
-                const isSelected = answers[currentQuestion.id] === opt;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setAnswers({ ...answers, [currentQuestion.id]: opt })}
-                    className={`w-full p-4 rounded-2xl border text-start text-sm font-semibold transition flex items-center gap-3 ${isSelected ? 'bg-brand-50 dark:bg-brand-950/60 border-brand-500 text-brand-700 dark:text-brand-300 shadow-sm' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-slate-300'}`}
-                  >
-                    <div className={`w-6 h-6 rounded-full border flex items-center justify-center font-mono text-xs ${isSelected ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-400'}`}>
-                      {String.fromCharCode(65 + idx)}
-                    </div>
-                    <span>{localizeText(opt)}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          {currentQuestion.questionType === 'MULTIPLE_CHOICE' && (() => {
+            const opts: string[] = Array.isArray(currentQuestion.options)
+              ? currentQuestion.options
+              : typeof currentQuestion.options === 'string'
+              ? (() => {
+                  try {
+                    const parsed = JSON.parse(currentQuestion.options);
+                    return Array.isArray(parsed) ? parsed : [];
+                  } catch {
+                    return [];
+                  }
+                })()
+              : [];
+
+            if (opts.length === 0) return null;
+
+            return (
+              <div className="space-y-2.5">
+                {opts.map((opt, idx) => {
+                  const isSelected = answers[currentQuestion.id] === opt;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setAnswers({ ...answers, [currentQuestion.id]: opt })}
+                      className={`w-full p-4 rounded-2xl border text-start text-sm font-semibold transition flex items-center gap-3 ${isSelected ? 'bg-brand-50 dark:bg-brand-950/60 border-brand-500 text-brand-700 dark:text-brand-300 shadow-sm' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-slate-300'}`}
+                    >
+                      <div className={`w-6 h-6 rounded-full border flex items-center justify-center font-mono text-xs ${isSelected ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-400'}`}>
+                        {String.fromCharCode(65 + idx)}
+                      </div>
+                      <span>{localizeText(opt)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* Short Answer Input */}
           {currentQuestion.questionType === 'SHORT_ANSWER' && (

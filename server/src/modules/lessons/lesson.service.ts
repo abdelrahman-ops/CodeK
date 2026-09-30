@@ -9,7 +9,7 @@ import {
   ConceptCard
 } from './lesson.schema.js';
 import { AppError, BadRequestError, NotFoundError } from '../../common/errors/app-error.js';
-import { AttendanceStatus, LessonAccessType, Role, StudentGrade } from '@prisma/client';
+import { AttendanceStatus, LessonAccessType, Role, StudentGrade, ContentAuthority } from '@prisma/client';
 import { createAuditLog } from '../audit/audit.service.js';
 import { canAccessLesson, LOCKED_EXPLANATION_AR } from './lesson-access.service.js';
 import { getStudentGrade, assertGradeAccess } from '../curriculum/curriculum-auth.js';
@@ -77,6 +77,9 @@ export async function createLesson(input: CreateLessonInput, actorUserId?: strin
       content: input.content,
       difficulty: input.difficulty,
       estimatedDurationMinutes: input.estimatedDurationMinutes,
+      pageRange: input.pageRange !== undefined ? (input.pageRange || null) : undefined,
+      authority: input.authority || ContentAuthority.OFFICIAL,
+      conceptCards: input.conceptCards !== undefined ? (typeof input.conceptCards === 'string' ? JSON.parse(input.conceptCards) : input.conceptCards) : undefined,
       order: input.order,
       isPublished: input.isPublished,
       isFree: input.isFree ?? false,
@@ -287,7 +290,7 @@ export async function getLessonById(
         include: { session: true }
       },
       tasks: {
-        where: { isPublished: true },
+        where: requestUser.role === Role.ADMIN ? undefined : { isPublished: true },
         select: {
           id: true,
           code: true,
@@ -297,11 +300,12 @@ export async function getLessonById(
           taskType: true,
           difficulty: true,
           xpReward: true,
-          authority: true
+          authority: true,
+          isPublished: true
         }
       },
       exams: {
-        where: { isPublished: true },
+        where: requestUser.role === Role.ADMIN ? undefined : { isPublished: true },
         select: {
           id: true,
           code: true,
@@ -311,7 +315,8 @@ export async function getLessonById(
           totalMarks: true,
           xpReward: true,
           isQuiz: true,
-          authority: true
+          authority: true,
+          isPublished: true
         }
       }
     }
@@ -418,9 +423,13 @@ export async function getLessonById(
         taskId: { in: lesson.tasks.map((t) => t.id) }
       },
       select: {
+        id: true,
         taskId: true,
         status: true,
         feedback: true,
+        content: true,
+        fileUrl: true,
+        githubUrl: true,
         submittedAt: true
       }
     });
@@ -599,6 +608,9 @@ export async function updateLesson(
       title: input.title,
       description: input.description !== undefined ? input.description : undefined,
       content: input.content,
+      pageRange: input.pageRange !== undefined ? (input.pageRange || null) : undefined,
+      authority: input.authority !== undefined ? input.authority : undefined,
+      conceptCards: input.conceptCards !== undefined ? (typeof input.conceptCards === 'string' ? JSON.parse(input.conceptCards) : input.conceptCards) : undefined,
       difficulty: input.difficulty,
       estimatedDurationMinutes: input.estimatedDurationMinutes,
       order: input.order,

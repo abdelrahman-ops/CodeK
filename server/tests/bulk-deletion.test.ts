@@ -182,7 +182,14 @@ describe('Admin Bulk Deletion API Suite', () => {
   describe('DELETE /api/v1/curriculum/bulk', () => {
     it('should strictly protect the official curriculum from bulk deletion', async () => {
       const official = await prisma.curriculum.findFirst({
-        where: { code: 'G11-T1-EB-2026' }
+        where: {
+          authority: 'OFFICIAL',
+          OR: [
+            { code: 'G11-T1-EB-2026' },
+            { title: 'البرمجة والذكاء الاصطناعي — الصف الثاني الثانوي (الترم الأول)' },
+            { title: 'Egyptian Baccalaureate Programming & AI' }
+          ]
+        }
       });
 
       expect(official).not.toBeNull();
@@ -215,7 +222,8 @@ describe('Admin Bulk Deletion API Suite', () => {
           title: 'Temporary Curriculum for Bulk Delete Test',
           academicYear: '2025/2026',
           term: 'TERM_1',
-          authority: 'PROPOSED'
+          authority: 'PROPOSED',
+          grade: 'GRADE_1'
         }
       });
 

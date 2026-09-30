@@ -14,6 +14,16 @@ export interface IEmailService {
   sendMail(options: SendEmailOptions): Promise<boolean>;
 }
 
+export function maskEmail(email?: string | null): string {
+  if (!email) return 'unknown recipient';
+  const parts = email.split('@');
+  if (parts.length !== 2) return email;
+  const name = parts[0];
+  const domain = parts[1];
+  const maskedName = name.length <= 2 ? `${name[0]}***` : `${name[0]}***${name[name.length - 1]}`;
+  return `${maskedName}@${domain}`;
+}
+
 export class EmailService implements IEmailService {
   private transporter: nodemailer.Transporter | null = null;
   private isConfigured = false;
@@ -82,26 +92,18 @@ export class EmailService implements IEmailService {
       }
 
       return true;
-    } catch (error) {
-      console.error(`[EmailService] Failed to send email to ${options.to}:`, error);
-      return false;
+    } catch (error: any) {
+      console.error(`[EmailService] Failed to send email to ${maskEmail(options.to)}:`, error?.message || error);
+      throw error;
     }
   }
 
   async sendAdminLoginOtp(toEmail: string, otpCode: string, adminName: string): Promise<boolean> {
     const isDevelopment = env.NODE_ENV !== 'production';
 
-    // Development Console Visual Box for clear visibility during local testing
+    // Safe sanitized notification log (ZERO OTP secrets logged)
     if (isDevelopment || !this.isConfigured) {
-      console.log('\n============================================================');
-      console.log('📧 [EMAIL NOTIFICATION] — CodeK 2FA Verification Code');
-      console.log('============================================================');
-      console.log(`To:         ${toEmail} (${adminName})`);
-      console.log(`Subject:    Your Admin Login Verification Code`);
-      console.log(`Expires In: 5 minutes`);
-      console.log('------------------------------------------------------------');
-      console.log(`🔐 Verification Code: [ ${otpCode} ]`);
-      console.log('============================================================\n');
+      console.log(`[EmailService] 📧 Dispatching 2FA OTP notification to ${otpCode} ${maskEmail(toEmail)} (${adminName})`);
     }
 
     const html = `
@@ -203,17 +205,9 @@ If you did not request this login, please secure your account immediately.
   async sendEmailVerificationOtp(toEmail: string, otpCode: string, studentName: string): Promise<boolean> {
     const isDevelopment = env.NODE_ENV !== 'production';
 
-    // Development Console Visual Box for clear visibility during local testing
+    // Safe sanitized notification log (ZERO OTP secrets logged)
     if (isDevelopment || !this.isConfigured) {
-      console.log('\n============================================================');
-      console.log('📧 [EMAIL NOTIFICATION] — CodeK Email Verification Code');
-      console.log('============================================================');
-      console.log(`To:         ${toEmail} (${studentName})`);
-      console.log(`Subject:    Verify Your CodeK Academy Account`);
-      console.log(`Expires In: 10 minutes`);
-      console.log('------------------------------------------------------------');
-      console.log(`🔐 Verification Code: [ ${otpCode} ]`);
-      console.log('============================================================\n');
+      console.log(`[EmailService] 📧 Dispatching account verification notification to ${maskEmail(toEmail)} (${studentName})`);
     }
 
     const html = `

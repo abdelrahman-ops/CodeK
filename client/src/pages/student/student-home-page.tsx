@@ -25,7 +25,10 @@ import {
   Crown,
   Check,
   Zap,
-  CreditCard
+  CreditCard,
+  Compass,
+  Rocket,
+  Code2
 } from 'lucide-react';
 import { Card, CardTitle } from '../../components/ui/card.js';
 import { Button } from '../../components/ui/button.js';
@@ -108,44 +111,163 @@ export function StudentHomePage() {
   const achievements = dashboard?.achievements || [];
   const leaderboardPreview = dashboard?.leaderboardPreview || [];
 
+  // Gamified Level Progression
+  const currentTotalXp = student?.totalXp || 0;
+  const currentLevel = Math.max(1, Math.floor(currentTotalXp / 100) + 1);
+  const xpInCurrentLevel = currentTotalXp % 100;
+  const xpProgressPercent = Math.min(100, Math.round((xpInCurrentLevel / 100) * 100));
+
   return (
     <div className="space-y-6">
       {/* Hero Welcome Banner */}
-      <Card className="relative overflow-hidden p-6 sm:p-7 bg-gradient-to-br from-brand-600 via-brand-700 to-brand-900 text-white rounded-3xl shadow-xl shadow-brand-500/10 border-0">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
-          <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-xs font-bold text-white mb-1">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{student?.studentCode}</span>
-              <span>•</span>
-              <span className="font-mono">{student?.anonymousLeaderboardCode}</span>
+      <Card className="relative overflow-hidden p-5 sm:p-6 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white rounded-3xl shadow-xl shadow-brand-500/5 border border-slate-800">
+        {/* Subtle Ambient Backlight */}
+        <div className="absolute -top-20 -end-20 w-80 h-80 bg-brand-500/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-20 -start-20 w-72 h-72 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          {/* Section 1: Greeting & Active Mission */}
+          <div className="space-y-3 flex-1 min-w-0">
+            {/* Header & Badges Row */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-1.5">
+                <span>{t('common.welcome')},</span>
+                <span className="bg-gradient-to-r from-white via-brand-200 to-indigo-200 bg-clip-text text-transparent">
+                  {user?.firstName || (isRtl ? 'البطل' : 'Student')}!
+                </span>
+              </h1>
+
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/10 text-white text-[11px] font-mono border border-white/10 shadow-xs">
+                <span>{student?.studentCode || 'CODE-UBPB'}</span>
+              </div>
+
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/20">
+                {(student as any)?.grade ? formatStatus((student as any).grade) : (isRtl ? 'البكالوريا المصرية' : 'Egyptian Baccalaureate')}
+              </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-              {t('common.welcome')}, {user?.firstName}!
-            </h1>
-            <p className="text-xs sm:text-sm text-brand-100/90 max-w-lg leading-relaxed">
+
+            <p className="text-xs sm:text-sm text-slate-300 font-medium">
               {t('dashboard.whatToDoSubtitle')}
             </p>
+
+            {/* Compact Mission Action Bar */}
+            {continueLearning ? (
+              <div className="inline-flex items-center gap-3 p-2 px-3.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md max-w-xl shadow-xs">
+                <div className="w-8 h-8 rounded-xl bg-brand-500/20 text-brand-400 flex items-center justify-center shrink-0 border border-brand-500/30">
+                  <PlayCircle className="w-4 h-4 fill-white/20" />
+                </div>
+                <div className="min-w-0 text-xs">
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">{isRtl ? 'الدرس النشط حالياً:' : 'Active Lesson:'}</span>
+                  <span className="font-bold text-white truncate block max-w-xs sm:max-w-md">{continueLearning.lessonTitle}</span>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => navigate(continueLearning.lessonId ? `/student/lessons/${continueLearning.lessonId}` : '/student/courses')}
+                  className="bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl shrink-0 gap-1 shadow-sm"
+                >
+                  <span>{isRtl ? 'متابعة' : 'Resume'}</span>
+                  <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
+                </Button>
+              </div>
+            ) : tasks.length > 0 ? (
+              <div className="inline-flex items-center gap-3 p-2 px-3.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md max-w-xl shadow-xs">
+                <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-500/30">
+                  <Rocket className="w-4 h-4" />
+                </div>
+                <div className="min-w-0 text-xs">
+                  <span className="text-indigo-300 text-[10px] uppercase font-bold block">{isRtl ? 'مهمتك البرمجية اليوم:' : "Today's Mission:"}</span>
+                  <span className="font-bold text-white truncate block max-w-xs sm:max-w-md">{tasks[0].title}</span>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => navigate(`/student/tasks/${tasks[0].id}`)}
+                  className="bg-gradient-to-r from-brand-500 to-indigo-600 hover:from-brand-600 hover:to-indigo-700 text-white font-bold text-xs px-3 py-1.5 rounded-xl shrink-0 gap-1 shadow-sm"
+                >
+                  <span>{isRtl ? 'حل المهمة' : 'Start Task'}</span>
+                  <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
+                </Button>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-3 p-2 px-3.5 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center shrink-0 border border-purple-500/30">
+                  <Compass className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-semibold text-slate-200">
+                  {isRtl ? 'استكشف الدروس والمقررات البرمجية' : 'Explore Academy Curriculum'}
+                </span>
+                <Button
+                  size="sm"
+                  onClick={() => navigate('/student/courses')}
+                  className="bg-brand-500 hover:bg-brand-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl shrink-0 gap-1 shadow-sm"
+                >
+                  <span>{isRtl ? 'عرض المقررات' : 'View Courses'}</span>
+                  <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
+                </Button>
+              </div>
+            )}
           </div>
 
-          {/* Gamification Stats Pill */}
-          <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center sm:gap-3 bg-white/10 backdrop-blur-md p-2 rounded-2xl border border-white/15">
-            <div className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-white/10 text-center min-w-[76px]">
-              <Flame className="w-4 h-4 text-amber-300 fill-amber-300 mb-0.5" />
-              <span className="text-base font-black leading-tight">{formatStreak(student?.currentStreak || 0)}</span>
-              <span className="text-[10px] text-brand-100 font-semibold">{t('dashboard.streak')}</span>
+          {/* Section 2: Unified Stats & Level Progression Strip */}
+          <div className="flex flex-col gap-2.5 p-3.5 sm:p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-xl shrink-0 lg:w-80 shadow-inner">
+            {/* 3 Gamification Stat Pills */}
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {/* Streak */}
+              <div className="p-2 sm:p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                <div className="flex items-center justify-center gap-1 text-amber-400 mb-0.5">
+                  <Flame className="w-3.5 h-3.5 fill-amber-400" />
+                  <span className="text-base font-black font-mono text-white leading-none">
+                    {formatStreak(student?.currentStreak || 0)}
+                  </span>
+                </div>
+                <span className="text-[10px] text-amber-200/90 font-bold block truncate">
+                  {t('dashboard.streak')}
+                </span>
+              </div>
+
+              {/* Total XP */}
+              <div className="p-2 sm:p-2.5 rounded-xl bg-brand-500/10 border border-brand-500/20">
+                <div className="flex items-center justify-center gap-1 text-brand-400 mb-0.5">
+                  <Star className="w-3.5 h-3.5 fill-brand-400" />
+                  <span className="text-base font-black font-mono text-white leading-none">
+                    {student?.totalXp || 0}
+                  </span>
+                </div>
+                <span className="text-[10px] text-brand-200/90 font-bold block truncate">
+                  {t('dashboard.totalXp')}
+                </span>
+              </div>
+
+              {/* Rank */}
+              <div className="p-2 sm:p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20">
+                <div className="flex items-center justify-center gap-1 text-purple-300 mb-0.5">
+                  <Trophy className="w-3.5 h-3.5" />
+                  <span className="text-base font-black font-mono text-white leading-none">
+                    #{dashboard?.rank?.rank || 1}
+                  </span>
+                </div>
+                <span className="text-[10px] text-purple-200/90 font-bold block truncate">
+                  {t('dashboard.rank')}
+                </span>
+              </div>
             </div>
 
-            <div className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-white/10 text-center min-w-[76px]">
-              <Star className="w-4 h-4 text-amber-300 fill-amber-300 mb-0.5" />
-              <span className="text-base font-black leading-tight">{student?.totalXp || 0}</span>
-              <span className="text-[10px] text-brand-100 font-semibold">{t('dashboard.totalXp')}</span>
-            </div>
-
-            <div className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-white/10 text-center min-w-[76px]">
-              <Trophy className="w-4 h-4 text-amber-300 mb-0.5" />
-              <span className="text-base font-black leading-tight">#{dashboard?.rank?.rank || 1}</span>
-              <span className="text-[10px] text-brand-100 font-semibold">{t('dashboard.rank')}</span>
+            {/* Level Progression Bar */}
+            <div className="pt-2 border-t border-white/10 space-y-1">
+              <div className="flex items-center justify-between text-[11px] font-bold">
+                <span className="text-slate-300 flex items-center gap-1">
+                  <Award className="w-3.5 h-3.5 text-brand-400" />
+                  <span>{isRtl ? `مستوى ${currentLevel}` : `Level ${currentLevel}`}</span>
+                </span>
+                <span className="text-brand-300 font-mono text-[11px]" dir="ltr">
+                  {xpInCurrentLevel} / 100 XP
+                </span>
+              </div>
+              <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-brand-400 to-indigo-400 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.max(5, xpProgressPercent)}%` }}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -158,6 +280,8 @@ export function StudentHomePage() {
         const sub = dashboard?.subscription;
         const isActive = sub?.isActive;
         const isExpired = sub?.status === 'EXPIRED';
+        const planPrice = sub?.plan?.price;
+        const priceLabel = planPrice ? (isRtl ? `${planPrice} ج.م` : `${planPrice} EGP`) : '';
 
         const formatDate = (dateStr?: string | null) => {
           if (!dateStr) return '—';
@@ -179,16 +303,16 @@ export function StudentHomePage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                      <h3 className="font-bold text-base text-slate-900 dark:text-white">
                         {isRtl ? 'اشتراكك الإلكتروني نشط' : 'Your Learning Subscription is Active'}
                       </h3>
-                      <Badge variant="success" size="sm">
-                        {isRtl ? '250 ج.م / نشط' : 'Active'}
+                      <Badge variant="success" size="sm" className="font-bold">
+                        {priceLabel ? (isRtl ? `${priceLabel} / نشط` : `${priceLabel} / Active`) : (isRtl ? 'نشط' : 'Active')}
                       </Badge>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-0.5">
                       {isRtl ? 'صلاحية الوصول مستمرة حتى:' : 'Full access active until:'}{' '}
-                      <strong className="text-slate-800 dark:text-slate-200">
+                      <strong className="text-slate-900 dark:text-slate-100 font-bold">
                         {formatDate(sub?.currentPeriodEnd)}
                       </strong>
                     </p>
@@ -221,17 +345,17 @@ export function StudentHomePage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                      <h3 className="font-bold text-base text-slate-900 dark:text-white">
                         {isRtl ? 'انتهت فترة اشتراكك' : 'Your Subscription Has Expired'}
                       </h3>
-                      <Badge variant="warning" size="sm">
+                      <Badge variant="warning" size="sm" className="font-bold">
                         {isRtl ? 'منتهي' : 'Expired'}
                       </Badge>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 max-w-xl">
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-0.5 max-w-xl">
                       {isRtl
-                        ? 'حسابك ومستواك وتقدمك البرمجي محفوظ بالكامل. جدد اشتراكك الآن (250 ج.م / 30 يوماً) لمواصلة التعلم.'
-                        : 'Your account, XP, and progress are preserved. Renew now for 250 EGP / 30 days to continue learning.'}
+                        ? `حسابك ومستواك وتقدمك البرمجي محفوظ بالكامل. جدد اشتراكك الآن${priceLabel ? ` (${priceLabel} / 30 يوماً)` : ''} لمواصلة التعلم.`
+                        : `Your account, XP, and progress are preserved. Renew now${priceLabel ? ` (${priceLabel} / 30 days)` : ''} to continue learning.`}
                     </p>
                   </div>
                 </div>
@@ -239,10 +363,10 @@ export function StudentHomePage() {
                 <Button
                   size="sm"
                   onClick={() => navigate('/student/subscription')}
-                  className="gap-1.5 text-xs font-black shrink-0 bg-brand-600 hover:bg-brand-700 text-white shadow-sm"
+                  className="gap-1.5 text-xs font-bold shrink-0 bg-brand-600 hover:bg-brand-700 text-white shadow-sm"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                  <span>{isRtl ? 'تجديد الاشتراك (250 ج.م)' : 'Renew (250 EGP)'}</span>
+                  <span>{isRtl ? `تجديد الاشتراك${priceLabel ? ` (${priceLabel})` : ''}` : `Renew${priceLabel ? ` (${priceLabel})` : ''}`}</span>
                 </Button>
               </div>
             </Card>
@@ -259,14 +383,20 @@ export function StudentHomePage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-white">
+                    <h3 className="font-bold text-base text-slate-900 dark:text-white">
                       {isRtl ? 'افتح الوصول لجميع المسارات البرمجية' : 'Unlock Full Programming Access'}
                     </h3>
-                    <Badge variant="primary" size="sm">
-                      {isRtl ? '250 ج.م / 30 يوماً' : '250 EGP / 30 Days'}
-                    </Badge>
+                    {priceLabel ? (
+                      <Badge variant="primary" size="sm" className="font-bold">
+                        {isRtl ? `${priceLabel} / 30 يوماً` : `${priceLabel} / 30 Days`}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" size="sm" className="font-bold text-brand-600 dark:text-brand-400">
+                        {isRtl ? 'الاشتراك الأكاديمي' : 'Academic Plan'}
+                      </Badge>
+                    )}
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 max-w-xl">
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-0.5 max-w-xl">
                     {isRtl
                       ? 'اشترك الآن وافتح كافة الدروس، الفيديوهات التطبيقية، المشاريع العملية وقوائم المتصدرين.'
                       : 'Subscribe now to access all lessons, video walkthroughs, hands-on tasks, and the leaderboard.'}
@@ -277,10 +407,14 @@ export function StudentHomePage() {
               <Button
                 size="sm"
                 onClick={() => navigate('/student/subscription')}
-                className="gap-1.5 text-xs font-black shrink-0 bg-brand-600 hover:bg-brand-700 text-white shadow-sm"
+                className="gap-1.5 text-xs font-bold shrink-0 bg-brand-600 hover:bg-brand-700 text-white shadow-sm"
               >
                 <CreditCard className="w-3.5 h-3.5" />
-                <span>{isRtl ? 'الاشتراك الآن (250 ج.م)' : 'Subscribe (250 EGP)'}</span>
+                <span>
+                  {priceLabel
+                    ? (isRtl ? `الاشتراك الآن (${priceLabel})` : `Subscribe (${priceLabel})`)
+                    : (isRtl ? 'الاشتراك وتفعيل الحساب' : 'Subscribe & Activate')}
+                </span>
               </Button>
             </div>
           </Card>
@@ -298,16 +432,16 @@ export function StudentHomePage() {
                 <span className="p-1.5 rounded-lg bg-brand-600 text-white">
                   <PlayCircle className="w-4 h-4" />
                 </span>
-                <span className="text-xs font-black uppercase tracking-wider text-brand-700 dark:text-brand-300">
+                <span className="text-xs font-semibold uppercase tracking-wider text-brand-700 dark:text-brand-300">
                   {t('dashboard.tier1Learning', 'متابعة التعلم')}
                 </span>
-                <Badge variant="outline" size="sm" className="bg-white/80 dark:bg-slate-800 text-[10px]">
+                <Badge variant="outline" size="sm" className="bg-white/80 dark:bg-slate-800 text-[11px]">
                   {continueLearning.courseTitle}
                 </Badge>
               </div>
 
               <div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100">
+                <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-slate-100">
                   {continueLearning.lessonTitle}
                 </h2>
                 <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
@@ -325,7 +459,7 @@ export function StudentHomePage() {
               onClick={() =>
                 navigate(`/student/courses/${continueLearning.courseId}/lessons/${continueLearning.lessonId}`)
               }
-              className="gap-2 text-sm font-black px-6 shadow-md shadow-brand-500/20 shrink-0"
+              className="gap-2 text-sm font-semibold px-6 shadow-md shadow-brand-500/20 shrink-0"
             >
               <PlayCircle className="w-5 h-5" />
               <span>{continueLearning.progressPercentage > 0 ? t('courses.continueWatching') : t('courses.startLearning')}</span>
@@ -340,7 +474,7 @@ export function StudentHomePage() {
       {/* ========================================================================= */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <CheckSquare className="w-5 h-5 text-brand-600 dark:text-brand-400" />
             <span>{t('dashboard.tier2Tasks', 'مهام وتحديات اليوم')}</span>
             <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
@@ -370,7 +504,7 @@ export function StudentHomePage() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Badge variant="outline" size="sm">{formatStatus(task.difficulty)}</Badge>
-                      <span className="text-xs font-black text-amber-600 dark:text-amber-400">
+                      <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
                         +{task.xpReward} XP
                       </span>
                     </div>
@@ -422,7 +556,7 @@ export function StudentHomePage() {
       {/* TIER 3: UPCOMING QUIZ / EXAM */}
       {/* ========================================================================= */}
       <div className="space-y-3">
-        <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+        <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
           <HelpCircle className="w-5 h-5 text-purple-600 dark:text-purple-400" />
           <span>{t('dashboard.tier3Quiz', 'الاختبار القادم')}</span>
         </h2>
@@ -435,7 +569,7 @@ export function StudentHomePage() {
                   <Badge variant="primary" size="sm" className="bg-purple-600 text-white">
                     {upcomingQuizOrExam.isQuiz ? t('exams.quiz', 'اختبار سريع') : t('exams.title', 'امتحان')}
                   </Badge>
-                  <span className="text-xs font-black text-amber-600 dark:text-amber-400">
+                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
                     +{upcomingQuizOrExam.xpReward} XP
                   </span>
                   <span className="text-xs text-slate-400 flex items-center gap-1">
@@ -444,7 +578,7 @@ export function StudentHomePage() {
                   </span>
                 </div>
 
-                <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">
+                <h3 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100">
                   {upcomingQuizOrExam.title}
                 </h3>
                 {upcomingQuizOrExam.lesson && (
@@ -495,7 +629,7 @@ export function StudentHomePage() {
       {/* ========================================================================= */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <CalendarCheck2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             <span>{t('dashboard.tier4Session', 'جلسة السبت الحضورية')}</span>
           </h2>
@@ -511,13 +645,13 @@ export function StudentHomePage() {
                 <Badge variant={todaySession?.isPresent ? 'success' : 'primary'} size="sm">
                   {todaySession?.isPresent ? t('dashboard.attendanceConfirmed') : t('common.pending')}
                 </Badge>
-                <span className="text-[10px] font-bold text-brand-600 bg-brand-50 dark:bg-brand-950/40 px-2 py-0.5 rounded-full">
+                <span className="text-[11px] font-bold text-brand-600 bg-brand-50 dark:bg-brand-950/40 px-2 py-0.5 rounded-full">
                   {t('dashboard.attendanceRequiredNotice', 'مطلوب الحضور الفعلي')}
                 </span>
                 <span className="text-xs font-bold text-amber-600 dark:text-amber-400">+10 XP</span>
               </div>
 
-              <h3 className="font-black text-sm sm:text-base text-slate-900 dark:text-slate-100">
+              <h3 className="font-semibold text-sm sm:text-base text-slate-900 dark:text-slate-100">
                 {todaySession ? `${t('sessions.sessionNumber')} #${todaySession.sessionNumber}` : t('dashboard.step1Attendance')}
               </h3>
               <p className="text-xs text-slate-500">
@@ -543,7 +677,7 @@ export function StudentHomePage() {
           <Card className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-slate-200/80 dark:border-slate-800/80 shadow-sm rounded-2xl bg-slate-50/50 dark:bg-slate-900/40">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" size="sm" className="bg-white dark:bg-slate-800 text-[10px]">
+                <Badge variant="outline" size="sm" className="bg-white dark:bg-slate-800 text-[11px]">
                   {isRtl ? 'دراسة أونلاين بالكامل' : 'Online Only'}
                 </Badge>
               </div>
@@ -577,7 +711,7 @@ export function StudentHomePage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-            <CardTitle className="text-base font-black">{t('dashboard.tier5Analytics', 'مستوى التقدم والإحصائيات')}</CardTitle>
+            <CardTitle className="text-base font-semibold">{t('dashboard.tier5Analytics', 'مستوى التقدم والإحصائيات')}</CardTitle>
           </div>
           <Button
             size="sm"
@@ -594,7 +728,7 @@ export function StudentHomePage() {
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
               <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.courseProgress')}</span>
-              <span className="text-lg font-black text-brand-600 dark:text-brand-400 mt-1 block">
+              <span className="text-lg font-semibold text-brand-600 dark:text-brand-400 mt-1 block">
                 {learningAnalytics.courseProgress}%
               </span>
               <Progress value={learningAnalytics.courseProgress} color="brand" className="h-1.5 mt-2" />
@@ -602,7 +736,7 @@ export function StudentHomePage() {
 
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
               <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.lessonsCompleted')}</span>
-              <span className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1 block">
+              <span className="text-lg font-semibold text-slate-900 dark:text-slate-100 mt-1 block">
                 {learningAnalytics.lessonsCompleted.completed} / {learningAnalytics.lessonsCompleted.total}
               </span>
               <Progress value={learningAnalytics.lessonsCompleted.percentage} color="success" className="h-1.5 mt-2" />
@@ -610,7 +744,7 @@ export function StudentHomePage() {
 
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
               <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.tasksCompleted')}</span>
-              <span className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1 block">
+              <span className="text-lg font-semibold text-slate-900 dark:text-slate-100 mt-1 block">
                 {learningAnalytics.tasksCompleted.completed} / {learningAnalytics.tasksCompleted.total}
               </span>
               <Progress value={learningAnalytics.tasksCompleted.percentage} color="accent" className="h-1.5 mt-2" />
@@ -618,20 +752,20 @@ export function StudentHomePage() {
 
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
               <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.quizPerformance')}</span>
-              <span className="text-lg font-black text-purple-600 dark:text-purple-400 mt-1 block">
+              <span className="text-lg font-semibold text-purple-600 dark:text-purple-400 mt-1 block">
                 {learningAnalytics.quizPerformance.attempted > 0 ? `${learningAnalytics.quizPerformance.averageScore}%` : '—'}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">
+              <span className="text-[11px] text-slate-400 block mt-1">
                 {learningAnalytics.quizPerformance.attempted} {t('exams.quiz', 'اختبار')}
               </span>
             </div>
 
             <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
               <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.examPerformance')}</span>
-              <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+              <span className="text-lg font-semibold text-emerald-600 dark:text-emerald-400 mt-1 block">
                 {learningAnalytics.examPerformance.attempted > 0 ? `${learningAnalytics.examPerformance.averageScore}%` : '—'}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">
+              <span className="text-[11px] text-slate-400 block mt-1">
                 {learningAnalytics.examPerformance.attempted} {t('exams.title', 'امتحان')}
               </span>
             </div>
@@ -662,7 +796,7 @@ export function StudentHomePage() {
       {/* ========================================================================= */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h2 className="text-base sm:text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Award className="w-5 h-5 text-amber-500" />
             <span>{t('dashboard.tier6Achievements', 'نقاط الخبرة والإنجازات')}</span>
           </h2>
@@ -687,7 +821,7 @@ export function StudentHomePage() {
                 <h4 className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
                   {ach.name}
                 </h4>
-                <span className="text-[10px] text-slate-400 block mt-0.5">
+                <span className="text-[11px] text-slate-400 block mt-0.5">
                   {t('achievements.unlocked')}
                 </span>
               </div>
@@ -708,7 +842,7 @@ export function StudentHomePage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Crown className="w-5 h-5 text-amber-500" />
-            <CardTitle className="text-base font-black">{t('dashboard.tier7Leaderboard', 'لوحة الصدارة والشرف')}</CardTitle>
+            <CardTitle className="text-base font-semibold">{t('dashboard.tier7Leaderboard', 'لوحة الصدارة والشرف')}</CardTitle>
           </div>
           <Button
             size="sm"
@@ -732,10 +866,10 @@ export function StudentHomePage() {
               }`}
             >
               <div className="flex items-center gap-3">
-                <span className="w-6 text-center font-black">{peer.rank}</span>
+                <span className="w-6 text-center font-semibold">{peer.rank}</span>
                 <span className="font-mono">{peer.anonymousCode}</span>
                 {peer.isCurrentStudent && (
-                  <Badge variant="primary" size="sm" className="text-[10px]">
+                  <Badge variant="primary" size="sm" className="text-[11px]">
                     {t('leaderboard.you', 'أنت')}
                   </Badge>
                 )}

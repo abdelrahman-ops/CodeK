@@ -9,7 +9,7 @@ import {
   runAudit,
   verifyLegacySafety
 } from '../prisma/seeds/curriculum/curriculum-pipeline.js';
-import { ContentAuthority, TaskType } from '@prisma/client';
+import { ContentAuthority, StudentGrade, TaskType } from '@prisma/client';
 
 describe('Phase 10: Official Curriculum Ingestion & Integrity Pipeline', () => {
   let parsedPkg: ReturnType<typeof parseContentSpec>;
@@ -203,7 +203,8 @@ describe('Phase 10: Official Curriculum Ingestion & Integrity Pipeline', () => {
         data: {
           title: 'Foreign Test Curriculum',
           description: 'Conflict simulation',
-          authority: ContentAuthority.PROPOSED
+          authority: ContentAuthority.PROPOSED,
+          grade: StudentGrade.GRADE_2
         }
       });
 

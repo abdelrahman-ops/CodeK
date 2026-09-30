@@ -48,7 +48,7 @@ export function ChangePasswordPage() {
   return (
     <Card className="shadow-xl border-slate-200/80 dark:border-slate-800">
       <CardHeader className="text-center pb-2">
-        <CardTitle className="text-2xl font-black">{t('auth.changePassword')}</CardTitle>
+        <CardTitle className="text-2xl font-semibold">{t('auth.changePassword')}</CardTitle>
         <CardDescription>{t('auth.mustChangePasswordNotice')}</CardDescription>
       </CardHeader>
 
@@ -147,7 +147,7 @@ export function SetupPasswordPage() {
   return (
     <Card className="shadow-xl border-slate-200/80 dark:border-slate-800">
       <CardHeader className="text-center pb-2">
-        <CardTitle className="text-2xl font-black">{t('auth.setupTitle')}</CardTitle>
+        <CardTitle className="text-2xl font-semibold">{t('auth.setupTitle')}</CardTitle>
         <CardDescription>{t('auth.setupSubtitle')}</CardDescription>
       </CardHeader>
 
@@ -214,7 +214,7 @@ export function ResetPasswordPage() {
   return (
     <Card className="shadow-xl border-slate-200/80 dark:border-slate-800">
       <CardHeader className="text-center pb-2">
-        <CardTitle className="text-2xl font-black">{t('auth.resetTitle')}</CardTitle>
+        <CardTitle className="text-2xl font-semibold">{t('auth.resetTitle')}</CardTitle>
         <CardDescription>{t('auth.resetSubtitle')}</CardDescription>
       </CardHeader>
 

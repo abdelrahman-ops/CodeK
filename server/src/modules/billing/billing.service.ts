@@ -106,54 +106,27 @@ export async function getPlanForGrade(rawGrade: string) {
   const gradeKey = rawGrade.trim().toUpperCase().replace(/\s+/g, '_');
   const canonicalCode = `${gradeKey}_MONTHLY`;
 
-  // 1. Check if active plan exists in the database by code or features
-  let plan = await prisma.subscriptionPlan.findFirst({
+  // Check if active plan exists in the database by code, features, or grade key
+  const plan = await prisma.subscriptionPlan.findFirst({
     where: {
       isActive: true,
       OR: [
         { code: canonicalCode },
-        { code: gradeKey }
+        { code: gradeKey },
+        { features: { path: ['grade'], equals: gradeKey } }
       ]
     },
     orderBy: { createdAt: 'desc' }
   });
 
-  if (plan) {
-    return plan;
-  }
-
-  // 2. If not found, check data-driven DEFAULT_GRADE_PLANS and persist to DB
-  const defaultDef = DEFAULT_GRADE_PLANS[gradeKey];
-  if (defaultDef) {
-    return await prisma.subscriptionPlan.upsert({
-      where: { code: defaultDef.code },
-      update: {},
-      create: {
-        name: defaultDef.name,
-        code: defaultDef.code,
-        description: defaultDef.description,
-        price: defaultDef.price,
-        currency: 'EGP',
-        billingInterval: 'MONTHLY',
-        isActive: true,
-        features: { grade: defaultDef.grade, autoProvisioned: true }
-      }
-    });
-  }
-
-  // 3. Fallback to canonical monthly plan
-  return await getOrCreateCanonicalPlan();
+  return plan;
 }
 
 /**
  * Returns public list of grade plans and current prices for registration.
+ * Strictly returns only plans actively configured by academy administration.
  */
 export async function listPublicGradePlans() {
-  // Ensure default grade plans exist in the database
-  for (const gradeKey of Object.keys(DEFAULT_GRADE_PLANS)) {
-    await getPlanForGrade(gradeKey);
-  }
-
   const plans = await prisma.subscriptionPlan.findMany({
     where: { isActive: true },
     orderBy: { price: 'asc' }
@@ -190,9 +163,9 @@ export async function getPaymentSettings() {
       update: {},
       create: {
         id: 'default',
-        vodafoneCashNumber: '01012345678',
+        vodafoneCashNumber: env.VODAFONE_CASH_NUMBER || '01017424986',
         vodafoneCashInstructions: 'حول المبلغ المطلوب إلى رقم فودافون كاش ثم أدخل رقم الهاتف المحول منه ورقم العملية لتأكيد الدفع.',
-        instaPayAddress: 'codek@instapay',
+        instaPayAddress: env.INSTAPAY_ADDRESS || 'abdelrahmanataa17@instapay',
         instaPayInstructions: 'حول المبلغ المطلوب عبر تطبيق إنستاباي إلى العنوان أعلاه ثم أدخل الرقم المرجعي للتحويل.',
         vodafoneCashEnabled: true,
         instaPayEnabled: true,
@@ -277,6 +250,12 @@ export interface CheckoutResult {
   currency?: string;
   receivingAccount?: string | null;
   instructions?: string | null;
+  manualPayment?: {
+    receivingAccount?: string | null;
+    instructions?: string | null;
+    instructionsAr?: string | null;
+    instructionsEn?: string | null;
+  };
 }
 
 export async function createCheckoutSession(
@@ -284,7 +263,16 @@ export async function createCheckoutSession(
   userId: string,
   input: CheckoutInput
 ): Promise<CheckoutResult> {
-  // 1. Validate / resolve plan from server (client cannot override price or currency)
+  // 1. Resolve student, grade, and user info for billing
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    include: { user: { select: { firstName: true, lastName: true, email: true } } }
+  });
+  if (!student) {
+    throw new NotFoundError('Student not found');
+  }
+
+  // 2. Validate / resolve plan from server (client cannot override price or currency)
   let plan = null;
   if (input.planId && input.planId !== CANONICAL_PLAN_CODE) {
     plan = await prisma.subscriptionPlan.findFirst({
@@ -296,11 +284,42 @@ export async function createCheckoutSession(
       }
     });
   }
+
   if (!plan) {
-    plan = await getOrCreateCanonicalPlan();
+    if (student?.grade) {
+      plan = await getPlanForGrade(student.grade);
+    }
   }
+
+  if (!plan) {
+    plan = await prisma.subscriptionPlan.findFirst({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' }
+    });
+  }
+
   if (!plan || !plan.isActive) {
     throw new NotFoundError('Subscription plan not found or inactive');
+  }
+
+  // 3. Strict Grade Isolation: Verify plan matches student's enrolled grade
+  if (student?.grade) {
+    const meta = (plan.features as any) || {};
+    const planGrade =
+      meta.grade ||
+      (plan.code.startsWith('GRADE_1')
+        ? 'GRADE_1'
+        : plan.code.startsWith('GRADE_2')
+        ? 'GRADE_2'
+        : plan.code.startsWith('GRADE_3')
+        ? 'GRADE_3'
+        : null);
+
+    if (planGrade && planGrade !== student.grade) {
+      throw new BadRequestError(
+        `Selected subscription plan (${plan.name}) is for ${planGrade}, but your enrolled grade is ${student.grade}`
+      );
+    }
   }
 
   const paymentMethod = input.paymentMethod || 'PAYMOB';
@@ -353,7 +372,13 @@ export async function createCheckoutSession(
       amount: plan.price,
       currency: plan.currency,
       receivingAccount,
-      instructions
+      instructions,
+      manualPayment: {
+        receivingAccount,
+        instructions,
+        instructionsAr: instructions,
+        instructionsEn: instructions
+      }
     };
   }
 
@@ -380,14 +405,7 @@ export async function createCheckoutSession(
     }
   }
 
-  // 3. Get student info for billing data
-  const student = await prisma.student.findUnique({
-    where: { id: studentId },
-    include: { user: { select: { firstName: true, lastName: true, email: true } } }
-  });
-  if (!student) {
-    throw new NotFoundError('Student not found');
-  }
+
 
   // 4. Create a PENDING PaymentTransaction (amount strictly from server plan)
   const transaction = await prisma.paymentTransaction.create({
@@ -723,6 +741,40 @@ export async function activateOrExtendSubscription(
       where: { id: params.transactionId },
       data: { subscriptionId: subscription.id }
     });
+  }
+
+  // Also synchronize with monthly Payment table so "سجل المصروفات والاشتراكات" reflects payment
+  try {
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const plan = await tx.subscriptionPlan.findUnique({ where: { id: params.planId } });
+    const paymentAmount = plan?.price || 250;
+
+    await tx.payment.upsert({
+      where: {
+        studentId_year_month: {
+          studentId: params.studentId,
+          year: currentYear,
+          month: currentMonth
+        }
+      },
+      create: {
+        studentId: params.studentId,
+        year: currentYear,
+        month: currentMonth,
+        amount: paymentAmount,
+        status: 'PAID',
+        paidAt: now,
+        notes: params.transactionId ? `معاملة إلكترونية ${params.transactionId.slice(0, 8)}` : 'اشتراك مفعل'
+      },
+      update: {
+        status: 'PAID',
+        paidAt: now,
+        notes: params.transactionId ? `معاملة إلكترونية ${params.transactionId.slice(0, 8)}` : 'اشتراك مفعل'
+      }
+    });
+  } catch (syncErr) {
+    console.error('Failed to sync Payment table in activateOrExtendSubscription:', syncErr);
   }
 
   return subscription;
@@ -1122,8 +1174,9 @@ export async function adminRecordManualPayment(
     }
   }
 
-  // Determine canonical monthly plan (250 EGP, 30 days)
+  // Determine canonical monthly plan (30 days) or fallback
   const plan = await getOrCreateCanonicalPlan();
+  const paidAmount = input.amount !== undefined && input.amount > 0 ? input.amount : plan.price;
   const intervalDays = getBillingIntervalDays(plan.billingInterval || 'MONTHLY');
   const now = new Date();
 
@@ -1137,8 +1190,8 @@ export async function adminRecordManualPayment(
       data: {
         studentId: student.id,
         planId: plan.id,
-        amount: CANONICAL_PLAN_PRICE,
-        currency: CANONICAL_PLAN_CURRENCY,
+        amount: paidAmount,
+        currency: plan.currency || CANONICAL_PLAN_CURRENCY,
         status: PaymentTransactionStatus.PAID,
         provider: 'MANUAL',
         providerTransactionId,
@@ -1170,8 +1223,8 @@ export async function adminRecordManualPayment(
     entityId: result.txn.id,
     metadata: {
       studentId: student.id,
-      amount: CANONICAL_PLAN_PRICE,
-      currency: CANONICAL_PLAN_CURRENCY,
+      amount: paidAmount,
+      currency: plan.currency || CANONICAL_PLAN_CURRENCY,
       subscriptionId: result.subscription.id,
       currentPeriodEnd: result.subscription.currentPeriodEnd,
       notes: input.notes?.trim() || null
@@ -1241,13 +1294,15 @@ export async function adminConfirmManualPayment(transactionId: string, adminUser
     throw new NotFoundError('Transaction not found');
   }
 
-  if (transaction.status !== 'PENDING') {
-    throw new BadRequestError(`Transaction is not in PENDING state (status: ${transaction.status})`);
+  if (transaction.status === 'PAID') {
+    return {
+      updatedTxn: transaction,
+      message: 'Transaction is already confirmed and paid'
+    };
   }
 
-  const validManualProviders = ['VODAFONE_CASH', 'INSTAPAY', 'MANUAL'];
-  if (!transaction.provider || !validManualProviders.includes(transaction.provider.toUpperCase())) {
-    throw new BadRequestError(`Transaction provider ${transaction.provider} is not a manual payment method`);
+  if (transaction.status !== 'PENDING') {
+    throw new BadRequestError(`Transaction is not in PENDING state (status: ${transaction.status})`);
   }
 
   const plan = transaction.plan || (await getOrCreateCanonicalPlan());
@@ -1281,7 +1336,7 @@ export async function adminConfirmManualPayment(transactionId: string, adminUser
 
   await createAuditLog({
     actorUserId: adminUserId,
-    action: 'MANUAL_PAYMENT_CONFIRMED',
+    action: 'ADMIN_PAYMENT_CONFIRMED',
     entityType: 'PaymentTransaction',
     entityId: transaction.id,
     metadata: {
@@ -1294,6 +1349,152 @@ export async function adminConfirmManualPayment(transactionId: string, adminUser
   });
 
   return result;
+}
+
+export const adminApproveTransaction = adminConfirmManualPayment;
+export const adminRejectTransaction = adminRejectManualPayment;
+
+// ─────────────────────────────────────────────────────────
+// REDIRECT VERIFICATION: Automatic Client Redirect Verification
+// ─────────────────────────────────────────────────────────
+
+export async function verifyPaymentRedirect(
+  query: Record<string, any>,
+  user: { userId: string; role: string; studentId?: string }
+) {
+  const txnId = query.txn || query.transactionId || query.merchant_order_id;
+  const providerTxnId = query.id ? String(query.id) : undefined;
+  const successParam = query.success;
+  const pendingParam = query.pending;
+  const isApproved =
+    successParam === true ||
+    successParam === 'true' ||
+    query['data.message'] === 'Approved' ||
+    query.txn_response_code === 'APPROVED';
+  const isPending = pendingParam === true || pendingParam === 'true';
+
+  if (!txnId && !providerTxnId) {
+    throw new BadRequestError('Transaction identifier missing from payment return parameters');
+  }
+
+  // Find transaction by ID or provider transaction/intention
+  let transaction = txnId
+    ? await prisma.paymentTransaction.findUnique({
+        where: { id: txnId },
+        include: { plan: true, student: { include: { user: true } } }
+      })
+    : null;
+
+  if (!transaction && providerTxnId) {
+    transaction = await prisma.paymentTransaction.findFirst({
+      where: {
+        OR: [
+          { providerTransactionId: providerTxnId },
+          { providerIntentionId: providerTxnId }
+        ]
+      },
+      include: { plan: true, student: { include: { user: true } } }
+    });
+  }
+
+  if (!transaction) {
+    throw new NotFoundError('Payment transaction not found');
+  }
+
+  // Permission check for students
+  if (user.role === 'STUDENT' && transaction.studentId !== user.studentId) {
+    throw new BadRequestError('Unauthorized: This transaction does not belong to you');
+  }
+
+  // Idempotent check
+  if (transaction.status === 'PAID') {
+    const existingSub = await prisma.subscription.findFirst({
+      where: { studentId: transaction.studentId, status: 'ACTIVE' },
+      orderBy: { currentPeriodEnd: 'desc' }
+    });
+    return {
+      success: true,
+      alreadyProcessed: true,
+      message: 'Payment already processed and subscription is active',
+      transaction,
+      subscription: existingSub
+    };
+  }
+
+  if (!isApproved || isPending) {
+    if (!isPending) {
+      await prisma.paymentTransaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: 'FAILED',
+          providerTransactionId: providerTxnId || transaction.providerTransactionId,
+          metadata: {
+            ...(transaction.metadata as any || {}),
+            failureReason: 'Payment gateway reported unsuccessful return',
+            redirectReturnQuery: query
+          }
+        }
+      });
+    }
+    return {
+      success: false,
+      isPending,
+      message: isPending ? 'Payment is still pending' : 'Payment was not approved'
+    };
+  }
+
+  // Approved: Activate Subscription
+  const plan = transaction.plan || (await getOrCreateCanonicalPlan());
+  const intervalDays = getBillingIntervalDays(plan.billingInterval || 'MONTHLY');
+  const now = new Date();
+
+  const result = await prisma.$transaction(async (tx) => {
+    const updatedTxn = await tx.paymentTransaction.update({
+      where: { id: transaction.id },
+      data: {
+        status: PaymentTransactionStatus.PAID,
+        providerTransactionId: providerTxnId || transaction.providerTransactionId,
+        paidAt: now,
+        metadata: {
+          ...(transaction.metadata as any || {}),
+          verifiedViaRedirect: true,
+          verifiedAt: now.toISOString(),
+          redirectReturnQuery: query
+        }
+      }
+    });
+
+    const subscription = await activateOrExtendSubscription(tx, {
+      studentId: transaction.studentId,
+      planId: plan.id,
+      intervalDays,
+      transactionId: transaction.id,
+      now
+    });
+
+    return { updatedTxn, subscription };
+  });
+
+  await createAuditLog({
+    actorUserId: user.userId,
+    action: 'PAYMENT_VERIFIED_REDIRECT',
+    entityType: 'PaymentTransaction',
+    entityId: transaction.id,
+    metadata: {
+      studentId: transaction.studentId,
+      amount: transaction.amount,
+      provider: transaction.provider,
+      providerTxnId,
+      subscriptionId: result.subscription.id
+    }
+  });
+
+  return {
+    success: true,
+    message: 'Payment verified and subscription activated successfully',
+    transaction: result.updatedTxn,
+    subscription: result.subscription
+  };
 }
 
 // ─────────────────────────────────────────────────────────
@@ -1435,6 +1636,9 @@ export function cleanBenefitText(text?: string | null): string {
 
 export function normalizePlanFeatures(rawFeatures: any): PlanBenefitInput[] {
   if (!rawFeatures) return [];
+  if (rawFeatures && !Array.isArray(rawFeatures) && Array.isArray(rawFeatures.benefits)) {
+    return normalizePlanFeatures(rawFeatures.benefits);
+  }
   if (Array.isArray(rawFeatures)) {
     return rawFeatures.map((item, idx) => {
       if (typeof item === 'string') {
@@ -1450,8 +1654,7 @@ export function normalizePlanFeatures(rawFeatures: any): PlanBenefitInput[] {
       if (item && typeof item === 'object') {
         const textAr = cleanBenefitText(item.textAr || item.text || item.title || '');
         const textEn = cleanBenefitText(item.textEn || item.textAr || '');
-        const allowedIcons = ['check', 'star', 'code', 'video', 'trophy', 'sparkles', 'book', 'shield'];
-        const icon = (allowedIcons.includes(item.icon) ? item.icon : 'check') as any;
+        const icon = typeof item.icon === 'string' && item.icon.trim() ? item.icon.trim() : 'check';
         return {
           id: String(item.id || `feat-${idx + 1}`),
           textAr: textAr || 'ميزة الخطة',
@@ -1476,10 +1679,19 @@ export async function adminListPlans() {
   const plans = await prisma.subscriptionPlan.findMany({
     orderBy: { createdAt: 'asc' }
   });
-  return plans.map((p) => ({
-    ...p,
-    features: normalizePlanFeatures(p.features)
-  }));
+  return plans.map((p) => {
+    const raw = (p.features as any) || {};
+    const targetGrade = Array.isArray(raw)
+      ? (p.code.startsWith('GRADE_1') ? 'GRADE_1' : p.code.startsWith('GRADE_2') ? 'GRADE_2' : p.code.startsWith('GRADE_3') ? 'GRADE_3' : 'ALL')
+      : (raw.grade || raw.targetGrade || (p.code.startsWith('GRADE_1') ? 'GRADE_1' : p.code.startsWith('GRADE_2') ? 'GRADE_2' : p.code.startsWith('GRADE_3') ? 'GRADE_3' : 'ALL'));
+    const targetGroup = (!Array.isArray(raw) && raw.targetGroup) ? raw.targetGroup : null;
+    return {
+      ...p,
+      targetGrade,
+      targetGroup,
+      features: normalizePlanFeatures(p.features)
+    };
+  });
 }
 
 export async function adminCreatePlan(input: CreatePlanInput, adminUserId: string) {
@@ -1490,7 +1702,9 @@ export async function adminCreatePlan(input: CreatePlanInput, adminUserId: strin
     throw new BadRequestError(`A subscription plan with code "${input.code}" already exists`);
   }
 
-  const normalizedFeatures = normalizePlanFeatures(input.features);
+  const normalizedBenefits = normalizePlanFeatures(input.features);
+  const targetGrade = input.targetGrade || (input.code.startsWith('GRADE_1') ? 'GRADE_1' : input.code.startsWith('GRADE_2') ? 'GRADE_2' : input.code.startsWith('GRADE_3') ? 'GRADE_3' : 'ALL');
+  const targetGroup = input.targetGroup || null;
 
   const plan = await prisma.subscriptionPlan.create({
     data: {
@@ -1501,7 +1715,11 @@ export async function adminCreatePlan(input: CreatePlanInput, adminUserId: strin
       currency: input.currency || 'EGP',
       billingInterval: input.billingInterval || 'MONTHLY',
       isActive: input.isActive !== undefined ? input.isActive : true,
-      features: normalizedFeatures as any
+      features: {
+        grade: targetGrade,
+        targetGroup,
+        benefits: normalizedBenefits
+      } as any
     }
   });
 
@@ -1510,12 +1728,14 @@ export async function adminCreatePlan(input: CreatePlanInput, adminUserId: strin
     action: 'SUBSCRIPTION_PLAN_CREATED',
     entityType: 'SubscriptionPlan',
     entityId: plan.id,
-    metadata: { code: plan.code, price: plan.price }
+    metadata: { code: plan.code, price: plan.price, targetGrade }
   });
 
   return {
     ...plan,
-    features: normalizedFeatures
+    targetGrade,
+    targetGroup,
+    features: normalizedBenefits
   };
 }
 
@@ -1539,8 +1759,24 @@ export async function adminUpdatePlan(id: string, input: UpdatePlanInput, adminU
   if (input.currency !== undefined) data.currency = input.currency;
   if (input.billingInterval !== undefined) data.billingInterval = input.billingInterval;
   if (input.isActive !== undefined) data.isActive = input.isActive;
-  if (input.features !== undefined) {
-    data.features = normalizePlanFeatures(input.features) as any;
+
+  const rawFeatures = (plan.features as any) || {};
+  let currentGrade = Array.isArray(rawFeatures)
+    ? (plan.code.startsWith('GRADE_1') ? 'GRADE_1' : plan.code.startsWith('GRADE_2') ? 'GRADE_2' : plan.code.startsWith('GRADE_3') ? 'GRADE_3' : 'ALL')
+    : (rawFeatures.grade || rawFeatures.targetGrade || 'ALL');
+  let currentGroup = Array.isArray(rawFeatures) ? null : (rawFeatures.targetGroup || null);
+  let currentBenefits = normalizePlanFeatures(plan.features);
+
+  if (input.targetGrade !== undefined) currentGrade = input.targetGrade;
+  if (input.targetGroup !== undefined) currentGroup = input.targetGroup;
+  if (input.features !== undefined) currentBenefits = normalizePlanFeatures(input.features);
+
+  if (input.targetGrade !== undefined || input.targetGroup !== undefined || input.features !== undefined) {
+    data.features = {
+      grade: currentGrade,
+      targetGroup: currentGroup,
+      benefits: currentBenefits
+    } as any;
   }
 
   const updated = await prisma.subscriptionPlan.update({
@@ -1556,8 +1792,16 @@ export async function adminUpdatePlan(id: string, input: UpdatePlanInput, adminU
     metadata: { updatedFields: Object.keys(data) }
   });
 
+  const updatedRaw = (updated.features as any) || {};
+  const updatedGrade = Array.isArray(updatedRaw)
+    ? currentGrade
+    : (updatedRaw.grade || updatedRaw.targetGrade || currentGrade);
+  const updatedGroup = !Array.isArray(updatedRaw) ? updatedRaw.targetGroup : null;
+
   return {
     ...updated,
+    targetGrade: updatedGrade,
+    targetGroup: updatedGroup,
     features: normalizePlanFeatures(updated.features)
   };
 }

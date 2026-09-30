@@ -120,7 +120,7 @@ export function PublicRegistrationPage() {
           <AlertCircle className="w-7 h-7" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+          <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white">
             {isArabic ? 'التسجيل مغلق حالياً' : 'Registration Currently Closed'}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
@@ -151,7 +151,7 @@ export function PublicRegistrationPage() {
         </div>
 
         <div className="space-y-2">
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+          <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white">
             {isArabic ? 'تم استلام طلب التسجيل بنجاح! 🎉' : 'Application Received Successfully! 🎉'}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
@@ -167,7 +167,7 @@ export function PublicRegistrationPage() {
             {isArabic ? 'رقم مرجع التسجيل الخاص بك' : 'Application Reference Code'}
           </span>
           <div className="flex items-center justify-center gap-2">
-            <span className="text-2xl sm:text-3xl font-black text-brand-600 dark:text-brand-400 font-mono tracking-widest">
+            <span className="text-2xl sm:text-3xl font-bold text-brand-600 dark:text-brand-400 font-mono tracking-widest">
               {submittedRegistration.registrationCode}
             </span>
             <button
@@ -225,7 +225,7 @@ export function PublicRegistrationPage() {
         <div className="mx-auto w-12 h-12 rounded-2xl bg-brand-50 dark:bg-brand-950/80 text-brand-600 dark:text-brand-400 flex items-center justify-center mb-3">
           <GraduationCap className="w-6 h-6 text-brand-500" />
         </div>
-        <CardTitle className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white">
+        <CardTitle className="text-xl sm:text-2xl font-semibold text-slate-900 dark:text-white">
           {isArabic ? 'استمارة الانضمام إلى CodeK' : 'Apply to Join CodeK Academy'}
         </CardTitle>
         <CardDescription className="text-xs sm:text-sm mt-1 max-w-md mx-auto text-slate-500 dark:text-slate-400">

@@ -16,7 +16,9 @@ import {
   approveRegistrationAndCreateStudent,
   updateRegistrationSettings,
   bulkUpdateRegistrationStatus,
-  bulkApproveRegistrations
+  bulkApproveRegistrations,
+  deleteAdminRegistration,
+  bulkDeleteAdminRegistrations
 } from './registration.service.js';
 import { authenticate } from '../../common/middleware/auth.js';
 import { requireAdmin } from '../../common/middleware/rbac.js';
@@ -208,6 +210,26 @@ export async function registrationRoutes(app: FastifyInstance) {
       }
 
       const result = await approveRegistrationAndCreateStudent(id, parseResult.data, req.user!.userId);
+      return reply.send({
+        success: true,
+        data: result
+      });
+    });
+
+    // Delete Single Registration
+    adminRoutes.delete('/admin/registrations/:id', async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const result = await deleteAdminRegistration(id, req.user!.userId);
+      return reply.send({
+        success: true,
+        data: result
+      });
+    });
+
+    // Bulk Delete Registrations
+    adminRoutes.post('/admin/registrations/bulk-delete', async (req, reply) => {
+      const { registrationIds } = (req.body as { registrationIds: string[] }) || {};
+      const result = await bulkDeleteAdminRegistrations(registrationIds, req.user!.userId);
       return reply.send({
         success: true,
         data: result

@@ -10,7 +10,16 @@ export const createPublicRegistrationSchema = z.object({
 
   dateOfBirth: z.string().optional().nullable(),
   schoolName: z.string().max(100).optional().nullable(),
-  grade: z.nativeEnum(StudentGrade).optional().nullable(),
+  grade: z.preprocess((val) => {
+    if (typeof val === 'string') {
+      const v = val.trim().toUpperCase();
+      if (v === 'GRADE 10' || v === 'GRADE_1' || v.includes('1ST') || v.includes('الأول') || v.includes('1')) return StudentGrade.GRADE_1;
+      if (v === 'GRADE 11' || v === 'GRADE_2' || v.includes('2ND') || v.includes('الثاني') || v.includes('2')) return StudentGrade.GRADE_2;
+      if (v === 'GRADE 12' || v === 'GRADE_3' || v.includes('3RD') || v.includes('الثالث') || v.includes('3')) return StudentGrade.GRADE_3;
+      return undefined;
+    }
+    return val;
+  }, z.nativeEnum(StudentGrade).optional().nullable()),
   programmingLevel: z.nativeEnum(Difficulty).default(Difficulty.BEGINNER),
   previousExperience: z.string().max(1000).optional().nullable(),
   motivation: z.string().max(1000).optional().nullable(),

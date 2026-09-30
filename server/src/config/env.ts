@@ -10,6 +10,11 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
   JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET must be at least 16 characters'),
+  DELIVERY_ENCRYPTION_KEY: z
+    .string()
+    .min(32, 'DELIVERY_ENCRYPTION_KEY must be at least 32 characters')
+    .optional()
+    .default('dev_delivery_encryption_key_32bytes_long_secret_for_aes256'),
   JWT_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
   CORS_ORIGIN: z.string().default('*'),
@@ -31,6 +36,11 @@ const envSchema = z.object({
   DB_POOL_MAX: z.coerce.number().min(1).default(10),
   DB_POOL_IDLE_TIMEOUT_MS: z.coerce.number().min(1000).default(30000),
   DB_POOL_CONNECTION_TIMEOUT_MS: z.coerce.number().min(1000).default(5000),
+  // Redis & BullMQ Configuration
+  REDIS_URL: z.string().default('redis://localhost:6379'),
+  BULLMQ_PREFIX: z.string().optional().default('bull'),
+  WORKER_CONCURRENCY_EMAIL: z.coerce.number().min(1).default(5),
+  WORKER_CONCURRENCY_VIDEO: z.coerce.number().min(1).default(3),
   // Video Provider Configuration
   VIDEO_PROVIDER: z.string().optional().default(''),
   CLOUDFLARE_STREAM_ACCOUNT_ID: z.string().optional().default(''),
@@ -73,6 +83,8 @@ const envSchema = z.object({
   PAYMOB_INTEGRATION_ID_CARD: z.string().optional().default(''),
   PAYMOB_INTEGRATION_ID_WALLET: z.string().optional().default(''),
   PAYMOB_API_BASE: z.string().default('https://accept.paymob.com'),
+  VODAFONE_CASH_NUMBER: z.string().optional().default('01017424986'),
+  INSTAPAY_ADDRESS: z.string().optional().default('abdelrahmanataa17@instapay'),
 }).superRefine((data, ctx) => {
   if (data.NODE_ENV === 'production') {
     // 1. In production, wildcard CORS with credentials is fundamentally insecure
@@ -90,6 +102,28 @@ const envSchema = z.object({
         code: z.ZodIssueCode.custom,
         path: ['JWT_REFRESH_SECRET'],
         message: 'JWT_REFRESH_SECRET must be different from JWT_SECRET in production.'
+      });
+    }
+
+    // 3. In production, DELIVERY_ENCRYPTION_KEY must be explicitly set and distinct from JWT secrets
+    if (
+      !data.DELIVERY_ENCRYPTION_KEY ||
+      data.DELIVERY_ENCRYPTION_KEY === 'dev_delivery_encryption_key_32bytes_long_secret_for_aes256'
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DELIVERY_ENCRYPTION_KEY'],
+        message: 'DELIVERY_ENCRYPTION_KEY must be explicitly set to a production secret in production.'
+      });
+    }
+    if (
+      data.DELIVERY_ENCRYPTION_KEY === data.JWT_SECRET ||
+      data.DELIVERY_ENCRYPTION_KEY === data.JWT_REFRESH_SECRET
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DELIVERY_ENCRYPTION_KEY'],
+        message: 'DELIVERY_ENCRYPTION_KEY must be different from JWT secrets in production.'
       });
     }
 

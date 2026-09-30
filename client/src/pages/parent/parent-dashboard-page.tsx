@@ -83,7 +83,7 @@ export function ParentDashboardPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
             {t('common.welcome')}, {user?.firstName}!
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
@@ -119,7 +119,7 @@ export function ParentDashboardPage() {
                 <span>•</span>
                 <span className="font-mono">{currentChild.studentCode}</span>
               </div>
-              <h2 className="text-xl sm:text-2xl font-black">{currentChild.displayName}</h2>
+              <h2 className="text-xl sm:text-2xl font-semibold">{currentChild.displayName}</h2>
               <div className="text-xs text-brand-200 mt-0.5">
                 {t('students.programmingLevel')}: {formatStatus(currentChild.programmingLevel)}
               </div>
@@ -129,13 +129,13 @@ export function ParentDashboardPage() {
           <div className="flex items-center gap-3">
             <div className="p-3 rounded-2xl bg-white/10 text-center min-w-[76px]">
               <Flame className="w-4 h-4 text-amber-400 fill-amber-400 mx-auto mb-1" />
-              <div className="text-base sm:text-lg font-black">{formatStreak(currentChild.currentStreak)}</div>
-              <div className="text-[10px] text-slate-300 font-bold">{t('dashboard.streak')}</div>
+              <div className="text-base sm:text-lg font-semibold">{formatStreak(currentChild.currentStreak)}</div>
+              <div className="text-[11px] text-slate-300 font-bold">{t('dashboard.streak')}</div>
             </div>
             <div className="p-3 rounded-2xl bg-white/10 text-center min-w-[76px]">
               <Star className="w-4 h-4 text-amber-400 fill-amber-400 mx-auto mb-1" />
-              <div className="text-base sm:text-lg font-black">{currentChild.totalXp}</div>
-              <div className="text-[10px] text-slate-300 font-bold">{t('dashboard.totalXp')}</div>
+              <div className="text-base sm:text-lg font-semibold">{currentChild.totalXp}</div>
+              <div className="text-[11px] text-slate-300 font-bold">{t('dashboard.totalXp')}</div>
             </div>
           </div>
         </div>
@@ -191,7 +191,7 @@ export function ParentDashboardPage() {
         <Card className="p-5 sm:p-6 space-y-4 border-slate-200/80 dark:border-slate-800/80 shadow-sm rounded-2xl">
           <div className="flex items-center gap-2">
             <Activity className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-            <CardTitle className="text-base font-black">
+            <CardTitle className="text-base font-semibold">
               {t('dashboard.tier5Analytics', 'مستوى التقدم الدراسي والإحصائيات')}
             </CardTitle>
           </div>
@@ -199,7 +199,7 @@ export function ParentDashboardPage() {
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
               <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.courseProgress')}</span>
-              <span className="text-lg font-black text-brand-600 dark:text-brand-400 mt-1 block">
+              <span className="text-lg font-semibold text-brand-600 dark:text-brand-400 mt-1 block">
                 {currentChild.learningAnalytics.courseProgress}%
               </span>
               <Progress value={currentChild.learningAnalytics.courseProgress} color="brand" className="h-1.5 mt-2" />
@@ -207,7 +207,7 @@ export function ParentDashboardPage() {
 
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
               <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.lessonsCompleted')}</span>
-              <span className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1 block">
+              <span className="text-lg font-semibold text-slate-900 dark:text-slate-100 mt-1 block">
                 {currentChild.learningAnalytics.lessonsCompleted.completed} / {currentChild.learningAnalytics.lessonsCompleted.total}
               </span>
               <Progress value={currentChild.learningAnalytics.lessonsCompleted.percentage} color="success" className="h-1.5 mt-2" />
@@ -215,7 +215,7 @@ export function ParentDashboardPage() {
 
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
               <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.tasksCompleted')}</span>
-              <span className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1 block">
+              <span className="text-lg font-semibold text-slate-900 dark:text-slate-100 mt-1 block">
                 {currentChild.learningAnalytics.tasksCompleted.completed} / {currentChild.learningAnalytics.tasksCompleted.total}
               </span>
               <Progress value={currentChild.learningAnalytics.tasksCompleted.percentage} color="accent" className="h-1.5 mt-2" />
@@ -223,20 +223,20 @@ export function ParentDashboardPage() {
 
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
               <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.quizPerformance')}</span>
-              <span className="text-lg font-black text-purple-600 dark:text-purple-400 mt-1 block">
+              <span className="text-lg font-semibold text-purple-600 dark:text-purple-400 mt-1 block">
                 {currentChild.learningAnalytics.quizPerformance.attempted > 0 ? `${currentChild.learningAnalytics.quizPerformance.averageScore}%` : '—'}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">
+              <span className="text-[11px] text-slate-400 block mt-1">
                 {currentChild.learningAnalytics.quizPerformance.attempted} {t('exams.quiz', 'اختبار')}
               </span>
             </div>
 
             <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800">
               <span className="text-[11px] font-bold text-slate-500 block">{t('dashboard.examPerformance')}</span>
-              <span className="text-lg font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
+              <span className="text-lg font-semibold text-emerald-600 dark:text-emerald-400 mt-1 block">
                 {currentChild.learningAnalytics.examPerformance.attempted > 0 ? `${currentChild.learningAnalytics.examPerformance.averageScore}%` : '—'}
               </span>
-              <span className="text-[10px] text-slate-400 block mt-1">
+              <span className="text-[11px] text-slate-400 block mt-1">
                 {currentChild.learningAnalytics.examPerformance.attempted} {t('exams.title', 'امتحان')}
               </span>
             </div>
@@ -246,7 +246,7 @@ export function ParentDashboardPage() {
 
       {/* 4-Dimension Skill Progression */}
       <Card className="p-5 sm:p-6 space-y-4 border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-        <CardTitle className="text-base font-black">
+        <CardTitle className="text-base font-semibold">
           {t('progress.title')} — {currentChild.displayName}
         </CardTitle>
 

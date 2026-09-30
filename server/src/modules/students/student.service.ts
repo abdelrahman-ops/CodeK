@@ -1,7 +1,7 @@
 import { prisma } from '../../db/prisma.js';
 import { ListStudentsQuery, UpdateStudentInput, ResetStudentPasswordInput } from './student.schema.js';
-import { ForbiddenError, NotFoundError } from '../../common/errors/app-error.js';
-import { AttendanceStatus, Role, SubmissionStatus, TaskType } from '@prisma/client';
+import { BadRequestError, ForbiddenError, NotFoundError } from '../../common/errors/app-error.js';
+import { AttendanceStatus, Role, StudentGrade, SubmissionStatus, TaskType } from '@prisma/client';
 import { createAuditLog } from '../audit/audit.service.js';
 import { generateTempPassword, hashPassword } from '../../common/utils/crypto.js';
 
@@ -337,22 +337,218 @@ export async function getStudentProgress(
   };
 }
 
+export async function getGroupGrade(groupId: string, tx: any = prisma): Promise<StudentGrade | null> {
+  const group = await tx.group.findUnique({
+    where: { id: groupId },
+    include: {
+      sessions: {
+        include: {
+          sessionLessons: {
+            include: {
+              lesson: {
+                include: { curriculum: true }
+              }
+            }
+          }
+        },
+        take: 5
+      },
+      exams: {
+        include: { curriculum: true },
+        take: 5
+      },
+      taskAssignments: {
+        include: {
+          task: {
+            include: {
+              lesson: {
+                include: { curriculum: true }
+              }
+            }
+          }
+        },
+        take: 5
+      },
+      enrollments: {
+        where: { isActive: true },
+        include: {
+          student: true
+        },
+        take: 10
+      }
+    }
+  });
+
+  if (!group) return null;
+
+  // 1. From linked sessions/curricula
+  for (const session of group.sessions || []) {
+    for (const sl of session.sessionLessons || []) {
+      if (sl.lesson?.curriculum?.grade) {
+        return sl.lesson.curriculum.grade;
+      }
+    }
+  }
+
+  // 2. From linked exams
+  for (const exam of group.exams || []) {
+    if (exam.curriculum?.grade) {
+      return exam.curriculum.grade;
+    }
+  }
+
+  // 3. From task assignments
+  for (const ta of group.taskAssignments || []) {
+    if (ta.task?.lesson?.curriculum?.grade) {
+      return ta.task.lesson.curriculum.grade;
+    }
+  }
+
+  // 4. From other active enrolled students
+  const activeStudentGrades = (group.enrollments || [])
+    .map((e: any) => e.student?.grade)
+    .filter(Boolean);
+  if (activeStudentGrades.length > 0) {
+    return activeStudentGrades[0] as StudentGrade;
+  }
+
+  // 5. Name / description heuristics
+  const text = `${group.name} ${group.description || ''}`.toUpperCase();
+  if (/\b(GRADE[_ -]?1|G1|FIRST[_ -]?YEAR|الصف الاول|الصف الأول)\b/i.test(text)) {
+    return StudentGrade.GRADE_1;
+  }
+  if (/\b(GRADE[_ -]?2|G2|SECOND[_ -]?YEAR|الصف الثاني|الصف التانى)\b/i.test(text)) {
+    return StudentGrade.GRADE_2;
+  }
+  if (/\b(GRADE[_ -]?3|G3|THIRD[_ -]?YEAR|الصف الثالث|الصف التالت)\b/i.test(text)) {
+    return StudentGrade.GRADE_3;
+  }
+
+  return null;
+}
+
 export async function updateStudent(
   studentId: string,
   input: UpdateStudentInput,
   actorUserId?: string
 ) {
-  const student = await prisma.student.findUnique({ where: { id: studentId } });
+  const student = await prisma.student.findUnique({
+    where: { id: studentId },
+    include: { user: true }
+  });
   if (!student) throw new NotFoundError('Student not found');
 
-  const updated = await prisma.student.update({
-    where: { id: studentId },
-    data: {
-      programmingLevel: input.programmingLevel,
-      grade: input.grade !== undefined ? input.grade : undefined,
-      schoolName: input.schoolName !== undefined ? input.schoolName : undefined,
-      dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : undefined
+  // If email is changing, check uniqueness
+  if (input.email && input.email !== student.user.email) {
+    const existingUser = await prisma.user.findUnique({
+      where: { email: input.email }
+    });
+    if (existingUser && existingUser.id !== student.userId) {
+      throw new BadRequestError('Email is already registered by another user');
     }
+  }
+
+  // Update in transaction
+  const updated = await prisma.$transaction(async (tx) => {
+    // 1. Update user if any user fields provided
+    const userUpdates: any = {};
+    if (input.firstName !== undefined) userUpdates.firstName = input.firstName;
+    if (input.lastName !== undefined) userUpdates.lastName = input.lastName;
+    if (input.email !== undefined) userUpdates.email = input.email;
+    if (input.phone !== undefined) userUpdates.phone = input.phone;
+    if (input.isActive !== undefined) userUpdates.isActive = input.isActive;
+
+    if (Object.keys(userUpdates).length > 0) {
+      await tx.user.update({
+        where: { id: student.userId },
+        data: userUpdates
+      });
+    }
+
+    // 2. Grade and Group integrity validation
+    const targetGrade = input.grade !== undefined ? input.grade : student.grade;
+
+    if (input.groupId !== undefined) {
+      if (input.groupId) {
+        const group = await tx.group.findUnique({ where: { id: input.groupId } });
+        if (!group) throw new NotFoundError('Class group not found');
+
+        const groupGrade = await getGroupGrade(input.groupId, tx);
+        if (groupGrade !== null && targetGrade !== null && groupGrade !== targetGrade) {
+          throw new BadRequestError(`Cannot assign student of grade ${targetGrade} to group belonging to grade ${groupGrade}`);
+        }
+      }
+
+      await tx.groupEnrollment.updateMany({
+        where: { studentId, isActive: true },
+        data: { isActive: false, endedAt: new Date() }
+      });
+
+      if (input.groupId) {
+        const existingEnrollment = await tx.groupEnrollment.findFirst({
+          where: { studentId, groupId: input.groupId }
+        });
+        if (existingEnrollment) {
+          await tx.groupEnrollment.update({
+            where: { id: existingEnrollment.id },
+            data: { isActive: true, endedAt: null }
+          });
+        } else {
+          await tx.groupEnrollment.create({
+            data: { studentId, groupId: input.groupId, isActive: true }
+          });
+        }
+      }
+    } else if (input.grade !== undefined && input.grade !== student.grade) {
+      // Grade is changing, but groupId was not explicitly provided.
+      // Check active enrollment compatibility with the new grade.
+      const activeEnrollments = await tx.groupEnrollment.findMany({
+        where: { studentId, isActive: true },
+        include: { group: true }
+      });
+
+      for (const enrollment of activeEnrollments) {
+        const groupGrade = await getGroupGrade(enrollment.groupId, tx);
+        if (groupGrade !== null && groupGrade !== input.grade) {
+          // Explicitly clear/deactivate old-grade group enrollment to maintain grade-isolation invariant
+          await tx.groupEnrollment.update({
+            where: { id: enrollment.id },
+            data: { isActive: false, endedAt: new Date() }
+          });
+        }
+      }
+    }
+
+    // 3. Update student record
+    const studentUpdates: any = {};
+    if (input.programmingLevel !== undefined) studentUpdates.programmingLevel = input.programmingLevel;
+    if (input.grade !== undefined) studentUpdates.grade = input.grade;
+    if (input.schoolName !== undefined) studentUpdates.schoolName = input.schoolName;
+    if (input.dateOfBirth !== undefined) studentUpdates.dateOfBirth = input.dateOfBirth ? new Date(input.dateOfBirth) : null;
+    if (input.attendanceRequired !== undefined) studentUpdates.attendanceRequired = input.attendanceRequired;
+
+    return tx.student.update({
+      where: { id: studentId },
+      data: studentUpdates,
+      include: {
+        user: {
+          select: {
+            id: true,
+            loginId: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            avatarUrl: true,
+            isActive: true
+          }
+        },
+        enrollments: {
+          where: { isActive: true },
+          include: { group: true }
+        }
+      }
+    });
   });
 
   await createAuditLog({

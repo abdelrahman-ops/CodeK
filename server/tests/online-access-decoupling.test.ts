@@ -49,7 +49,8 @@ describe('Phase 1: Online-First Access Decoupling & Invariants', () => {
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         title: `Decoupled Course ${unique}`,
-        description: 'Testing attendance-independent online access'
+        description: 'Testing attendance-independent online access',
+        grade: 'GRADE_2'
       }
     });
     courseId = courseRes.json().data.id;
@@ -85,6 +86,23 @@ describe('Phase 1: Online-First Access Decoupling & Invariants', () => {
       }
     });
     paidLessonId = paidRes.json().data.id;
+
+    // Link a valid VideoAsset to the paid lesson for playback testing
+    const videoAsset = await prisma.videoAsset.create({
+      data: {
+        title: `Decoupled Video ${unique}`,
+        provider: 'MUX',
+        providerVideoId: `mux_video_${unique}`,
+        playbackId: `mux_playback_${unique}`,
+        status: 'READY',
+        isPrivate: false,
+        durationSeconds: 120
+      }
+    });
+    await prisma.lesson.update({
+      where: { id: paidLessonId },
+      data: { videoId: videoAsset.id }
+    });
 
     // Legacy Lesson with accessType = ATTENDANCE_REQUIRED
     const legacyRes = await app.inject({
@@ -144,7 +162,8 @@ describe('Phase 1: Online-First Access Decoupling & Invariants', () => {
           create: {
             studentCode: `STU-LOC-${unique}`,
             attendanceRequired: true,
-            learningModeSelected: true
+            learningModeSelected: true,
+            grade: 'GRADE_2'
           }
         }
       },
@@ -183,7 +202,8 @@ describe('Phase 1: Online-First Access Decoupling & Invariants', () => {
           create: {
             studentCode: `STU-ONL-${unique}`,
             attendanceRequired: false,
-            learningModeSelected: true
+            learningModeSelected: true,
+            grade: 'GRADE_2'
           }
         }
       },

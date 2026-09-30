@@ -30,12 +30,14 @@ import { videoRoutes } from './modules/videos/video.routes.js';
 import { accessRoutes } from './modules/access/access.routes.js';
 import { billingRoutes } from './modules/billing/billing.routes.js';
 import { webhookRoutes } from './modules/webhooks/webhook.routes.js';
+import { securitySettingsRoutes } from './modules/security-settings/security-settings.routes.js';
 
 export async function buildApp() {
   const isVercel = process.env.VERCEL === '1';
   const usePrettyLogger = env.NODE_ENV === 'development' && !isVercel;
 
   const app = Fastify({
+    bodyLimit: 15 * 1024 * 1024, // 15MB to allow transfer receipt screenshots
     disableRequestLogging: true,
     logger: usePrettyLogger
       ? {
@@ -129,6 +131,7 @@ export async function buildApp() {
       await v1.register(accessRoutes, { prefix: '/access' });
       await v1.register(billingRoutes, { prefix: '/billing' });
       await v1.register(webhookRoutes, { prefix: '/webhooks' });
+      await v1.register(securitySettingsRoutes, { prefix: '/settings' });
       await v1.register(registrationRoutes);
     },
     { prefix: '/api/v1' }

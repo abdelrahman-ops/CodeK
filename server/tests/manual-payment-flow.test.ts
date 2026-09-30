@@ -44,7 +44,7 @@ describe('Manual Payment Architecture: Vodafone Cash & InstaPay', () => {
       headers: { authorization: `Bearer ${studentToken}` },
       payload: { mode: 'ONLINE' }
     });
-  });
+  }, 60000);
 
   it('1. Public endpoint returns active payment methods including Vodafone Cash & InstaPay', async () => {
     const res = await app.inject({

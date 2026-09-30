@@ -1,7 +1,10 @@
 import { FastifyInstance } from 'fastify';
-import { authenticate } from '../../common/middleware/auth.js';
+import { authenticate, optionalAuthenticate } from '../../common/middleware/auth.js';
 import { requireAdmin } from '../../common/middleware/rbac.js';
 import { z } from 'zod';
+import { StudentGrade } from '@prisma/client';
+import { prisma } from '../../db/prisma.js';
+import { ForbiddenError } from '../../common/errors/app-error.js';
 import {
   createAccessGrantSchema,
   revokeAccessGrantSchema,
@@ -62,11 +65,38 @@ export async function accessRoutes(app: FastifyInstance) {
     }
   );
 
-  // List Subscription Plans (Public / Authenticated)
-  app.get('/plans', async (request, reply) => {
-    const plans = await accessService.listSubscriptionPlans(true);
-    return reply.send({ data: plans });
-  });
+  // List Subscription Plans (Public / Authenticated with Grade Isolation)
+  app.get(
+    '/plans',
+    { preHandler: [optionalAuthenticate] },
+    async (request, reply) => {
+      let targetGrade: StudentGrade | undefined;
+
+      const queryGrade = (request.query as any)?.grade;
+      if (queryGrade && Object.values(StudentGrade).includes(queryGrade as StudentGrade)) {
+        targetGrade = queryGrade as StudentGrade;
+      }
+
+      // If caller is an authenticated student, strictly scope to student's registered grade
+      if (request.user?.role === 'STUDENT' && request.user.studentId) {
+        const student = await prisma.student.findUnique({
+          where: { id: request.user.studentId },
+          select: { grade: true }
+        });
+
+        if (student?.grade) {
+          // Cross-grade attempt by student is forbidden
+          if (targetGrade && targetGrade !== student.grade) {
+            throw new ForbiddenError('Students can only view subscription plans for their enrolled grade');
+          }
+          targetGrade = student.grade;
+        }
+      }
+
+      const plans = await accessService.listSubscriptionPlans(true, targetGrade);
+      return reply.send({ data: plans });
+    }
+  );
 
   // Create Subscription Plan (Admin)
   app.post(

@@ -127,7 +127,7 @@ export function AdminSessionsPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
             <CalendarCheck2 className="w-7 h-7 text-brand-600 dark:text-brand-400" />
             <span>{t('nav.sessions')}</span>
           </h1>
@@ -158,7 +158,7 @@ export function AdminSessionsPage() {
             }`}
           >
             <span>{isArabic ? 'الكل' : 'All'}</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 dark:bg-white/10 font-mono">
+            <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-white/20 dark:bg-white/10 font-mono">
               {counts.all}
             </span>
           </button>
@@ -174,7 +174,7 @@ export function AdminSessionsPage() {
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>{isArabic ? 'نشطة الآن' : 'Active'}</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
+            <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
               {counts.active}
             </span>
           </button>
@@ -189,7 +189,7 @@ export function AdminSessionsPage() {
             }`}
           >
             <span>{isArabic ? 'مجدولة' : 'Scheduled'}</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
+            <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
               {counts.scheduled}
             </span>
           </button>
@@ -204,7 +204,7 @@ export function AdminSessionsPage() {
             }`}
           >
             <span>{isArabic ? 'مكتملة' : 'Completed'}</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
+            <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
               {counts.completed}
             </span>
           </button>
@@ -219,7 +219,7 @@ export function AdminSessionsPage() {
             }`}
           >
             <span>{isArabic ? 'ملغاة' : 'Cancelled'}</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
+            <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
               {counts.cancelled}
             </span>
           </button>
@@ -263,7 +263,7 @@ export function AdminSessionsPage() {
           <div className="w-12 h-12 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center mx-auto">
             <CalendarCheck2 className="w-6 h-6" />
           </div>
-          <h3 className="font-black text-base text-slate-800 dark:text-slate-200">
+          <h3 className="font-semibold text-base text-slate-800 dark:text-slate-200">
             {isArabic ? 'لا توجد حصص تطابق التصفية الحالية' : 'No sessions matching this filter'}
           </h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -311,9 +311,9 @@ export function AdminSessionsPage() {
                   {/* Session Info */}
                   <div className="space-y-2 flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2.5">
-                      <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                      <h3 className="font-semibold text-base sm:text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
                         <span>{sess.group?.name ? localizeText(sess.group.name) : t('students.group')}</span>
-                        <span className="text-brand-600 dark:text-brand-400 font-extrabold">
+                        <span className="text-brand-600 dark:text-brand-400 font-semibold">
                           #{sess.sessionNumber}
                         </span>
                       </h3>

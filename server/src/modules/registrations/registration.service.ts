@@ -666,3 +666,50 @@ export async function bulkApproveRegistrations(
     failed
   };
 }
+
+export async function deleteAdminRegistration(id: string, actorUserId?: string) {
+  const existing = await prisma.studentRegistration.findUnique({ where: { id } });
+  if (!existing) {
+    throw new NotFoundError('Student registration not found');
+  }
+
+  await prisma.studentRegistration.delete({ where: { id } });
+
+  if (actorUserId) {
+    await createAuditLog({
+      actorUserId,
+      action: 'REGISTRATION_DELETED',
+      entityType: 'StudentRegistration',
+      entityId: id,
+      metadata: {
+        registrationCode: existing.registrationCode,
+        studentName: `${existing.firstName} ${existing.lastName}`,
+        phone: existing.phone
+      }
+    });
+  }
+
+  return { success: true, id };
+}
+
+export async function bulkDeleteAdminRegistrations(registrationIds: string[], actorUserId?: string) {
+  if (!registrationIds || registrationIds.length === 0) {
+    throw new BadRequestError('At least one registration ID is required');
+  }
+
+  const result = await prisma.studentRegistration.deleteMany({
+    where: { id: { in: registrationIds } }
+  });
+
+  if (actorUserId) {
+    await createAuditLog({
+      actorUserId,
+      action: 'REGISTRATIONS_BULK_DELETED',
+      entityType: 'StudentRegistration',
+      entityId: registrationIds[0] || null,
+      metadata: { count: result.count, registrationIds }
+    });
+  }
+
+  return { success: true, count: result.count, registrationIds };
+}

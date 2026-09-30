@@ -56,7 +56,7 @@ export function AchievementsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
           <Award className="w-7 h-7 text-brand-600 dark:text-brand-400" />
           <span>{t('achievements.title')}</span>
         </h1>
@@ -99,7 +99,7 @@ export function AchievementsPage() {
                 </div>
 
                 <div>
-                  <h3 className="font-black text-base text-slate-900 dark:text-slate-100">
+                  <h3 className="font-semibold text-base text-slate-900 dark:text-slate-100">
                     {localizeText(ach.name)}
                   </h3>
                   <p className="text-xs text-slate-500 mt-1 leading-relaxed">{localizeText(ach.description)}</p>

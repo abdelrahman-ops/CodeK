@@ -13,7 +13,14 @@ export const updateStudentSchema = z.object({
   programmingLevel: z.nativeEnum(Difficulty).optional(),
   grade: z.nativeEnum(StudentGrade).optional().nullable(),
   schoolName: z.string().optional().nullable(),
-  dateOfBirth: z.string().datetime().optional().nullable()
+  dateOfBirth: z.string().datetime().optional().nullable(),
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+  groupId: z.string().uuid().optional().nullable(),
+  attendanceRequired: z.boolean().optional()
 });
 
 export const resetStudentPasswordSchema = z.object({

@@ -129,7 +129,7 @@ export function GroupSchedulePicker({ schedules = [], onChange }: GroupScheduleP
                 key={day.id}
                 type="button"
                 onClick={() => toggleDay(day.dayIndex)}
-                className={`py-2 px-1.5 rounded-xl text-xs font-extrabold flex flex-col items-center justify-center gap-1 transition-all ${
+                className={`py-2 px-1.5 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all ${
                   isSelected
                     ? 'bg-brand-600 text-white shadow-md shadow-brand-600/20 ring-2 ring-brand-500/40 scale-[1.02]'
                     : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:border-brand-300 hover:bg-brand-50/50 dark:hover:bg-slate-800'
@@ -204,7 +204,7 @@ export function GroupSchedulePicker({ schedules = [], onChange }: GroupScheduleP
                       value={time.startTime}
                       onChange={(e) => updateDayTime(day.dayIndex, 'startTime', e.target.value)}
                       dir="ltr"
-                      className="bg-transparent text-xs font-mono font-black text-slate-800 dark:text-slate-100 focus:outline-none"
+                      className="bg-transparent text-xs font-mono font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
                       required
                     />
                   </div>
@@ -218,7 +218,7 @@ export function GroupSchedulePicker({ schedules = [], onChange }: GroupScheduleP
                       value={time.endTime}
                       onChange={(e) => updateDayTime(day.dayIndex, 'endTime', e.target.value)}
                       dir="ltr"
-                      className="bg-transparent text-xs font-mono font-black text-slate-800 dark:text-slate-100 focus:outline-none"
+                      className="bg-transparent text-xs font-mono font-semibold text-slate-800 dark:text-slate-100 focus:outline-none"
                       required
                     />
                   </div>

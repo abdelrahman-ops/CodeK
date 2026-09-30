@@ -2,12 +2,16 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { getTestApp, loginAdmin } from './helpers/test-app.js';
 import { FastifyInstance } from 'fastify';
 import { env } from '../src/config/env.js';
+import { prisma } from '../src/db/prisma.js';
 
 describe('Authentication & Onboarding Module', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
     app = await getTestApp();
+    await prisma.authToken.deleteMany({
+      where: { type: 'ADMIN_LOGIN_OTP' }
+    });
   });
 
   describe('Admin 2FA Authentication Flow', () => {

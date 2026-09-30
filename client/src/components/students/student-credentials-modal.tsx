@@ -128,12 +128,12 @@ export function StudentCredentialsModal({
 
           <div className="flex justify-between items-center pb-2 border-b border-slate-200/60 dark:border-slate-800/60">
             <span className="text-slate-500 dark:text-slate-400 text-xs font-sans">{t('auth.loginId') || 'Login ID'}:</span>
-            <span className="font-black text-brand-600 dark:text-brand-400 text-base">{data.loginId}</span>
+            <span className="font-semibold text-brand-600 dark:text-brand-400 text-base">{data.loginId}</span>
           </div>
 
           <div className="flex justify-between items-center pb-2 border-b border-slate-200/60 dark:border-slate-800/60">
             <span className="text-slate-500 dark:text-slate-400 text-xs font-sans">{t('auth.temporaryPassword') || 'Temporary Password'}:</span>
-            <span className="font-black text-rose-600 dark:text-rose-400 text-base">{data.temporaryPassword}</span>
+            <span className="font-semibold text-rose-600 dark:text-rose-400 text-base">{data.temporaryPassword}</span>
           </div>
 
           {data.groupName && (

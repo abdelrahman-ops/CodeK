@@ -91,7 +91,7 @@ export function MobileNav() {
               to={link.to}
               className={({ isActive }) =>
                 cn(
-                  'flex flex-col items-center gap-1 py-1.5 px-3 rounded-2xl text-[11px] font-extrabold transition-all min-w-[56px]',
+                  'flex flex-col items-center gap-1 py-1.5 px-3 rounded-2xl text-[11px] font-medium transition-all min-w-[56px]',
                   isActive
                     ? 'text-brand-600 dark:text-brand-400 bg-brand-50/60 dark:bg-brand-950/60'
                     : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
@@ -108,7 +108,7 @@ export function MobileNav() {
           <button
             type="button"
             onClick={() => setIsMoreOpen(true)}
-            className="flex flex-col items-center gap-1 py-1.5 px-3 rounded-2xl text-[11px] font-extrabold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 min-w-[56px]"
+            className="flex flex-col items-center gap-1 py-1.5 px-3 rounded-2xl text-[11px] font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 min-w-[56px]"
           >
             <MoreHorizontal className="w-5 h-5 shrink-0" />
             <span>{t('common.more') || 'More'}</span>
@@ -139,7 +139,7 @@ export function MobileNav() {
                   <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 flex items-center justify-center shadow-sm">
                     <Icon className="w-5 h-5" />
                   </div>
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                  <span className="text-xs font-medium text-slate-800 dark:text-slate-200">
                     {link.label}
                   </span>
                 </button>
@@ -153,7 +153,7 @@ export function MobileNav() {
                 setIsMoreOpen(false);
                 logout();
               }}
-              className="w-full p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-bold text-xs flex items-center justify-center gap-2 border border-rose-200 dark:border-rose-800/60"
+              className="w-full p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-medium text-xs flex items-center justify-center gap-2 border border-rose-200 dark:border-rose-800/60"
             >
               <LogOut className="w-4 h-4" />
               <span>{t('nav.logout')}</span>

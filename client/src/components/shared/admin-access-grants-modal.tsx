@@ -307,11 +307,11 @@ export function AdminAccessGrantsModal({
                           <Badge
                             variant={status === 'ACTIVE' ? 'success' : 'outline'}
                             size="sm"
-                            className="text-[10px]"
+                            className="text-[11px]"
                           >
                             {status === 'ACTIVE' ? 'نشطة' : status === 'EXPIRED' ? 'منتهية' : 'ملغاة'}
                           </Badge>
-                          <Badge variant="purple" size="sm" className="text-[10px]">
+                          <Badge variant="purple" size="sm" className="text-[11px]">
                             {grant.scope === 'ALL_ACCESS'
                               ? 'وصول كامل'
                               : grant.scope === 'COURSE'

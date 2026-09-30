@@ -23,7 +23,8 @@ describe('Phase 2: Self-Service Student Registration', () => {
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         title: 'Phase 2 Test Course ' + Date.now(),
-        description: 'Testing self-service student access decoupling'
+        description: 'Testing self-service student access decoupling',
+        grade: 'GRADE_1'
       }
     });
     const courseId = courseRes.json().data.id;

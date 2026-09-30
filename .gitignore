@@ -40,3 +40,6 @@ curriculum/
 bash.sh
 Agent/
 scratch/
+phases
+notes.md
+*.timestamp-*

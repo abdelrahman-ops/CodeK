@@ -82,13 +82,16 @@ describe('Phase 7: Manual Hybrid Billing & Entitlement', () => {
       payload: { mode: 'ONLINE' }
     });
 
-    // Ensure a Course, Section, and Premium (non-free) Lesson exist
-    let course = await prisma.curriculum.findFirst();
+    // Ensure a Course, Section, and Premium (non-free) Lesson exist matching student's grade
+    const studentRec = await prisma.student.findUnique({ where: { id: hybridStudentId }, select: { grade: true } });
+    const targetGrade = studentRec?.grade || 'GRADE_1';
+    let course = await prisma.curriculum.findFirst({ where: { grade: targetGrade } });
     if (!course) {
       course = await prisma.curriculum.create({
         data: {
           title: 'Test Billing Track',
           description: 'Track for billing tests',
+          grade: targetGrade,
           isPublished: true
         }
       });

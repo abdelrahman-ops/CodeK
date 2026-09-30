@@ -44,7 +44,7 @@ export function StudentCoursesPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
             <BookOpen className="w-7 h-7 text-brand-600 dark:text-brand-400" />
             <span>{t('courses.title')}</span>
           </h1>
@@ -56,10 +56,10 @@ export function StudentCoursesPage() {
         {!isSubscribed && (
           <Button
             onClick={() => navigate('/student/subscription')}
-            className="gap-2 text-xs font-black bg-brand-600 hover:bg-brand-700 text-white shadow-md shadow-brand-500/20 shrink-0"
+            className="gap-2 text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white shadow-md shadow-brand-500/20 shrink-0"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>{isRtl ? 'فتح كافة المسارات (250 ج.م)' : 'Unlock All Courses (250 EGP)'}</span>
+            <span>{isRtl ? 'الاشتراك في المنصة وفتح كافة المسارات' : 'Unlock All Courses with Subscription'}</span>
           </Button>
         )}
       </div>
@@ -73,7 +73,7 @@ export function StudentCoursesPage() {
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                {isRtl ? 'جميع المسارات متاحة باشتراك رمزي موحد: 250 ج.م / 30 يوماً' : 'All courses included with CodeK Subscription: 250 EGP / 30 Days'}
+                {isRtl ? 'جميع المسارات متاحة باشتراك المنصة الشامل' : 'All courses included with CodeK Subscription'}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 {isRtl ? 'تعلّم البرمجة بخطوات عملية مع فيديوهات عالية الجودة ومشاريع حقيقية وتصحيح تفاعلي.' : 'Learn programming with hands-on practice, high-definition videos, and real projects.'}
@@ -129,7 +129,7 @@ export function StudentCoursesPage() {
 
                 {/* Title & Description */}
                 <div>
-                  <h2 className="text-xl font-black text-slate-900 dark:text-slate-100 hover:text-brand-600 transition cursor-pointer"
+                  <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100 hover:text-brand-600 transition cursor-pointer"
                     onClick={() => navigate(`/student/courses/${course.id}`)}
                   >
                     {localizeText(course.title)}

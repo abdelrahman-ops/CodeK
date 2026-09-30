@@ -17,7 +17,9 @@ import {
   ArrowRight,
   ExternalLink,
   Phone,
-  BookOpen
+  BookOpen,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import { Card, CardTitle, CardContent } from '../../components/ui/card.js';
 import { Button } from '../../components/ui/button.js';
@@ -49,6 +51,11 @@ export function AdminRegistrationsPage() {
   const [bulkApproveGroupId, setBulkApproveGroupId] = useState('');
   const [isBulkRejectOpen, setIsBulkRejectOpen] = useState(false);
   const [bulkRejectReason, setBulkRejectReason] = useState('');
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
+
+  // Single delete state
+  const [deleteRegId, setDeleteRegId] = useState<string | null>(null);
+  const [deleteRegName, setDeleteRegName] = useState<string>('');
 
   // Settings Edit Modal state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -193,6 +200,42 @@ export function AdminRegistrationsPage() {
     }
   });
 
+  // Single Registration Delete Mutation
+  const deleteRegistrationMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return (await api.registrations.deleteAdmin(id)).data;
+    },
+    onSuccess: () => {
+      toast.success(isArabic ? 'تم حذف طلب التسجيل نهائياً بنجاح' : 'Registration deleted successfully');
+      queryClient.invalidateQueries({ queryKey: ['adminRegistrations'] });
+      setDeleteRegId(null);
+      setDeleteRegName('');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  // Bulk Registrations Delete Mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (registrationIds: string[]) => {
+      return (await api.registrations.bulkDeleteAdmin(registrationIds)).data;
+    },
+    onSuccess: (data: any) => {
+      toast.success(
+        isArabic
+          ? `تم حذف ${data.data?.count || selection.selectedCount} طلب تسجيل نهائياً بنجاح`
+          : 'Registrations deleted successfully'
+      );
+      selection.deselectAll();
+      queryClient.invalidateQueries({ queryKey: ['adminRegistrations'] });
+      setIsBulkDeleteOpen(false);
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
   const handleOpenSettings = () => {
     if (settingsData) {
       setIsOpenSetting(settingsData.isOpen);
@@ -222,7 +265,7 @@ export function AdminRegistrationsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
             {isArabic ? 'طلبات التسجيل والتأهيل' : 'Student Registrations'}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -283,13 +326,13 @@ export function AdminRegistrationsPage() {
           <div className="flex items-center gap-4 text-xs">
             <div className="p-3 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-center">
               <span className="text-slate-400 block font-medium">{isArabic ? 'إجمالي الطلبات' : 'Total'}</span>
-              <span className="font-black text-sm text-slate-900 dark:text-slate-100">{counts.ALL}</span>
+              <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">{counts.ALL}</span>
             </div>
             <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 text-center">
               <span className="text-amber-600 dark:text-amber-400 block font-medium">
                 {isArabic ? 'قيد المراجعة' : 'Pending'}
               </span>
-              <span className="font-black text-sm text-amber-700 dark:text-amber-300">
+              <span className="font-semibold text-sm text-amber-700 dark:text-amber-300">
                 {counts.PENDING + counts.UNDER_REVIEW}
               </span>
             </div>
@@ -297,7 +340,7 @@ export function AdminRegistrationsPage() {
               <span className="text-emerald-600 dark:text-emerald-400 block font-medium">
                 {isArabic ? 'مقبول' : 'Approved'}
               </span>
-              <span className="font-black text-sm text-emerald-700 dark:text-emerald-300">{counts.APPROVED}</span>
+              <span className="font-semibold text-sm text-emerald-700 dark:text-emerald-300">{counts.APPROVED}</span>
             </div>
           </div>
         </div>
@@ -333,7 +376,7 @@ export function AdminRegistrationsPage() {
                 >
                   <span>{isArabic ? tab.labelAr : tab.labelEn}</span>
                   <span
-                    className={`px-1.5 py-0.5 rounded-md text-[10px] ${
+                    className={`px-1.5 py-0.5 rounded-md text-[11px] ${
                       isSelected
                         ? 'bg-white/20 text-white'
                         : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
@@ -367,7 +410,7 @@ export function AdminRegistrationsPage() {
           isIndeterminate={selection.isIndeterminate}
           onToggleSelectAll={selection.toggleSelectAll}
           onDeselectAll={selection.deselectAll}
-          isLoading={bulkApproveMutation.isPending || bulkRejectMutation.isPending || bulkArchiveMutation.isPending}
+          isLoading={bulkApproveMutation.isPending || bulkRejectMutation.isPending || bulkArchiveMutation.isPending || bulkDeleteMutation.isPending}
           actions={[
             {
               id: 'approve',
@@ -377,18 +420,25 @@ export function AdminRegistrationsPage() {
               onClick: () => setIsBulkApproveOpen(true)
             },
             {
-              id: 'reject',
-              label: isArabic ? 'رفض المحدد' : 'Reject Selected',
-              icon: <XCircle className="w-3.5 h-3.5" />,
-              variant: 'danger',
-              onClick: () => setIsBulkRejectOpen(true)
-            },
-            {
               id: 'archive',
               label: isArabic ? 'أرشفة المحدد' : 'Archive Selected',
               icon: <Archive className="w-3.5 h-3.5" />,
               variant: 'secondary',
               onClick: () => bulkArchiveMutation.mutate(Array.from(selection.selectedIds))
+            },
+            {
+              id: 'reject',
+              label: isArabic ? 'رفض المحدد' : 'Reject Selected',
+              icon: <XCircle className="w-3.5 h-3.5" />,
+              variant: 'outline',
+              onClick: () => setIsBulkRejectOpen(true)
+            },
+            {
+              id: 'delete',
+              label: isArabic ? 'حذف المحدد نهائياً' : 'Delete Selected',
+              icon: <Trash2 className="w-3.5 h-3.5" />,
+              variant: 'danger',
+              onClick: () => setIsBulkDeleteOpen(true)
             }
           ]}
         />
@@ -447,7 +497,7 @@ export function AdminRegistrationsPage() {
                           className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 cursor-pointer accent-brand-600"
                         />
                       </td>
-                      <td className="px-4 py-3 font-mono font-black text-brand-600 dark:text-brand-400">
+                      <td className="px-4 py-3 font-mono font-semibold text-brand-600 dark:text-brand-400">
                         {reg.registrationCode}
                       </td>
                     <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100">
@@ -473,14 +523,28 @@ export function AdminRegistrationsPage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-right rtl:text-left">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => navigate(`/admin/registrations/${reg.id}`)}
-                      >
-                        <span>{isArabic ? 'عرض واستعراض' : 'View Details'}</span>
-                        <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => navigate(`/admin/registrations/${reg.id}`)}
+                        >
+                          <span>{isArabic ? 'عرض واستعراض' : 'View Details'}</span>
+                          <ArrowRight className="w-3.5 h-3.5 rtl:rotate-180" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/30 p-2 h-8 w-8"
+                          onClick={() => {
+                            setDeleteRegId(reg.id);
+                            setDeleteRegName(`${reg.firstName} ${reg.lastName}`);
+                          }}
+                          title={isArabic ? 'حذف طلب التسجيل نهائياً' : 'Delete registration'}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                   );
@@ -495,7 +559,7 @@ export function AdminRegistrationsPage() {
       {isSettingsOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-fade-in">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
-            <h3 className="font-black text-lg text-slate-900 dark:text-slate-100">
+            <h3 className="font-semibold text-lg text-slate-900 dark:text-slate-100">
               {isArabic ? 'إعدادات وتسهيلات باب التسجيل' : 'Registration Control Settings'}
             </h3>
 
@@ -660,6 +724,110 @@ export function AdminRegistrationsPage() {
               }
             >
               {isArabic ? 'تأكيد الرفض' : 'Confirm Rejection'}
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Single Delete Confirmation Dialog */}
+      <Dialog
+        isOpen={Boolean(deleteRegId)}
+        onClose={() => setDeleteRegId(null)}
+        title={isArabic ? 'حذف طلب التسجيل نهائياً' : 'Permanently Delete Registration'}
+      >
+        <div className="space-y-4 pt-2">
+          <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-200 text-xs">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div className="leading-relaxed">
+              {isArabic ? (
+                <>
+                  هل أنت متأكد من حذف طلب تسجيل الطالب{' '}
+                  <span className="font-bold underline">{deleteRegName}</span> نهائياً من النظام؟
+                  لا يمكن التراجع عن هذا الإجراء وسيتم إزالة كافة البيانات المرتبطة بالطلب.
+                </>
+              ) : (
+                <>
+                  Are you sure you want to permanently delete registration for{' '}
+                  <span className="font-bold underline">{deleteRegName}</span>?
+                  This action cannot be undone.
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDeleteRegId(null)}
+              disabled={deleteRegistrationMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              isLoading={deleteRegistrationMutation.isPending}
+              onClick={() => {
+                if (deleteRegId) deleteRegistrationMutation.mutate(deleteRegId);
+              }}
+            >
+              <Trash2 className="w-4 h-4 mr-1.5" />
+              <span>{isArabic ? 'تأكيد الحذف نهائياً' : 'Delete Permanently'}</span>
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog
+        isOpen={isBulkDeleteOpen}
+        onClose={() => setIsBulkDeleteOpen(false)}
+        title={
+          isArabic
+            ? `حذف ${selection.selectedCount} طلب تسجيل نهائياً`
+            : `Delete ${selection.selectedCount} Registrations`
+        }
+      >
+        <div className="space-y-4 pt-2">
+          <div className="flex items-start gap-3 p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 text-rose-800 dark:text-rose-200 text-xs">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div className="leading-relaxed">
+              {isArabic ? (
+                <>
+                  أنت على وشك حذف{' '}
+                  <span className="font-bold underline">{selection.selectedCount} طلب تسجيل</span> نهائياً من قاعدة البيانات.
+                  سيتم مسح هذه السجلات بالكامل ولن تتمكن من استرجاعها.
+                </>
+              ) : (
+                <>
+                  You are about to permanently delete{' '}
+                  <span className="font-bold underline">{selection.selectedCount} registrations</span>.
+                  This action cannot be undone.
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsBulkDeleteOpen(false)}
+              disabled={bulkDeleteMutation.isPending}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              isLoading={bulkDeleteMutation.isPending}
+              onClick={() =>
+                bulkDeleteMutation.mutate(Array.from(selection.selectedIds))
+              }
+            >
+              <Trash2 className="w-4 h-4 mr-1.5" />
+              <span>{isArabic ? 'حذف كافة السجلات المحددة' : 'Delete Selected Records'}</span>
             </Button>
           </div>
         </div>

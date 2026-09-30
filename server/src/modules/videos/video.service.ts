@@ -12,6 +12,7 @@ import { VideoAssetStatus, Role } from '@prisma/client';
 import { createAuditLog } from '../audit/audit.service.js';
 import { MuxVideoProvider } from './providers/mux-video.provider.js';
 import { getStudentGrade, assertGradeAccess } from '../curriculum/curriculum-auth.js';
+import { videoQueue } from '../../queues/video/video.queue.js';
 
 export async function createDirectUploadSession(input: CreateDirectUploadInput, adminUserId?: string) {
   const provider = videoProviderFactory.getProvider();
@@ -101,12 +102,18 @@ export async function confirmUploadComplete(input: ConfirmUploadInput) {
   }
 
   const provider = videoProviderFactory.getProvider(asset.provider);
-  const metadata = await provider.getVideoMetadata(asset.providerVideoId);
+  const metadata = await provider.getVideoMetadata(asset.uploadId || asset.providerVideoId);
+
+  const raw = metadata.raw as any;
+  const playbackId = raw?.playbackId || (asset.provider === 'MOCK' ? asset.providerVideoId : undefined);
+  const providerVideoId = metadata.providerVideoId || asset.providerVideoId;
 
   const updatedAsset = await prisma.videoAsset.update({
     where: { id: asset.id },
     data: {
-      status: metadata.status as VideoAssetStatus,
+      providerVideoId,
+      playbackId: playbackId || asset.playbackId,
+      status: (metadata.status as VideoAssetStatus) || asset.status,
       durationSeconds: metadata.durationSeconds || asset.durationSeconds,
       thumbnailUrl: metadata.thumbnailUrl || asset.thumbnailUrl,
       metadata: metadata.raw ? (metadata.raw as any) : undefined
@@ -171,15 +178,27 @@ export async function getVideoAssetById(id: string) {
     throw new NotFoundError('Video asset not found');
   }
 
-  const provider = videoProviderFactory.getProvider(asset.provider);
-  const playback = await provider.getPlaybackInfo(asset.providerVideoId, {
-    playbackId: asset.playbackId || undefined,
-    durationSeconds: asset.durationSeconds || undefined,
-    requireSignedPlayback: asset.isPrivate
-  });
+  // Only generate signed preview authorization if the video is READY and has playback identifier
+  let playback: any = null;
+  const isReady = asset.status === VideoAssetStatus.READY;
+  const hasPlaybackId = Boolean(asset.playbackId || asset.provider === 'EXTERNAL' || asset.provider === 'MOCK');
+
+  if (isReady && hasPlaybackId && asset.providerVideoId) {
+    try {
+      const provider = videoProviderFactory.getProvider(asset.provider);
+      playback = await provider.getPlaybackInfo(asset.providerVideoId, {
+        playbackId: asset.playbackId || undefined,
+        durationSeconds: asset.durationSeconds || undefined,
+        requireSignedPlayback: asset.isPrivate
+      });
+    } catch {
+      // Gracefully handle playback resolution failure; previewPlayback remains null
+    }
+  }
 
   return {
     ...asset,
+    playbackUrl: playback?.playbackUrl || (isReady ? asset.playbackUrl : null),
     previewPlayback: playback
   };
 }
@@ -229,9 +248,20 @@ export async function deleteVideoAsset(id: string) {
     data: { videoId: null }
   });
 
-  // Call provider deletion
-  const provider = videoProviderFactory.getProvider(asset.provider);
-  await provider.deleteVideo(asset.providerVideoId);
+  // Enqueue asynchronous provider deletion via BullMQ
+  await videoQueue.enqueueVideoCleanup({
+    provider: asset.provider,
+    providerVideoId: asset.providerVideoId,
+    videoAssetId: id
+  });
+
+  // Also call provider deletion directly with graceful catch
+  try {
+    const provider = videoProviderFactory.getProvider(asset.provider);
+    await provider.deleteVideo(asset.providerVideoId);
+  } catch (err: any) {
+    // Already enqueued to background queue for retries
+  }
 
   await prisma.videoAsset.delete({ where: { id } });
   return { success: true };
@@ -513,6 +543,16 @@ export async function handleMuxWebhook(rawBody: string, headers: Record<string, 
             });
           }
         }
+
+        // Enqueue background processing job via BullMQ
+        await videoQueue.enqueueVideoReady({
+          videoAssetId: updatedAsset.id,
+          providerVideoId: assetId,
+          playbackId,
+          durationSeconds: updatedAsset.durationSeconds,
+          targetLessonId,
+          replacesAssetId: meta.replacesAssetId
+        });
       }
       break;
     }
@@ -550,6 +590,13 @@ export async function handleMuxWebhook(rawBody: string, headers: Record<string, 
             uploadId,
             error: errorMsg
           }
+        });
+
+        // Enqueue background failure job via BullMQ
+        await videoQueue.enqueueVideoFailed({
+          videoAssetId: videoAsset.id,
+          providerVideoId: assetId || videoAsset.providerVideoId,
+          errorMessage: errorMsg
         });
       }
       break;

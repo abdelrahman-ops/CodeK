@@ -23,7 +23,8 @@ import {
   UserCheck,
   UserX,
   FolderInput,
-  Trash2
+  Trash2,
+  Edit
 } from 'lucide-react';
 import { Card } from '../../components/ui/card.js';
 import { Button } from '../../components/ui/button.js';
@@ -36,6 +37,7 @@ import { ConfirmDialog } from '../../components/ui/confirm-dialog.js';
 import { useBulkSelection } from '../../hooks/use-bulk-selection.js';
 import { BulkSelectionBar } from '../../components/shared/bulk-selection-bar.js';
 import { StudentCredentialsModal } from '../../components/students/student-credentials-modal.js';
+import { EditStudentModal } from '../../components/students/edit-student-modal.js';
 import {
   Table,
   TableHeader,
@@ -58,8 +60,10 @@ export function AdminStudentsPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('');
+  const [selectedGrade, setSelectedGrade] = useState<string>('');
   const [selectedLearningMode, setSelectedLearningMode] = useState<string>('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<any | null>(null);
   const [createdStudentData, setCreatedStudentData] = useState<any | null>(null);
 
   // Bulk actions state
@@ -70,6 +74,7 @@ export function AdminStudentsPage() {
   // Manual payment recording modal state
   const [manualPaymentStudent, setManualPaymentStudent] = useState<StudentProfile | null>(null);
   const [manualPaymentNotes, setManualPaymentNotes] = useState('');
+  const [manualPaymentAmount, setManualPaymentAmount] = useState<string>('');
 
   // Form State
   const [firstName, setFirstName] = useState('');
@@ -85,8 +90,15 @@ export function AdminStudentsPage() {
   });
 
   const { data: students, isLoading } = useQuery({
-    queryKey: ['adminStudents', searchTerm, selectedGroup],
-    queryFn: async () => (await api.students.list({ search: searchTerm || undefined, groupId: selectedGroup || undefined })).data.data
+    queryKey: ['adminStudents', searchTerm, selectedGroup, selectedGrade],
+    queryFn: async () =>
+      (
+        await api.students.list({
+          search: searchTerm || undefined,
+          groupId: selectedGroup || undefined,
+          grade: selectedGrade || undefined
+        })
+      ).data.data
   });
 
   const createMutation = useMutation({
@@ -122,8 +134,8 @@ export function AdminStudentsPage() {
   });
 
   const manualPaymentMutation = useMutation({
-    mutationFn: async ({ studentId, notes }: { studentId: string; notes?: string }) => {
-      const res = await api.billing.adminRecordManualPayment({ studentId, notes });
+    mutationFn: async ({ studentId, amount, notes }: { studentId: string; amount?: number; notes?: string }) => {
+      const res = await api.billing.adminRecordManualPayment({ studentId, amount, notes });
       return res.data.data;
     },
     onSuccess: () => {
@@ -137,6 +149,7 @@ export function AdminStudentsPage() {
       );
       setManualPaymentStudent(null);
       setManualPaymentNotes('');
+      setManualPaymentAmount('');
     },
     onError: (err: any) => {
       toast.error(
@@ -205,6 +218,7 @@ export function AdminStudentsPage() {
 
   // Filter students
   const filteredStudents = students?.filter((student) => {
+    if (selectedGrade && student.grade !== selectedGrade) return false;
     if (selectedLearningMode) {
       if (selectedLearningMode === 'NOT_SELECTED' && student.learningModeSelected) return false;
       if (selectedLearningMode === 'HYBRID' && (!student.learningModeSelected || !student.attendanceRequired)) return false;
@@ -323,7 +337,7 @@ export function AdminStudentsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
             <Users className="w-7 h-7 text-brand-600 dark:text-brand-400" />
             <span>{t('nav.students')}</span>
           </h1>
@@ -348,7 +362,19 @@ export function AdminStudentsPage() {
             leftIcon={<Search className="w-4 h-4" />}
           />
         </div>
-        <div className="w-full sm:w-56">
+        <div className="w-full sm:w-48">
+          <Select
+            value={selectedGrade}
+            onChange={(e: any) => setSelectedGrade(e.target.value)}
+            options={[
+              { value: '', label: isRtl ? 'جميع الصفوف الدراسية' : 'All Grades' },
+              { value: 'GRADE_1', label: isRtl ? 'الصف الأول الثانوي (Grade 10)' : 'Grade 10 (Secondary 1)' },
+              { value: 'GRADE_2', label: isRtl ? 'الصف الثاني الثانوي (Grade 11)' : 'Grade 11 (Secondary 2)' },
+              { value: 'GRADE_3', label: isRtl ? 'الصف الثالث الثانوي (Grade 12)' : 'Grade 12 (Secondary 3)' }
+            ]}
+          />
+        </div>
+        <div className="w-full sm:w-48">
           <Select
             value={selectedGroup}
             onChange={(e: any) => setSelectedGroup(e.target.value)}
@@ -358,7 +384,7 @@ export function AdminStudentsPage() {
             ]}
           />
         </div>
-        <div className="w-full sm:w-56">
+        <div className="w-full sm:w-48">
           <Select
             value={selectedLearningMode}
             onChange={(e: any) => setSelectedLearningMode(e.target.value)}
@@ -467,7 +493,16 @@ export function AdminStudentsPage() {
                       </div>
                     </div>
 
-                    <div>
+                    <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                      {student.grade && (
+                        <Badge variant="purple" size="sm">
+                          {student.grade === 'GRADE_1'
+                            ? (isRtl ? 'الصف 1' : 'Grade 10')
+                            : student.grade === 'GRADE_2'
+                            ? (isRtl ? 'الصف 2' : 'Grade 11')
+                            : (isRtl ? 'الصف 3' : 'Grade 12')}
+                        </Badge>
+                      )}
                       {getLearningModeBadge(student)}
                     </div>
                   </div>
@@ -522,7 +557,7 @@ export function AdminStudentsPage() {
                           onClick={() => setManualPaymentStudent(student)}
                         >
                           <Wallet className="w-3.5 h-3.5" />
-                          <span>{isRtl ? 'تسجيل دفع — 250 ج.م' : 'Record Payment — 250 EGP'}</span>
+                          <span>{isRtl ? 'تسجيل دفع حضوري' : 'Record Payment'}</span>
                         </Button>
                       </div>
                     )}
@@ -540,14 +575,25 @@ export function AdminStudentsPage() {
                       </span>
                     </div>
 
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => navigate(`/admin/students/${student.id}`)}
-                    >
-                      <span>{t('common.details')}</span>
-                      <ChevronRight className="w-4 h-4 rtl:rotate-180" />
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingStudent(student)}
+                        className="text-xs gap-1"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>{t('common.edit')}</span>
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => navigate(`/admin/students/${student.id}`)}
+                      >
+                        <span>{t('common.details')}</span>
+                        <ChevronRight className="w-4 h-4 rtl:rotate-180" />
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               );
@@ -559,7 +605,7 @@ export function AdminStudentsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12 text-center">
+                  <TableHead className="w-10 text-center">
                     <input
                       type="checkbox"
                       checked={selection.isAllSelected}
@@ -570,13 +616,11 @@ export function AdminStudentsPage() {
                       className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 cursor-pointer accent-brand-600"
                     />
                   </TableHead>
-                  <TableHead>{t('roles.student')}</TableHead>
-                  <TableHead>{t('students.studentCode')}</TableHead>
-                  <TableHead>{isRtl ? 'المسار التعليمي' : 'Learning Mode'}</TableHead>
-                  <TableHead>{t('students.group')}</TableHead>
+                  <TableHead>{isRtl ? 'الطالب' : 'Student'}</TableHead>
+                  <TableHead>{isRtl ? 'الصف والمسار والمجموعة' : 'Grade, Mode & Group'}</TableHead>
                   <TableHead>{isRtl ? 'حالة الاشتراك والدفع' : 'Subscription & Payment'}</TableHead>
                   <TableHead>{t('dashboard.streak')} & XP</TableHead>
-                  <TableHead>{t('common.actions')}</TableHead>
+                  <TableHead className="text-end">{t('common.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -601,12 +645,18 @@ export function AdminStudentsPage() {
                           className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 cursor-pointer accent-brand-600"
                         />
                       </TableCell>
+
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar name={`${u.firstName} ${u.lastName}`} src={u.avatarUrl} size="sm" />
-                          <div>
-                            <div className="font-bold text-slate-900 dark:text-slate-100">
-                              {u.firstName} {u.lastName}
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 dark:text-slate-100">
+                                {u.firstName} {u.lastName}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400">
+                                {student.studentCode}
+                              </span>
                             </div>
                             <div className="text-xs text-slate-400">
                               {u.email || u.phone || t('common.noData')}
@@ -616,19 +666,24 @@ export function AdminStudentsPage() {
                       </TableCell>
 
                       <TableCell>
-                        <span className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-xs font-mono font-bold">
-                          {student.studentCode}
-                        </span>
-                      </TableCell>
-
-                      <TableCell>
-                        {getLearningModeBadge(student)}
-                      </TableCell>
-
-                      <TableCell>
-                        <Badge variant={activeGroup === t('common.noData') ? 'secondary' : 'outline'}>
-                          {activeGroup}
-                        </Badge>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {student.grade ? (
+                              <Badge variant="purple" size="sm">
+                                {student.grade === 'GRADE_1'
+                                  ? (isRtl ? 'الصف 1' : 'Grade 10')
+                                  : student.grade === 'GRADE_2'
+                                  ? (isRtl ? 'الصف 2' : 'Grade 11')
+                                  : (isRtl ? 'الصف 3' : 'Grade 12')}
+                              </Badge>
+                            ) : null}
+                            {getLearningModeBadge(student)}
+                          </div>
+                          <div className="text-xs text-slate-500 flex items-center gap-1">
+                            <span className="text-slate-400">{isRtl ? 'المجموعة:' : 'Group:'}</span>
+                            <span className="font-medium text-slate-700 dark:text-slate-300">{activeGroup}</span>
+                          </div>
+                        </div>
                       </TableCell>
 
                       <TableCell>
@@ -678,7 +733,7 @@ export function AdminStudentsPage() {
                                     }}
                                   >
                                     <Wallet className="w-3 h-3" />
-                                    <span>{isRtl ? 'تسجيل دفع — 250 ج.م' : 'Record — 250 EGP'}</span>
+                                    <span>{isRtl ? 'تسجيل دفع حضوري' : 'Record Payment'}</span>
                                   </Button>
                                 </div>
                               )
@@ -709,8 +764,17 @@ export function AdminStudentsPage() {
                         </div>
                       </TableCell>
 
-                      <TableCell>
-                        <div className="flex items-center gap-2">
+                      <TableCell className="text-end">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditingStudent(student)}
+                            className="text-xs gap-1"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                            <span>{t('common.edit')}</span>
+                          </Button>
                           <Button
                             size="sm"
                             variant="ghost"
@@ -743,12 +807,14 @@ export function AdminStudentsPage() {
       )}
 
       {/* Manual Payment Recording Modal for Hybrid Students */}
+      {/* Record Manual Hybrid Payment Modal */}
       {manualPaymentStudent && (
         <Dialog
           isOpen={Boolean(manualPaymentStudent)}
           onClose={() => {
             setManualPaymentStudent(null);
             setManualPaymentNotes('');
+            setManualPaymentAmount('');
           }}
           title={isRtl ? 'تسجيل دفع اشتراك حضوري (المسار المدمج)' : 'Record Manual Hybrid Payment'}
           maxWidth="md"
@@ -768,17 +834,30 @@ export function AdminStudentsPage() {
                 </Badge>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs text-slate-500">{isRtl ? 'قيمة الاشتراك:' : 'Plan Price:'}</span>
-                <span className="font-extrabold text-base text-brand-600 dark:text-brand-400">
-                  250 {isRtl ? 'ج.م' : 'EGP'}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-500">{isRtl ? 'المدة الممنوحة:' : 'Period Duration:'}</span>
                 <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                   {isRtl ? '30 يوماً من تاريخ الانتهاء الحالي (أو من اليوم)' : '30 days from current period end'}
                 </span>
               </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                {isRtl ? 'قيمة المبلغ المحصل (ج.م) *' : 'Received Amount (EGP) *'}
+              </label>
+              <Input
+                type="number"
+                min="1"
+                step="1"
+                placeholder={isRtl ? 'أدخل المبلغ المحصل بالجنيه المصري...' : 'Enter amount received in EGP...'}
+                value={manualPaymentAmount}
+                onChange={(e) => setManualPaymentAmount(e.target.value)}
+              />
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                {isRtl
+                  ? 'يمكنك إدخال أي مبلغ تحدده الإدارة دون التقيد بأي قيمة افتراضية.'
+                  : 'You can enter any custom payment amount as agreed without fixed defaults.'}
+              </p>
             </div>
 
             <div>
@@ -801,6 +880,7 @@ export function AdminStudentsPage() {
                 onClick={() => {
                   setManualPaymentStudent(null);
                   setManualPaymentNotes('');
+                  setManualPaymentAmount('');
                 }}
               >
                 {t('common.cancel')}
@@ -808,9 +888,11 @@ export function AdminStudentsPage() {
               <Button
                 className="bg-brand-600 text-white hover:bg-brand-700"
                 isLoading={manualPaymentMutation.isPending}
+                disabled={!manualPaymentAmount || Number(manualPaymentAmount) <= 0}
                 onClick={() =>
                   manualPaymentMutation.mutate({
                     studentId: manualPaymentStudent.id,
+                    amount: manualPaymentAmount ? Number(manualPaymentAmount) : undefined,
                     notes: manualPaymentNotes || undefined
                   })
                 }
@@ -972,6 +1054,14 @@ export function AdminStudentsPage() {
         isOpen={Boolean(createdStudentData)}
         onClose={() => setCreatedStudentData(null)}
         data={createdStudentData}
+      />
+
+      {/* Edit Student Modal */}
+      <EditStudentModal
+        isOpen={Boolean(editingStudent)}
+        onClose={() => setEditingStudent(null)}
+        student={editingStudent}
+        groups={groups}
       />
     </div>
   );

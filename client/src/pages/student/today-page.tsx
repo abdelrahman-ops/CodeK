@@ -93,7 +93,7 @@ export function TodayPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
           <CalendarCheck2 className="w-7 h-7 text-brand-600 dark:text-brand-400" />
           <span>{t('nav.today')}</span>
         </h1>
@@ -107,7 +107,7 @@ export function TodayPage() {
         {/* STEP 1 */}
         <Card className="p-5 sm:p-6 border-slate-200/80 dark:border-slate-800/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center font-black text-base shrink-0 mt-0.5">
+            <div className="w-10 h-10 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center font-semibold text-base shrink-0 mt-0.5">
               1
             </div>
             <div className="space-y-1">
@@ -143,7 +143,7 @@ export function TodayPage() {
         {/* STEP 2 */}
         <Card className="p-5 sm:p-6 border-slate-200/80 dark:border-slate-800/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center font-black text-base shrink-0 mt-0.5">
+            <div className="w-10 h-10 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center font-semibold text-base shrink-0 mt-0.5">
               2
             </div>
             <div className="space-y-1">
@@ -183,7 +183,7 @@ export function TodayPage() {
         {/* STEP 3 */}
         <Card className="p-5 sm:p-6 border-slate-200/80 dark:border-slate-800/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center font-black text-base shrink-0 mt-0.5">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center font-semibold text-base shrink-0 mt-0.5">
               3
             </div>
             <div className="space-y-1">
@@ -213,7 +213,7 @@ export function TodayPage() {
         {/* STEP 4 */}
         <Card className="p-5 sm:p-6 border-slate-200/80 dark:border-slate-800/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black text-base shrink-0 mt-0.5">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-semibold text-base shrink-0 mt-0.5">
               4
             </div>
             <div className="space-y-1">

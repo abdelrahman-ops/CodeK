@@ -62,7 +62,7 @@ export function MyGroupPage() {
               <Users2 className="w-3.5 h-3.5" />
               <span>{members.length} {t('groups.classmates')}</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black">{localizeText(groupData.name)}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold">{localizeText(groupData.name)}</h1>
             <p className="text-sm text-brand-100/90 mt-1">{localizeText(groupData.scheduleInfo) || localizeText(groupData.description)}</p>
           </div>
         </div>
@@ -71,7 +71,7 @@ export function MyGroupPage() {
       {/* Classmates Grid (Privacy Strictly Respected: Avatar, Display Name, Achievement Badges only) */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Users2 className="w-5 h-5 text-brand-600 dark:text-brand-400" />
             <span>{t('groups.classmatesCommunity')}</span>
             <Badge variant="primary" size="sm">{members.length}</Badge>
@@ -96,7 +96,7 @@ export function MyGroupPage() {
 
               {/* Achievement Badges (Lucide SVG icons only) */}
               <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
-                <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
+                <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
                   {t('nav.achievements')}
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">

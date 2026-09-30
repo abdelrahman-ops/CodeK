@@ -62,7 +62,7 @@ export function MarkdownViewer({ content, className }: ContentViewerProps) {
       <ReactMarkdown
         components={{
           h1: ({ children }) => (
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100 mt-6 mb-4 border-b border-slate-200/60 dark:border-slate-800 pb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-6 mb-4 border-b border-slate-200/60 dark:border-slate-800 pb-2">
               {children}
             </h1>
           ),
