@@ -5,6 +5,21 @@ let sharedClient: Redis | null = null;
 const activeClients = new Set<Redis>();
 
 /**
+ * Determines whether a functional Redis backend is configured.
+ * In serverless environments (e.g. Vercel), if REDIS_URL is default/localhost,
+ * Redis is not running locally in the lambda container.
+ */
+export function isRedisConfigured(): boolean {
+  if (process.env.VERCEL === '1') {
+    const url = process.env.REDIS_URL || env.REDIS_URL;
+    if (!url || url.includes('localhost') || url.includes('127.0.0.1')) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Sanitizes a Redis connection string for safe logging (masks passwords).
  */
 export function sanitizeRedisUrl(rawUrl: string): string {

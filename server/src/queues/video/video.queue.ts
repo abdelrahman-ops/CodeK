@@ -20,7 +20,7 @@ export class VideoQueueServiceUnavailableError extends Error {
 }
 
 export class VideoQueue {
-  private queue: Queue<VideoJobData>;
+  private queue: Queue<VideoJobData> | null = null;
 
   constructor() {
     this.queue = getOrCreateQueue<VideoJobData>(VIDEO_QUEUE);
@@ -37,6 +37,10 @@ export class VideoQueue {
     targetLessonId?: string | null;
     replacesAssetId?: string | null;
   }): Promise<string | null> {
+    if (!this.queue) {
+      return null;
+    }
+
     const jobData: VideoReadyJobData = {
       type: VideoJobType.VIDEO_READY,
       ...payload,
@@ -48,7 +52,7 @@ export class VideoQueue {
       const job = await this.queue.add(VideoJobType.VIDEO_READY, jobData, { jobId });
       return job.id || null;
     } catch (err: any) {
-      if (env.NODE_ENV === 'production') {
+      if (env.NODE_ENV === 'production' && !process.env.VERCEL) {
         console.error(`[VideoQueue] Production Redis failure enqueueing VIDEO_READY:`, err.message);
         throw new VideoQueueServiceUnavailableError('Queue service unavailable: failed to enqueue VIDEO_READY');
       }
@@ -66,6 +70,10 @@ export class VideoQueue {
     providerVideoId: string;
     errorMessage: string;
   }): Promise<string | null> {
+    if (!this.queue) {
+      return null;
+    }
+
     const jobData: VideoFailedJobData = {
       type: VideoJobType.VIDEO_FAILED,
       ...payload,
@@ -76,7 +84,7 @@ export class VideoQueue {
       const job = await this.queue.add(VideoJobType.VIDEO_FAILED, jobData, { jobId });
       return job.id || null;
     } catch (err: any) {
-      if (env.NODE_ENV === 'production') {
+      if (env.NODE_ENV === 'production' && !process.env.VERCEL) {
         console.error(`[VideoQueue] Production Redis failure enqueueing VIDEO_FAILED:`, err.message);
         throw new VideoQueueServiceUnavailableError('Queue service unavailable: failed to enqueue VIDEO_FAILED');
       }
@@ -98,6 +106,10 @@ export class VideoQueue {
       throw new Error('Video cleanup requires a non-empty providerVideoId');
     }
 
+    if (!this.queue) {
+      return null;
+    }
+
     const jobData: VideoCleanupJobData = {
       type: VideoJobType.VIDEO_CLEANUP,
       ...payload,
@@ -108,7 +120,7 @@ export class VideoQueue {
       const job = await this.queue.add(VideoJobType.VIDEO_CLEANUP, jobData, { jobId });
       return job.id || null;
     } catch (err: any) {
-      if (env.NODE_ENV === 'production') {
+      if (env.NODE_ENV === 'production' && !process.env.VERCEL) {
         console.error(`[VideoQueue] Production Redis failure enqueueing VIDEO_CLEANUP:`, err.message);
         throw new VideoQueueServiceUnavailableError('Queue service unavailable: failed to enqueue VIDEO_CLEANUP');
       }
@@ -119,7 +131,7 @@ export class VideoQueue {
   }
 
   getRawQueue(): Queue<VideoJobData> {
-    return this.queue;
+    return this.queue!;
   }
 }
 
