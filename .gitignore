@@ -34,12 +34,12 @@ Thumbs.db
 coverage/
 .nyc_output/
 
-# Custom directories
-bugs/
-curriculum/
-bash.sh
-Agent/
-scratch/
-phases
-notes.md
+# Custom directories (root only)
+/bugs/
+/curriculum/
+/bash.sh
+/Agent/
+/scratch/
+/phases/
+/notes.md
 *.timestamp-*
