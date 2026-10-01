@@ -36,7 +36,7 @@ import { useToast } from '../../components/ui/toast.js';
 import { useLearningStore } from '../../store/learning-store.js';
 import { localizeText, formatStatus, formatDuration } from '../../lib/i18n-helpers.js';
 import { cn } from '../../lib/utils.js';
-import { Lesson, Curriculum } from '../../types/api.js';
+import { Lesson, Curriculum, Task } from '../../types/api.js';
 import {
   LessonHeader,
   TextbookProvenance,
@@ -520,14 +520,14 @@ export function LessonPlayerPage() {
               {hasEngineeringTask && (
                 <EngineeringTaskCard
                   task={lesson.engineeringTask}
-                  onSubmitClick={(t) => navigate(`/student/tasks/${t.id}`)}
+                  onSubmitClick={(t: Task) => navigate(`/student/tasks/${t.id}`)}
                 />
               )}
 
               {hasAdvancedChallenge && (
                 <AdvancedChallengeCard
                   challenge={lesson.advancedChallenge}
-                  onSubmitClick={(c) => navigate(`/student/tasks/${c.id}`)}
+                  onSubmitClick={(c: Task) => navigate(`/student/tasks/${c.id}`)}
                 />
               )}
 
@@ -794,7 +794,7 @@ export function LessonPlayerPage() {
         isOpen={isQuizDrawerOpen}
         onClose={() => setIsQuizDrawerOpen(false)}
         quiz={activeQuiz}
-        onQuizCompleted={(xpEarned) => {
+        onQuizCompleted={(xpEarned: number) => {
           queryClient.invalidateQueries({ queryKey: ['studentLesson', id] });
           if (activeCourseId) {
             queryClient.invalidateQueries({ queryKey: ['studentCourseDetail', activeCourseId] });
