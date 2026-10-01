@@ -1,12 +1,14 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { getTestApp, loginAdmin } from './helpers/test-app.js';
 import { FastifyInstance } from 'fastify';
+import { prisma } from '../src/db/prisma.js';
 
 describe('Monthly Exams, Timing Windows and Auto-Grading Module', () => {
   let app: FastifyInstance;
   let adminToken: string;
   let youssefToken: string;
   let youssefStudentId: string;
+  let curriculumId: string;
   let examId: string;
   let q1Id: string;
   let q2Id: string;
@@ -23,13 +25,35 @@ describe('Monthly Exams, Timing Windows and Auto-Grading Module', () => {
     youssefToken = youssefRes.json().data.accessToken;
     youssefStudentId = youssefRes.json().data.user.student.id;
 
-    // Create an active exam
+    // Ensure student is assigned GRADE_2 to match curriculum
+    await prisma.student.update({
+      where: { id: youssefStudentId },
+      data: { grade: 'GRADE_2' }
+    });
+
+    // Create a GRADE_2 curriculum for the exams
+    const courseRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/courses',
+      headers: { authorization: `Bearer ${adminToken}` },
+      payload: {
+        title: 'Exams Test Track',
+        description: 'Track for testing exams with GRADE_2 isolation',
+        grade: 'GRADE_2',
+        type: 'ACADEMY',
+        isPublished: true
+      }
+    });
+    curriculumId = courseRes.json().data.id;
+
+    // Create an active exam associated with the GRADE_2 curriculum
     const examRes = await app.inject({
       method: 'POST',
       url: '/api/v1/exams',
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         title: 'Midterm Algorithms Quiz',
+        curriculumId,
         startsAt: new Date(Date.now() - 3600000).toISOString(),
         endsAt: new Date(Date.now() + 86400000).toISOString(),
         durationMinutes: 30,
@@ -93,6 +117,7 @@ describe('Monthly Exams, Timing Windows and Auto-Grading Module', () => {
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         title: 'Draft Final Exam',
+        curriculumId,
         startsAt: new Date(Date.now() - 3600000).toISOString(),
         endsAt: new Date(Date.now() + 86400000).toISOString(),
         durationMinutes: 60,
@@ -119,6 +144,7 @@ describe('Monthly Exams, Timing Windows and Auto-Grading Module', () => {
       headers: { authorization: `Bearer ${adminToken}` },
       payload: {
         title: 'Future Scheduled Exam',
+        curriculumId,
         startsAt: new Date(Date.now() + 86400000).toISOString(),
         endsAt: new Date(Date.now() + 172800000).toISOString(),
         durationMinutes: 45,
@@ -172,5 +198,28 @@ describe('Monthly Exams, Timing Windows and Auto-Grading Module', () => {
     });
 
     expect(res.statusCode).toBe(400);
+  });
+
+  it('should block cross-grade student from accessing exam (GRADE_1 student accessing GRADE_2 exam -> 404)', async () => {
+    // Login Omar and ensure he has GRADE_1
+    const omarRes = await app.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      payload: { loginId: 'STU-1001', password: 'Student@123' }
+    });
+    const omarToken = omarRes.json().data.accessToken;
+    const omarStudentId = omarRes.json().data.user.student.id;
+    await prisma.student.update({
+      where: { id: omarStudentId },
+      data: { grade: 'GRADE_1' }
+    });
+
+    const accessRes = await app.inject({
+      method: 'GET',
+      url: `/api/v1/exams/${examId}`,
+      headers: { authorization: `Bearer ${omarToken}` }
+    });
+
+    expect(accessRes.statusCode).toBe(404);
   });
 });

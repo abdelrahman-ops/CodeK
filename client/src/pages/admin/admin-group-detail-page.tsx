@@ -54,7 +54,8 @@ export function AdminGroupDetailPage() {
 
   const { data: allStudents } = useQuery({
     queryKey: ['allStudentsList'],
-    queryFn: async () => (await api.students.list()).data.data
+    queryFn: async () => (await api.students.list()).data.data,
+    enabled: isEnrollModalOpen
   });
 
   const enrollMutation = useMutation({
@@ -199,7 +200,7 @@ export function AdminGroupDetailPage() {
               <Presentation className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100">{localizeText(group.name)}</h1>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{localizeText(group.name)}</h1>
               <p className="text-xs text-slate-500 mt-0.5">{localizeText(group.description) || t('groups.noDescription')}</p>
             </div>
           </div>
@@ -220,7 +221,7 @@ export function AdminGroupDetailPage() {
       {/* Enrolled Students Table */}
       <Card className="border-slate-200/80 dark:border-slate-800/80 shadow-sm overflow-hidden">
         <CardHeader className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-          <CardTitle className="text-base font-black flex items-center gap-2">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
             <Users className="w-5 h-5 text-brand-600 dark:text-brand-400" />
             <span>{t('groups.enrolledStudents')} ({enrollments.length})</span>
           </CardTitle>

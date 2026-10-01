@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api/client.js';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { GraduationCap, Plus, Clock, HelpCircle, ChevronLeft, Trash2, Eye, ToggleLeft, ToggleRight, Users, CheckCircle2 } from 'lucide-react';
+import { GraduationCap, Plus, Clock, HelpCircle, ChevronLeft, Trash2, Eye, ToggleLeft, ToggleRight, Users, CheckCircle2, Check, X } from 'lucide-react';
 import { Card } from '../../components/ui/card.js';
 import { Button } from '../../components/ui/button.js';
 import { Input } from '../../components/ui/input.js';
@@ -15,6 +15,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '.
 import { CardSkeleton } from '../../components/ui/skeleton.js';
 import { useToast } from '../../components/ui/toast.js';
 import { localizeText, formatStatus, formatMarks, formatDuration, formatXp, formatDate } from '../../lib/i18n-helpers.js';
+import { useBulkSelection } from '../../hooks/use-bulk-selection.js';
+import { BulkSelectionBar } from '../../components/shared/bulk-selection-bar.js';
 
 export function AdminExamsPage() {
   const { t } = useTranslation();
@@ -32,10 +34,44 @@ export function AdminExamsPage() {
   const [startsAt, setStartsAt] = useState(new Date().toISOString().slice(0, 16));
   const [endsAt, setEndsAt] = useState(new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 16));
   const [examToDelete, setExamToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
 
   const { data: exams, isLoading } = useQuery({
     queryKey: ['adminExams'],
     queryFn: async () => (await api.exams.list()).data.data
+  });
+
+  const selection = useBulkSelection(exams || []);
+
+  const bulkPublishMutation = useMutation({
+    mutationFn: async ({ ids, isPublished }: { ids: string[]; isPublished: boolean }) =>
+      (await api.exams.bulkPublish(ids, isPublished)).data.data,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['adminExams'] });
+      selection.deselectAll();
+      toast.success(t('common.success'));
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => (await api.exams.bulkDelete(ids)).data.data,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['adminExams'] });
+      selection.deselectAll();
+      setIsBulkDeleteOpen(false);
+      toast.success(t('common.success'));
+      if (data.failed && data.failed.length > 0) {
+        toast.error(
+          `تعذر حذف ${data.failed.length} اختبار نظراً لوجود محاولات طلاب مسجلة.`
+        );
+      }
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
   });
 
   const { data: attemptsData, isLoading: isAttemptsLoading } = useQuery({
@@ -103,7 +139,7 @@ export function AdminExamsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
             <GraduationCap className="w-7 h-7 text-brand-600 dark:text-brand-400" />
             <span>{t('nav.exams')}</span>
           </h1>
@@ -118,18 +154,72 @@ export function AdminExamsPage() {
         </Button>
       </div>
 
+      {/* Bulk Action Toolbar */}
+      <BulkSelectionBar
+        totalItems={exams?.length || 0}
+        selectedCount={selection.selectedCount}
+        isAllSelected={selection.isAllSelected}
+        isIndeterminate={selection.isIndeterminate}
+        onToggleSelectAll={selection.toggleSelectAll}
+        onDeselectAll={selection.deselectAll}
+        onDeleteSelected={() => setIsBulkDeleteOpen(true)}
+        isLoading={bulkDeleteMutation.isPending || bulkPublishMutation.isPending}
+        actions={[
+          {
+            id: 'publish',
+            label: 'نشر المحدد',
+            icon: <Check className="w-3.5 h-3.5" />,
+            variant: 'primary',
+            onClick: () =>
+              bulkPublishMutation.mutate({
+                ids: Array.from(selection.selectedIds),
+                isPublished: true
+              })
+          },
+          {
+            id: 'unpublish',
+            label: 'إلغاء النشر (مسودة)',
+            icon: <X className="w-3.5 h-3.5" />,
+            variant: 'secondary',
+            onClick: () =>
+              bulkPublishMutation.mutate({
+                ids: Array.from(selection.selectedIds),
+                isPublished: false
+              })
+          }
+        ]}
+      />
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {exams?.map((exam) => (
-          <Card key={exam.id} className="p-6 flex flex-col justify-between gap-4 border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Badge variant={exam.isPublished ? 'success' : 'secondary'}>
-                  {exam.isPublished ? t('exams.published') : t('exams.draft')}
-                </Badge>
-                <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
-                  {formatXp(exam.xpReward)}
-                </span>
-              </div>
+        {exams?.map((exam) => {
+          const isSelected = selection.isSelected(exam.id);
+          return (
+            <Card
+              key={exam.id}
+              className={`p-6 flex flex-col justify-between gap-4 transition shadow-sm ${
+                isSelected
+                  ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
+                  : 'border-slate-200/80 dark:border-slate-800/80'
+              }`}
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => selection.toggle(exam.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 cursor-pointer accent-brand-600"
+                    />
+                    <Badge variant={exam.isPublished ? 'success' : 'secondary'}>
+                      {exam.isPublished ? t('exams.published') : t('exams.draft')}
+                    </Badge>
+                  </div>
+                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                    {formatXp(exam.xpReward)}
+                  </span>
+                </div>
 
               <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100">
                 {localizeText(exam.title)}
@@ -187,7 +277,8 @@ export function AdminExamsPage() {
               </div>
             </div>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {/* Delete Exam Confirm Dialog */}
@@ -204,6 +295,17 @@ export function AdminExamsPage() {
         title={t('exams.deleteExam')}
         description={`${t('exams.confirmDeleteExam')} "${examToDelete?.title}"`}
         isLoading={deleteExamMutation.isPending}
+        isDestructive={true}
+      />
+
+      {/* Bulk Delete Exams Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={isBulkDeleteOpen}
+        onClose={() => setIsBulkDeleteOpen(false)}
+        onConfirm={() => bulkDeleteMutation.mutate(Array.from(selection.selectedIds))}
+        title={`حذف ${selection.selectedCount} اختبار؟`}
+        description={`هل أنت متأكد من حذف ${selection.selectedCount} اختبار محدد؟ الاختبارات التي تحتوي على محاولات طلاب مسجلة ستتم حمايتها ولن يتم حذفها للحفاظ على سجلات الطلاب.`}
+        isLoading={bulkDeleteMutation.isPending}
         isDestructive={true}
       />
 
@@ -460,7 +562,7 @@ export function AdminExamBuilderPage() {
       </div>
 
       <Card className="p-6">
-        <h1 className="text-2xl font-black text-slate-900 dark:text-slate-100">{exam?.title ? localizeText(exam.title) : ''}</h1>
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{exam?.title ? localizeText(exam.title) : ''}</h1>
         <p className="text-xs text-slate-500 mt-1">
           {questions.length} {t('exams.questions')} • {formatDuration(exam?.durationMinutes)} • {formatMarks(exam?.totalMarks)}
         </p>
@@ -487,18 +589,32 @@ export function AdminExamBuilderPage() {
 
             <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">{localizeText(q.questionText)}</h3>
 
-            {q.options && (
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                {q.options.map((opt, oIdx) => (
-                  <div
-                    key={oIdx}
-                    className={`p-2.5 rounded-xl border font-semibold ${opt === q.correctAnswer ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-800 dark:text-emerald-200' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'}`}
-                  >
-                    {String.fromCharCode(65 + oIdx)}. {opt} {opt === q.correctAnswer ? `(${t('exams.correctAnswer')})` : ''}
-                  </div>
-                ))}
-              </div>
-            )}
+            {(() => {
+              let parsedOptions: string[] = [];
+              if (Array.isArray(q.options)) {
+                parsedOptions = q.options;
+              } else if (typeof q.options === 'string') {
+                try {
+                  const parsed = JSON.parse(q.options);
+                  if (Array.isArray(parsed)) parsedOptions = parsed;
+                } catch {
+                  parsedOptions = [];
+                }
+              }
+              if (parsedOptions.length === 0) return null;
+              return (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {parsedOptions.map((opt, oIdx) => (
+                    <div
+                      key={oIdx}
+                      className={`p-2.5 rounded-xl border font-semibold ${opt === q.correctAnswer ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 text-emerald-800 dark:text-emerald-200' : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700'}`}
+                    >
+                      {String.fromCharCode(65 + oIdx)}. {opt} {opt === q.correctAnswer ? `(${t('exams.correctAnswer')})` : ''}
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
           </Card>
         ))}
       </div>

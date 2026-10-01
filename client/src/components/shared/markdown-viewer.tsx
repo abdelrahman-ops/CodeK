@@ -1,10 +1,33 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
+import DOMPurify from 'dompurify';
 import { cn } from '../../lib/utils.js';
 
 interface ContentViewerProps {
   content: string;
   className?: string;
+}
+
+export function sanitizeHtml(rawHtml: string): string {
+  if (!rawHtml) return '';
+  return DOMPurify.sanitize(rawHtml, {
+    ALLOWED_TAGS: [
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+      'p', 'span', 'b', 'i', 'strong', 'em', 'u', 's', 'strike',
+      'ul', 'ol', 'li',
+      'pre', 'code', 'blockquote',
+      'hr', 'br',
+      'a', 'table', 'thead', 'tbody', 'tr', 'th', 'td',
+      'img'
+    ],
+    ALLOWED_ATTR: [
+      'href', 'target', 'rel', 'src', 'alt', 'title', 'class', 'width', 'height'
+    ],
+    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+    ADD_ATTR: ['target', 'rel'],
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'style'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover', 'onfocus', 'onblur']
+  });
 }
 
 export function MarkdownViewer({ content, className }: ContentViewerProps) {
@@ -13,6 +36,10 @@ export function MarkdownViewer({ content, className }: ContentViewerProps) {
   // If content contains HTML tags from TipTap editor, render as sanitized HTML
   const isHtml = /<[a-z][\s\S]*>/i.test(content);
 
+  const sanitized = useMemo(() => {
+    return isHtml ? sanitizeHtml(content) : '';
+  }, [content, isHtml]);
+
   if (isHtml) {
     return (
       <div
@@ -20,7 +47,7 @@ export function MarkdownViewer({ content, className }: ContentViewerProps) {
           'prose prose-slate dark:prose-invert max-w-none text-slate-800 dark:text-slate-200 leading-relaxed break-words',
           className
         )}
-        dangerouslySetInnerHTML={{ __html: content }}
+        dangerouslySetInnerHTML={{ __html: sanitized }}
       />
     );
   }
@@ -35,7 +62,7 @@ export function MarkdownViewer({ content, className }: ContentViewerProps) {
       <ReactMarkdown
         components={{
           h1: ({ children }) => (
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100 mt-6 mb-4 border-b border-slate-200/60 dark:border-slate-800 pb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 mt-6 mb-4 border-b border-slate-200/60 dark:border-slate-800 pb-2">
               {children}
             </h1>
           ),

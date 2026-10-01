@@ -20,10 +20,10 @@ export function StatCard({
   return (
     <Card className={cn('p-5 flex items-center justify-between', className)}>
       <div className="flex flex-col gap-1">
-        <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+        <span className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
           {title}
         </span>
-        <div className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+        <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
           {value}
         </div>
         {subtitle && (
@@ -68,7 +68,7 @@ export function PageHeader({
       )}
     >
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
           {title}
         </h1>
         {subtitle && (

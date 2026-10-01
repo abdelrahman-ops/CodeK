@@ -6,7 +6,11 @@ import {
   resetPasswordSchema,
   setupPasswordSchema,
   verifyAdminOtpSchema,
-  resendAdminOtpSchema
+  resendAdminOtpSchema,
+  registerStudentSchema,
+  verifyEmailSchema,
+  resendVerificationSchema,
+  selectLearningModeSchema
 } from './auth.schema.js';
 import * as authService from './auth.service.js';
 import { authenticate } from '../../common/middleware/auth.js';
@@ -14,15 +18,45 @@ import { verifyAccessToken } from '../../common/utils/jwt.js';
 import { env } from '../../config/env.js';
 
 const COOKIE_NAME = 'refreshToken';
+const isProd = env.NODE_ENV === 'production';
+
 const COOKIE_OPTIONS = {
   path: '/',
   httpOnly: true,
-  secure: env.NODE_ENV === 'production',
-  sameSite: 'lax' as const,
+  secure: isProd,
+  sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax',
   maxAge: 30 * 24 * 60 * 60 // 30 days in seconds
 };
 
 export async function authRoutes(app: FastifyInstance) {
+  // Self-Service Student Registration (Rate limit: 10 attempts per minute per IP)
+  app.post(
+    '/register',
+    {
+      config: {
+        rateLimit: {
+          max: env.NODE_ENV === 'test' ? 1000 : 10,
+          timeWindow: '1 minute'
+        }
+      }
+    },
+    async (request, reply) => {
+      const input = registerStudentSchema.parse(request.body);
+      const result = await authService.registerStudent(input);
+
+      if (result.refreshToken) {
+        reply.setCookie(COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
+      }
+
+      if ((env.NODE_ENV === 'production' || result.requiresVerification) && result.refreshToken) {
+        const { refreshToken: _rt, ...safeData } = result;
+        return reply.status(201).send({ data: safeData });
+      }
+
+      return reply.status(201).send({ data: result });
+    }
+  );
+
   // Login (Strict rate limit: 10 attempts per minute per IP)
   app.post(
     '/login',
@@ -40,6 +74,11 @@ export async function authRoutes(app: FastifyInstance) {
 
       if (!result.requires2FA && result.refreshToken) {
         reply.setCookie(COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
+      }
+
+      if (env.NODE_ENV === 'production' && !result.requires2FA && result.refreshToken) {
+        const { refreshToken: _rt, ...safeData } = result;
+        return reply.send({ data: safeData });
       }
 
       return reply.send({ data: result });
@@ -65,6 +104,11 @@ export async function authRoutes(app: FastifyInstance) {
         reply.setCookie(COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
       }
 
+      if (env.NODE_ENV === 'production' && result.refreshToken) {
+        const { refreshToken: _rt, ...safeData } = result;
+        return reply.send({ data: safeData });
+      }
+
       return reply.send({ data: result });
     }
   );
@@ -88,8 +132,18 @@ export async function authRoutes(app: FastifyInstance) {
   );
 
   // Refresh Token (Supports HttpOnly cookie or body fallback)
-  app.post('/refresh', async (request, reply) => {
-    const input = refreshSchema.parse(request.body || {});
+  app.post(
+    '/refresh',
+    {
+      config: {
+        rateLimit: {
+          max: env.NODE_ENV === 'test' ? 1000 : 60,
+          timeWindow: '1 minute'
+        }
+      }
+    },
+    async (request, reply) => {
+      const input = refreshSchema.parse(request.body || {});
     const rawRefreshToken = input.refreshToken || (request.cookies ? request.cookies[COOKIE_NAME] : undefined);
 
     if (!rawRefreshToken) {
@@ -105,6 +159,11 @@ export async function authRoutes(app: FastifyInstance) {
 
     if (result.refreshToken) {
       reply.setCookie(COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
+    }
+
+    if (env.NODE_ENV === 'production' && result.refreshToken) {
+      const { refreshToken: _rt, ...safeData } = result;
+      return reply.send({ data: safeData });
     }
 
     return reply.send({ data: result });
@@ -129,7 +188,12 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     await authService.logout(tokenToRevoke, userId);
-    reply.clearCookie(COOKIE_NAME, { path: '/' });
+    reply.clearCookie(COOKIE_NAME, {
+      path: '/',
+      httpOnly: true,
+      secure: isProd,
+      sameSite: (isProd ? 'none' : 'lax') as 'none' | 'lax'
+    });
 
     return reply.send({ data: { success: true } });
   });
@@ -160,6 +224,11 @@ export async function authRoutes(app: FastifyInstance) {
         reply.setCookie(COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
       }
 
+      if (env.NODE_ENV === 'production' && result.refreshToken) {
+        const { refreshToken: _rt, ...safeData } = result;
+        return reply.send({ data: safeData });
+      }
+
       return reply.send({ data: result });
     }
   );
@@ -179,6 +248,66 @@ export async function authRoutes(app: FastifyInstance) {
       const input = resetPasswordSchema.parse(request.body);
       const result = await authService.resetPassword(input);
       reply.clearCookie(COOKIE_NAME, { path: '/' });
+      return reply.send({ data: result });
+    }
+  );
+
+  // Verify Student Email OTP (Rate limit: 10 attempts per minute per IP)
+  app.post(
+    '/verify-email',
+    {
+      config: {
+        rateLimit: {
+          max: env.NODE_ENV === 'test' ? 1000 : 10,
+          timeWindow: '1 minute'
+        }
+      }
+    },
+    async (request, reply) => {
+      const input = verifyEmailSchema.parse(request.body);
+      const result = await authService.verifyEmail(input);
+
+      if (result.refreshToken) {
+        reply.setCookie(COOKIE_NAME, result.refreshToken, COOKIE_OPTIONS);
+      }
+
+      if (env.NODE_ENV === 'production' && result.refreshToken) {
+        const { refreshToken: _rt, ...safeData } = result;
+        return reply.send({ data: safeData });
+      }
+
+      return reply.send({ data: result });
+    }
+  );
+
+  // Resend Student Email Verification OTP (Rate limit: 3 attempts per minute per IP)
+  app.post(
+    '/resend-verification',
+    {
+      config: {
+        rateLimit: {
+          max: env.NODE_ENV === 'test' ? 1000 : 3,
+          timeWindow: '1 minute'
+        }
+      }
+    },
+    async (request, reply) => {
+      const input = resendVerificationSchema.parse(request.body);
+      const result = await authService.resendVerificationOtp(input);
+      return reply.send({ data: result });
+    }
+  );
+
+  // Select Learning Mode: Online vs Hybrid (Authenticated, Student only)
+  app.post(
+    '/select-learning-mode',
+    { preHandler: [authenticate] },
+    async (request, reply) => {
+      if (request.user?.role !== 'STUDENT') {
+        return reply.status(403).send({ error: 'Only students can select learning mode' });
+      }
+      const input = selectLearningModeSchema.parse(request.body);
+      const result = await authService.selectLearningMode(request.user.userId, input);
       return reply.send({ data: result });
     }
   );

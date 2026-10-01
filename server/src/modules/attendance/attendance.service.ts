@@ -309,3 +309,37 @@ export async function getSessionAttendanceList(sessionId: string) {
     roster
   };
 }
+
+export async function adminBulkMarkAttendance(
+  sessionId: string,
+  studentIds: string[],
+  status: AttendanceStatus,
+  notes?: string,
+  actorUserId?: string
+) {
+  const successful: string[] = [];
+  const failed: Array<{ id: string; reason: string }> = [];
+
+  for (const studentId of studentIds) {
+    try {
+      await adminMarkAttendance(sessionId, studentId, status, notes, actorUserId);
+      successful.push(studentId);
+    } catch (err: any) {
+      failed.push({ id: studentId, reason: err.message || 'Failed to mark attendance' });
+    }
+  }
+
+  await createAuditLog({
+    actorUserId,
+    action: `ATTENDANCE_BULK_MARKED_${status}`,
+    entityType: 'Attendance',
+    entityId: sessionId,
+    metadata: { sessionId, status, successfulCount: successful.length, failedCount: failed.length }
+  });
+
+  return {
+    success: failed.length === 0,
+    successful,
+    failed
+  };
+}

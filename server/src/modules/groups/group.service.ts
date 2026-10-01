@@ -367,3 +367,85 @@ export async function deleteGroup(groupId: string, actorUserId?: string) {
 
   return { success: true };
 }
+
+export async function deleteGroupsBulk(groupIds: string[], actorUserId?: string) {
+  if (!groupIds || groupIds.length === 0) {
+    return { success: true, count: 0, ids: [], failed: [] };
+  }
+
+  const groups = await prisma.group.findMany({
+    where: { id: { in: groupIds } },
+    include: {
+      _count: {
+        select: {
+          sessions: true,
+          enrollments: { where: { isActive: true } }
+        }
+      }
+    }
+  });
+
+  const deletableIds: string[] = [];
+  const failed: { id: string; name: string; reason: string }[] = [];
+
+  for (const g of groups) {
+    if (g._count.sessions > 0) {
+      failed.push({
+        id: g.id,
+        name: g.name,
+        reason: 'Cannot delete group with existing class sessions and historical attendance.'
+      });
+    } else if (g._count.enrollments > 0) {
+      failed.push({
+        id: g.id,
+        name: g.name,
+        reason: 'Cannot delete group with actively enrolled students.'
+      });
+    } else {
+      deletableIds.push(g.id);
+    }
+  }
+
+  // Account for any IDs not found in database
+  const foundGroupIds = new Set(groups.map((g) => g.id));
+  for (const requestedId of groupIds) {
+    if (!foundGroupIds.has(requestedId)) {
+      failed.push({
+        id: requestedId,
+        name: requestedId,
+        reason: 'Group not found.'
+      });
+    }
+  }
+
+  if (deletableIds.length > 0) {
+    await prisma.$transaction(async (tx) => {
+      await tx.groupSchedule.deleteMany({ where: { groupId: { in: deletableIds } } });
+      await tx.groupEnrollment.deleteMany({ where: { groupId: { in: deletableIds } } });
+      await tx.group.deleteMany({ where: { id: { in: deletableIds } } });
+    });
+
+    await createAuditLog({
+      actorUserId,
+      action: 'GROUP_BULK_DELETED',
+      entityType: 'Group',
+      entityId: deletableIds[0] || null,
+      metadata: {
+        deletedCount: deletableIds.length,
+        deletedIds: deletableIds,
+        failedCount: failed.length,
+        failed
+      }
+    });
+  }
+
+  return {
+    success: true,
+    count: deletableIds.length,
+    deletedCount: deletableIds.length,
+    failedCount: failed.length,
+    ids: deletableIds,
+    deletedIds: deletableIds,
+    failed
+  };
+}

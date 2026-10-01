@@ -13,6 +13,11 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 import { prisma } from '../src/db/prisma.js';
 
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ SEED ABORTED: Database wiping / development seeding is strictly forbidden in production!');
+    process.exit(1);
+  }
+
   console.log('====================================================');
   console.log('🔄 Cleaning entire database & Seeding Admin User only');
   console.log('====================================================\n');
@@ -78,6 +83,7 @@ async function main() {
       phone,
       role: Role.ADMIN,
       mustChangePassword: false,
+      isEmailVerified: true,
       isActive: true
     }
   });

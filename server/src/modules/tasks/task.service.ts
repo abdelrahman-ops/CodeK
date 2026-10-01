@@ -1,9 +1,10 @@
 import { prisma } from '../../db/prisma.js';
 import { AssignTaskInput, CreateTaskInput, ListTasksQuery, UpdateTaskInput } from './task.schema.js';
 import { BadRequestError, NotFoundError } from '../../common/errors/app-error.js';
-import { NotificationType, Role } from '@prisma/client';
+import { NotificationType, Role, StudentGrade } from '@prisma/client';
 import { createAuditLog } from '../audit/audit.service.js';
 import { createBulkNotifications } from '../notifications/notification.service.js';
+import { getStudentGrade, assertGradeAccess } from '../curriculum/curriculum-auth.js';
 
 export async function createTask(input: CreateTaskInput, actorUserId?: string) {
   const task = await prisma.task.create({
@@ -122,8 +123,19 @@ export async function listTasks(query: ListTasksQuery, user: { userId: string; r
     ...(isPublished !== undefined ? { isPublished } : {})
   };
 
-  if (user.role === Role.STUDENT) {
+  if (user.role === Role.STUDENT && user.studentId) {
+    const studentGrade = await getStudentGrade(user.studentId);
+    if (!studentGrade) {
+      return [];
+    }
+
     where.isPublished = true;
+    where.lesson = {
+      curriculum: {
+        grade: studentGrade
+      }
+    };
+
     if (groupId) {
       where.assignments = { some: { groupId } };
     }
@@ -135,7 +147,13 @@ export async function listTasks(query: ListTasksQuery, user: { userId: string; r
     where,
     orderBy: { createdAt: 'desc' },
     include: {
-      lesson: { select: { id: true, title: true } },
+      lesson: {
+        select: {
+          id: true,
+          title: true,
+          curriculum: { select: { id: true, title: true, grade: true } }
+        }
+      },
       assignments: { include: { group: { select: { id: true, name: true } } } },
       submissions: user.studentId
         ? {
@@ -145,14 +163,21 @@ export async function listTasks(query: ListTasksQuery, user: { userId: string; r
     }
   });
 
-  return tasks;
+  return tasks.map((t: any) => ({
+    ...t,
+    mySubmission: user.studentId && Array.isArray(t.submissions) ? t.submissions[0] || null : null
+  }));
 }
 
 export async function getTaskById(taskId: string, user: { userId: string; role: Role; studentId?: string }) {
   const task = await prisma.task.findUnique({
     where: { id: taskId },
     include: {
-      lesson: true,
+      lesson: {
+        include: {
+          curriculum: true
+        }
+      },
       assignments: { include: { group: true } },
       submissions: user.role === Role.STUDENT && user.studentId
         ? {
@@ -176,7 +201,23 @@ export async function getTaskById(taskId: string, user: { userId: string; role: 
     throw new NotFoundError('Task not found');
   }
 
-  return task;
+  if (user.role === Role.STUDENT && user.studentId) {
+    if (!task.lesson?.curriculum?.grade) {
+      throw new NotFoundError('Task not found');
+    }
+    const studentGrade = await getStudentGrade(user.studentId);
+    assertGradeAccess(studentGrade, task.lesson.curriculum.grade, 'Task');
+  }
+
+  const mySubmission =
+    user.role === Role.STUDENT && user.studentId && Array.isArray((task as any).submissions)
+      ? (task as any).submissions[0] || null
+      : null;
+
+  return {
+    ...task,
+    mySubmission
+  };
 }
 
 export async function updateTask(taskId: string, input: UpdateTaskInput, actorUserId?: string) {
@@ -235,4 +276,80 @@ export async function deleteTask(taskId: string, actorUserId?: string) {
   });
 
   return { success: true };
+}
+
+export async function bulkPublishTasks(
+  ids: string[],
+  isPublished: boolean,
+  actorUserId?: string
+) {
+  const result = await prisma.task.updateMany({
+    where: { id: { in: ids } },
+    data: { isPublished }
+  });
+
+  await createAuditLog({
+    actorUserId,
+    action: isPublished ? 'TASKS_BULK_PUBLISHED' : 'TASKS_BULK_UNPUBLISHED',
+    entityType: 'Task',
+    entityId: ids[0] || null,
+    metadata: { count: result.count, ids, isPublished }
+  });
+
+  return {
+    success: true,
+    count: result.count,
+    ids
+  };
+}
+
+export async function bulkDeleteTasks(
+  ids: string[],
+  actorUserId?: string
+) {
+  const successful: string[] = [];
+  const failed: Array<{ id: string; reason: string }> = [];
+
+  for (const id of ids) {
+    try {
+      const task = await prisma.task.findUnique({
+        where: { id },
+        include: {
+          _count: { select: { submissions: true } }
+        }
+      });
+
+      if (!task) {
+        failed.push({ id, reason: 'Task not found' });
+        continue;
+      }
+
+      if (task._count.submissions > 0) {
+        failed.push({
+          id,
+          reason: `Cannot delete task "${task.title}" because it has ${task._count.submissions} student submissions. Unpublish instead.`
+        });
+        continue;
+      }
+
+      await prisma.task.delete({ where: { id } });
+      successful.push(id);
+    } catch (err: any) {
+      failed.push({ id, reason: err.message || 'Deletion failed' });
+    }
+  }
+
+  await createAuditLog({
+    actorUserId,
+    action: 'TASKS_BULK_DELETED',
+    entityType: 'Task',
+    entityId: ids[0] || null,
+    metadata: { successfulCount: successful.length, failedCount: failed.length }
+  });
+
+  return {
+    success: failed.length === 0,
+    successful,
+    failed
+  };
 }

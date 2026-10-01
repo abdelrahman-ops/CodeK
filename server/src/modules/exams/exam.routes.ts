@@ -6,7 +6,9 @@ import {
   createExamSchema,
   listExamsQuerySchema,
   submitExamAttemptSchema,
-  updateExamSchema
+  updateExamSchema,
+  bulkPublishExamsSchema,
+  bulkDeleteExamsSchema
 } from './exam.schema.js';
 import * as examService from './exam.service.js';
 import { z } from 'zod';
@@ -20,6 +22,28 @@ export async function examRoutes(app: FastifyInstance) {
       const input = createExamSchema.parse(request.body);
       const exam = await examService.createExam(input, request.user!.userId);
       return reply.status(201).send({ data: exam });
+    }
+  );
+
+  // Bulk publish/unpublish exams (Admin)
+  app.patch(
+    '/bulk-publish',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const input = bulkPublishExamsSchema.parse(request.body || {});
+      const result = await examService.bulkPublishExams(input.ids, input.isPublished, request.user!.userId);
+      return reply.send({ data: result });
+    }
+  );
+
+  // Bulk delete exams (Admin — safe checks: prevents deleting exams with student attempts)
+  app.delete(
+    '/bulk',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const input = bulkDeleteExamsSchema.parse(request.body || {});
+      const result = await examService.bulkDeleteExams(input.ids, request.user!.userId);
+      return reply.send({ data: result });
     }
   );
 

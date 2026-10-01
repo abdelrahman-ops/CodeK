@@ -263,7 +263,7 @@ export async function createPublicRegistration(input: CreatePublicRegistrationIn
       email: input.email && input.email.trim() !== '' ? input.email.trim().toLowerCase() : null,
       dateOfBirth: input.dateOfBirth ? new Date(input.dateOfBirth) : null,
       schoolName: input.schoolName ? input.schoolName.trim() : null,
-      grade: input.grade ? input.grade.trim() : null,
+      grade: input.grade || null,
       programmingLevel: input.programmingLevel,
       previousExperience: input.previousExperience ? input.previousExperience.trim() : null,
       motivation: input.motivation ? input.motivation.trim() : null,
@@ -325,7 +325,7 @@ export async function listAdminRegistrations(query: {
       : {})
   };
 
-  const [total, items, statusCountsGroup] = await Promise.all([
+  const [total, items, statusCountsGroup, settings] = await Promise.all([
     prisma.studentRegistration.count({ where }),
     prisma.studentRegistration.findMany({
       where,
@@ -344,7 +344,8 @@ export async function listAdminRegistrations(query: {
     prisma.studentRegistration.groupBy({
       by: ['status'],
       _count: { _all: true }
-    })
+    }),
+    prisma.registrationSetting.findUnique({ where: { id: 'default' } })
   ]);
 
   const counts: Record<string, number> = {
@@ -362,8 +363,6 @@ export async function listAdminRegistrations(query: {
     counts[group.status] = group._count._all;
     counts.ALL += group._count._all;
   }
-
-  const settings = await prisma.registrationSetting.findUnique({ where: { id: 'default' } });
 
   return {
     items,
@@ -475,6 +474,7 @@ export async function approveRegistrationAndCreateStudent(
         loginId,
         passwordHash,
         mustChangePassword: true,
+        isEmailVerified: true,
         email: reg.email,
         phone: reg.phone,
         role: Role.STUDENT,
@@ -490,7 +490,9 @@ export async function approveRegistrationAndCreateStudent(
         studentCode: loginId,
         anonymousLeaderboardCode: anonymousCode,
         programmingLevel: reg.programmingLevel,
+        learningModeSelected: true,
         schoolName: reg.schoolName,
+        grade: reg.grade,
         dateOfBirth: reg.dateOfBirth
       }
     });
@@ -596,4 +598,118 @@ export async function updateRegistrationSettings(input: UpdateRegistrationSettin
   });
 
   return setting;
+}
+
+export async function bulkUpdateRegistrationStatus(
+  registrationIds: string[],
+  status: RegistrationStatus,
+  rejectionReason?: string | null,
+  actorUserId?: string
+) {
+  const result = await prisma.studentRegistration.updateMany({
+    where: { id: { in: registrationIds } },
+    data: {
+      status,
+      reviewedAt: new Date(),
+      reviewedByUserId: actorUserId,
+      ...(rejectionReason ? { rejectionReason } : {})
+    }
+  });
+
+  await createAuditLog({
+    actorUserId,
+    action: `REGISTRATIONS_BULK_${status}`,
+    entityType: 'StudentRegistration',
+    entityId: registrationIds[0] || null,
+    metadata: { count: result.count, registrationIds, status, rejectionReason }
+  });
+
+  return {
+    success: true,
+    count: result.count,
+    registrationIds
+  };
+}
+
+export async function bulkApproveRegistrations(
+  registrationIds: string[],
+  groupId?: string | null,
+  actorUserId?: string
+) {
+  const successful: Array<{ id: string; studentId: string; loginId: string }> = [];
+  const failed: Array<{ id: string; reason: string }> = [];
+
+  for (const regId of registrationIds) {
+    try {
+      const res = await approveRegistrationAndCreateStudent(regId, { groupId }, actorUserId || 'SYSTEM');
+      successful.push({
+        id: regId,
+        studentId: res.student.id,
+        loginId: res.credentials.loginId
+      });
+    } catch (err: any) {
+      failed.push({ id: regId, reason: err.message || 'Approval failed' });
+    }
+  }
+
+  await createAuditLog({
+    actorUserId,
+    action: 'REGISTRATIONS_BULK_APPROVED',
+    entityType: 'StudentRegistration',
+    entityId: registrationIds[0] || null,
+    metadata: { successfulCount: successful.length, failedCount: failed.length }
+  });
+
+  return {
+    success: failed.length === 0,
+    successful,
+    failed
+  };
+}
+
+export async function deleteAdminRegistration(id: string, actorUserId?: string) {
+  const existing = await prisma.studentRegistration.findUnique({ where: { id } });
+  if (!existing) {
+    throw new NotFoundError('Student registration not found');
+  }
+
+  await prisma.studentRegistration.delete({ where: { id } });
+
+  if (actorUserId) {
+    await createAuditLog({
+      actorUserId,
+      action: 'REGISTRATION_DELETED',
+      entityType: 'StudentRegistration',
+      entityId: id,
+      metadata: {
+        registrationCode: existing.registrationCode,
+        studentName: `${existing.firstName} ${existing.lastName}`,
+        phone: existing.phone
+      }
+    });
+  }
+
+  return { success: true, id };
+}
+
+export async function bulkDeleteAdminRegistrations(registrationIds: string[], actorUserId?: string) {
+  if (!registrationIds || registrationIds.length === 0) {
+    throw new BadRequestError('At least one registration ID is required');
+  }
+
+  const result = await prisma.studentRegistration.deleteMany({
+    where: { id: { in: registrationIds } }
+  });
+
+  if (actorUserId) {
+    await createAuditLog({
+      actorUserId,
+      action: 'REGISTRATIONS_BULK_DELETED',
+      entityType: 'StudentRegistration',
+      entityId: registrationIds[0] || null,
+      metadata: { count: result.count, registrationIds }
+    });
+  }
+
+  return { success: true, count: result.count, registrationIds };
 }

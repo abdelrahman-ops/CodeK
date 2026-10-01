@@ -36,7 +36,7 @@ export function ParentChildrenPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
           {t('parents.linkedChildren')}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -110,7 +110,7 @@ export function ParentPaymentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
           {t('payments.title')}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -139,8 +139,8 @@ export function ParentPaymentsPage() {
 
               <div className="flex items-center gap-3">
                 <div className="text-end">
-                  <div className="text-base font-black text-slate-900 dark:text-slate-100">
-                    {formatCurrency(payment?.amount || 250)}
+                  <div className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                    {payment?.amount !== undefined && payment?.amount !== null ? formatCurrency(payment.amount) : '—'}
                   </div>
                   <div className="text-xs text-slate-500">
                     {t('parents.currentMonth')}

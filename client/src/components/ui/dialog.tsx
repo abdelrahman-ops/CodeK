@@ -65,7 +65,7 @@ export function Dialog({
         <div className="p-5 pb-3 flex items-start justify-between border-b border-slate-100 dark:border-slate-800/80">
           <div>
             {title && (
-              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 leading-snug">
                 {title}
               </h3>
             )}

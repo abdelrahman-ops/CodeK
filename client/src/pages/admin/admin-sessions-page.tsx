@@ -26,6 +26,8 @@ import { useToast } from '../../components/ui/toast.js';
 import { localizeText, formatStatus, formatDate, formatTime12h } from '../../lib/i18n-helpers.js';
 import { CreateSessionModal } from '../../components/sessions/create-session-modal.js';
 import { Session } from '../../types/api.js';
+import { useBulkSelection } from '../../hooks/use-bulk-selection.js';
+import { BulkSelectionBar } from '../../components/shared/bulk-selection-bar.js';
 
 export function AdminSessionsPage() {
   const { t, i18n } = useTranslation();
@@ -36,6 +38,7 @@ export function AdminSessionsPage() {
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<Session | null>(null);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedGroupId, setSelectedGroupId] = useState<string>('ALL');
 
@@ -49,6 +52,17 @@ export function AdminSessionsPage() {
     queryFn: async () => (await api.groups.list()).data.data
   });
 
+  const allSessions = sessions || [];
+
+  // Filter sessions
+  const filteredSessions = allSessions.filter((sess) => {
+    const matchesStatus = statusFilter === 'ALL' || sess.status === statusFilter;
+    const matchesGroup = selectedGroupId === 'ALL' || sess.groupId === selectedGroupId || sess.group?.id === selectedGroupId;
+    return matchesStatus && matchesGroup;
+  });
+
+  const selection = useBulkSelection(filteredSessions);
+
   const deleteSessionMutation = useMutation({
     mutationFn: async (sessionId: string) => {
       return (await api.sessions.delete(sessionId)).data.data;
@@ -58,6 +72,26 @@ export function AdminSessionsPage() {
       queryClient.invalidateQueries({ queryKey: ['adminDashboard'] });
       setSessionToDelete(null);
       toast.success(isArabic ? 'تم حذف الحصة بنجاح' : 'Session deleted successfully');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (sessionIds: string[]) => {
+      return (await api.sessions.bulkDelete(sessionIds)).data.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['adminSessions'] });
+      queryClient.invalidateQueries({ queryKey: ['adminDashboard'] });
+      selection.clear();
+      setIsBulkDeleteOpen(false);
+      toast.success(
+        isArabic
+          ? `تم حذف ${data.count} حصة بنجاح`
+          : `Successfully deleted ${data.count} sessions`
+      );
     },
     onError: (err: any) => {
       toast.error(err.response?.data?.error?.message || t('common.error'));
@@ -80,15 +114,6 @@ export function AdminSessionsPage() {
 
   if (isLoadingSessions) return <CardSkeleton />;
 
-  const allSessions = sessions || [];
-
-  // Filter sessions
-  const filteredSessions = allSessions.filter((sess) => {
-    const matchesStatus = statusFilter === 'ALL' || sess.status === statusFilter;
-    const matchesGroup = selectedGroupId === 'ALL' || sess.groupId === selectedGroupId || sess.group?.id === selectedGroupId;
-    return matchesStatus && matchesGroup;
-  });
-
   const counts = {
     all: allSessions.length,
     scheduled: allSessions.filter((s) => s.status === 'SCHEDULED').length,
@@ -102,7 +127,7 @@ export function AdminSessionsPage() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2.5">
             <CalendarCheck2 className="w-7 h-7 text-brand-600 dark:text-brand-400" />
             <span>{t('nav.sessions')}</span>
           </h1>
@@ -133,7 +158,7 @@ export function AdminSessionsPage() {
             }`}
           >
             <span>{isArabic ? 'الكل' : 'All'}</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 dark:bg-white/10 font-mono">
+            <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-white/20 dark:bg-white/10 font-mono">
               {counts.all}
             </span>
           </button>
@@ -149,7 +174,7 @@ export function AdminSessionsPage() {
           >
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>{isArabic ? 'نشطة الآن' : 'Active'}</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
+            <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
               {counts.active}
             </span>
           </button>
@@ -164,7 +189,7 @@ export function AdminSessionsPage() {
             }`}
           >
             <span>{isArabic ? 'مجدولة' : 'Scheduled'}</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
+            <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
               {counts.scheduled}
             </span>
           </button>
@@ -179,7 +204,7 @@ export function AdminSessionsPage() {
             }`}
           >
             <span>{isArabic ? 'مكتملة' : 'Completed'}</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
+            <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
               {counts.completed}
             </span>
           </button>
@@ -194,7 +219,7 @@ export function AdminSessionsPage() {
             }`}
           >
             <span>{isArabic ? 'ملغاة' : 'Cancelled'}</span>
-            <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
+            <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-white/20 font-mono">
               {counts.cancelled}
             </span>
           </button>
@@ -220,13 +245,25 @@ export function AdminSessionsPage() {
         )}
       </div>
 
+      {/* Bulk Selection Bar */}
+      <BulkSelectionBar
+        totalItems={filteredSessions.length}
+        selectedCount={selection.selectedCount}
+        isAllSelected={selection.isAllSelected}
+        isIndeterminate={selection.isIndeterminate}
+        onToggleSelectAll={selection.toggleSelectAll}
+        onDeselectAll={selection.deselectAll}
+        onDeleteSelected={() => setIsBulkDeleteOpen(true)}
+        isLoading={bulkDeleteMutation.isPending}
+      />
+
       {/* Sessions List */}
       {filteredSessions.length === 0 ? (
         <Card className="p-12 text-center space-y-3 bg-slate-50/50 dark:bg-slate-900/50 border-dashed border-2 border-slate-200 dark:border-slate-800">
           <div className="w-12 h-12 rounded-2xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 flex items-center justify-center mx-auto">
             <CalendarCheck2 className="w-6 h-6" />
           </div>
-          <h3 className="font-black text-base text-slate-800 dark:text-slate-200">
+          <h3 className="font-semibold text-base text-slate-800 dark:text-slate-200">
             {isArabic ? 'لا توجد حصص تطابق التصفية الحالية' : 'No sessions matching this filter'}
           </h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
@@ -245,60 +282,75 @@ export function AdminSessionsPage() {
             const isActive = sess.status === 'ACTIVE';
             const isCompleted = sess.status === 'COMPLETED';
             const isCancelled = sess.status === 'CANCELLED';
+            const isSelected = selection.isSelected(sess.id);
 
             return (
               <Card
                 key={sess.id}
                 className={`p-5 transition-all hover:shadow-md border flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${
-                  isActive
+                  isSelected
+                    ? 'ring-2 ring-brand-500/40 border-brand-400 bg-brand-50/20 dark:bg-brand-950/20'
+                    : isActive
                     ? 'bg-emerald-50/30 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800 ring-1 ring-emerald-500/20'
                     : isCancelled
                     ? 'opacity-70 bg-rose-50/20 dark:bg-rose-950/10 border-slate-200 dark:border-slate-800'
                     : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800'
                 }`}
               >
-                {/* Session Info */}
-                <div className="space-y-2 flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <h3 className="font-black text-base sm:text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                      <span>{sess.group?.name ? localizeText(sess.group.name) : t('students.group')}</span>
-                      <span className="text-brand-600 dark:text-brand-400 font-extrabold">
-                        #{sess.sessionNumber}
-                      </span>
-                    </h3>
-
-                    {/* Status Badge */}
-                    <Badge
-                      variant={isActive ? 'success' : isCompleted ? 'secondary' : isCancelled ? 'danger' : 'primary'}
-                      size="sm"
-                    >
-                      {isActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />}
-                      <span>{formatStatus(sess.status)}</span>
-                    </Badge>
+                <div className="flex items-start md:items-center gap-3.5 flex-1 min-w-0">
+                  {/* Row Checkbox */}
+                  <div className="pt-1 md:pt-0 shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => selection.toggle(sess.id)}
+                      className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 cursor-pointer accent-brand-600"
+                    />
                   </div>
 
-                  {/* Metadata Chips: Date, 12h Time, Attendance Count */}
-                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">
-                    <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-bold">
-                      <CalendarIcon className="w-3.5 h-3.5 text-brand-500" />
-                      <span>{formatDate(sess.date)}</span>
-                    </span>
+                  {/* Session Info */}
+                  <div className="space-y-2 flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <h3 className="font-semibold text-base sm:text-lg text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                        <span>{sess.group?.name ? localizeText(sess.group.name) : t('students.group')}</span>
+                        <span className="text-brand-600 dark:text-brand-400 font-semibold">
+                          #{sess.sessionNumber}
+                        </span>
+                      </h3>
 
-                    <span className="text-slate-300 dark:text-slate-700">•</span>
+                      {/* Status Badge */}
+                      <Badge
+                        variant={isActive ? 'success' : isCompleted ? 'secondary' : isCancelled ? 'danger' : 'primary'}
+                        size="sm"
+                      >
+                        {isActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse mr-1" />}
+                        <span>{formatStatus(sess.status)}</span>
+                      </Badge>
+                    </div>
 
-                    <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
-                      <Clock className="w-3.5 h-3.5 text-brand-500 shrink-0" />
-                      <span dir="ltr" className="font-mono font-bold">
-                        {formatTime12h(sess.startTime, isArabic)} – {formatTime12h(sess.endTime, isArabic)}
+                    {/* Metadata Chips: Date, 12h Time, Attendance Count */}
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">
+                      <span className="flex items-center gap-1 text-slate-700 dark:text-slate-300 font-bold">
+                        <CalendarIcon className="w-3.5 h-3.5 text-brand-500" />
+                        <span>{formatDate(sess.date)}</span>
                       </span>
-                    </span>
 
-                    <span className="text-slate-300 dark:text-slate-700">•</span>
+                      <span className="text-slate-300 dark:text-slate-700">•</span>
 
-                    <span className="flex items-center gap-1 font-bold text-slate-600 dark:text-slate-400">
-                      <Users className="w-3.5 h-3.5 text-brand-500" />
-                      <span>{sess._count?.attendances || 0} {t('sessions.presentCount')}</span>
-                    </span>
+                      <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200">
+                        <Clock className="w-3.5 h-3.5 text-brand-500 shrink-0" />
+                        <span dir="ltr" className="font-mono font-bold">
+                          {formatTime12h(sess.startTime, isArabic)} – {formatTime12h(sess.endTime, isArabic)}
+                        </span>
+                      </span>
+
+                      <span className="text-slate-300 dark:text-slate-700">•</span>
+
+                      <span className="flex items-center gap-1 font-bold text-slate-600 dark:text-slate-400">
+                        <Users className="w-3.5 h-3.5 text-brand-500" />
+                        <span>{sess._count?.attendances || 0} {t('sessions.presentCount')}</span>
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -365,6 +417,25 @@ export function AdminSessionsPage() {
         isDestructive={true}
       />
 
+      {/* Bulk Delete Sessions Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={isBulkDeleteOpen}
+        onClose={() => setIsBulkDeleteOpen(false)}
+        onConfirm={() => bulkDeleteMutation.mutate(selection.selectedIds)}
+        title={
+          isArabic
+            ? `حذف ${selection.selectedCount} حصة؟`
+            : `Delete ${selection.selectedCount} sessions?`
+        }
+        description={
+          isArabic
+            ? `هل أنت متأكد من حذف ${selection.selectedCount} حصة محددة؟ سيتم حذف الحصص وسجلات الحضور التابعة لها نهائياً ولا يمكن التراجع عن هذا الإجراء.`
+            : `Are you sure you want to delete ${selection.selectedCount} selected sessions? This will permanently delete them and all associated attendance records. This action cannot be undone.`
+        }
+        isLoading={bulkDeleteMutation.isPending}
+        isDestructive={true}
+      />
+
       <CreateSessionModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
@@ -372,3 +443,4 @@ export function AdminSessionsPage() {
     </div>
   );
 }
+

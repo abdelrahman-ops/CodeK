@@ -5,7 +5,8 @@ import {
   createGroupSchema,
   enrollStudentSchema,
   listGroupsQuerySchema,
-  updateGroupSchema
+  updateGroupSchema,
+  bulkDeleteGroupsSchema
 } from './group.schema.js';
 import * as groupService from './group.service.js';
 import { z } from 'zod';
@@ -82,6 +83,17 @@ export async function groupRoutes(app: FastifyInstance) {
     }
   );
 
+  // Bulk delete groups (Admin)
+  app.delete(
+    '/bulk',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const { ids } = bulkDeleteGroupsSchema.parse(request.body);
+      const result = await groupService.deleteGroupsBulk(ids, request.user!.userId);
+      return reply.send({ data: result });
+    }
+  );
+
   // Delete group (Admin)
   app.delete(
     '/:id',
@@ -93,3 +105,4 @@ export async function groupRoutes(app: FastifyInstance) {
     }
   );
 }
+

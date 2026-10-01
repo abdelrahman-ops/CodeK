@@ -5,8 +5,10 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '../../components/ui/toast.js';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card.js';
 import { Input } from '../../components/ui/input.js';
+import { PasswordInput } from '../../components/ui/password-input.js';
 import { Button } from '../../components/ui/button.js';
 import { api } from '../../lib/api/client.js';
+import { saveTokens } from '../../lib/auth-storage.js';
 import { Lock, CheckCircle2 } from 'lucide-react';
 
 export function ChangePasswordPage() {
@@ -46,15 +48,14 @@ export function ChangePasswordPage() {
   return (
     <Card className="shadow-xl border-slate-200/80 dark:border-slate-800">
       <CardHeader className="text-center pb-2">
-        <CardTitle className="text-2xl font-black">{t('auth.changePassword')}</CardTitle>
+        <CardTitle className="text-2xl font-semibold">{t('auth.changePassword')}</CardTitle>
         <CardDescription>{t('auth.mustChangePasswordNotice')}</CardDescription>
       </CardHeader>
 
       <CardContent className="pt-4">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
+          <PasswordInput
             label={t('auth.currentPassword')}
-            type="password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.target.value)}
             leftIcon={<Lock className="w-4 h-4" />}
@@ -62,9 +63,8 @@ export function ChangePasswordPage() {
             disabled={isLoading}
           />
 
-          <Input
+          <PasswordInput
             label={t('auth.newPassword')}
-            type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             leftIcon={<Lock className="w-4 h-4" />}
@@ -72,9 +72,8 @@ export function ChangePasswordPage() {
             disabled={isLoading}
           />
 
-          <Input
+          <PasswordInput
             label={t('auth.confirmNewPassword')}
-            type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             leftIcon={<Lock className="w-4 h-4" />}
@@ -116,8 +115,7 @@ export function SetupPasswordPage() {
       const res = await api.auth.setupPassword({ token, newPassword });
       const { user, accessToken, refreshToken } = res.data.data;
 
-      localStorage.setItem('academy_access_token', accessToken);
-      localStorage.setItem('academy_refresh_token', refreshToken);
+      saveTokens(accessToken, refreshToken);
       localStorage.setItem('academy_user', JSON.stringify(user));
 
       setIsSuccess(true);
@@ -149,15 +147,14 @@ export function SetupPasswordPage() {
   return (
     <Card className="shadow-xl border-slate-200/80 dark:border-slate-800">
       <CardHeader className="text-center pb-2">
-        <CardTitle className="text-2xl font-black">{t('auth.setupTitle')}</CardTitle>
+        <CardTitle className="text-2xl font-semibold">{t('auth.setupTitle')}</CardTitle>
         <CardDescription>{t('auth.setupSubtitle')}</CardDescription>
       </CardHeader>
 
       <CardContent className="pt-4">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
+          <PasswordInput
             label={t('auth.newPassword')}
-            type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             leftIcon={<Lock className="w-4 h-4" />}
@@ -165,9 +162,8 @@ export function SetupPasswordPage() {
             disabled={isLoading}
           />
 
-          <Input
+          <PasswordInput
             label={t('auth.confirmNewPassword')}
-            type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             leftIcon={<Lock className="w-4 h-4" />}
@@ -218,15 +214,14 @@ export function ResetPasswordPage() {
   return (
     <Card className="shadow-xl border-slate-200/80 dark:border-slate-800">
       <CardHeader className="text-center pb-2">
-        <CardTitle className="text-2xl font-black">{t('auth.resetTitle')}</CardTitle>
+        <CardTitle className="text-2xl font-semibold">{t('auth.resetTitle')}</CardTitle>
         <CardDescription>{t('auth.resetSubtitle')}</CardDescription>
       </CardHeader>
 
       <CardContent className="pt-4">
         <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
+          <PasswordInput
             label={t('auth.newPassword')}
-            type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             leftIcon={<Lock className="w-4 h-4" />}
@@ -234,9 +229,8 @@ export function ResetPasswordPage() {
             disabled={isLoading}
           />
 
-          <Input
+          <PasswordInput
             label={t('auth.confirmNewPassword')}
-            type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             leftIcon={<Lock className="w-4 h-4" />}

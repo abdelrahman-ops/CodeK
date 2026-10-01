@@ -4,6 +4,7 @@ import { BadRequestError, NotFoundError } from '../../common/errors/app-error.js
 import { NotificationType, SubmissionStatus, XPSourceType } from '@prisma/client';
 import { createAuditLog } from '../audit/audit.service.js';
 import { createNotification } from '../notifications/notification.service.js';
+import { assertGradeAccess } from '../curriculum/curriculum-auth.js';
 
 export async function submitTask(studentUserId: string, input: CreateSubmissionInput) {
   const student = await prisma.student.findUnique({
@@ -15,12 +16,25 @@ export async function submitTask(studentUserId: string, input: CreateSubmissionI
   }
 
   const task = await prisma.task.findUnique({
-    where: { id: input.taskId }
+    where: { id: input.taskId },
+    include: {
+      lesson: {
+        include: {
+          curriculum: true
+        }
+      }
+    }
   });
 
   if (!task || !task.isPublished) {
     throw new NotFoundError('Task not found or not published');
   }
+
+  if (!task.lesson?.curriculum?.grade) {
+    throw new NotFoundError('Task not found');
+  }
+
+  assertGradeAccess(student.grade, task.lesson.curriculum.grade, 'Task');
 
   const submission = await prisma.submission.upsert({
     where: {

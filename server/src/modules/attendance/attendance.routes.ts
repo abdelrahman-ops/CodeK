@@ -3,6 +3,7 @@ import { authenticate } from '../../common/middleware/auth.js';
 import { requireAdmin, requireStudent } from '../../common/middleware/rbac.js';
 import {
   adminMarkAttendanceSchema,
+  adminBulkMarkAttendanceSchema,
   confirmStudentAttendanceSchema
 } from './attendance.schema.js';
 import * as attendanceService from './attendance.service.js';
@@ -34,6 +35,23 @@ export async function attendanceRoutes(app: FastifyInstance) {
       const result = await attendanceService.adminMarkAttendance(
         input.sessionId,
         input.studentId,
+        input.status,
+        input.notes,
+        request.user!.userId
+      );
+      return reply.send({ data: result });
+    }
+  );
+
+  // Admin bulk mark attendance (PRESENT/ABSENT)
+  app.post(
+    '/admin-bulk-mark',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const input = adminBulkMarkAttendanceSchema.parse(request.body || {});
+      const result = await attendanceService.adminBulkMarkAttendance(
+        input.sessionId,
+        input.studentIds,
         input.status,
         input.notes,
         request.user!.userId

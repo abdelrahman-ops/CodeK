@@ -3,12 +3,22 @@ import { ZodError } from 'zod';
 import { AppError } from './app-error.js';
 import { env } from '../../config/env.js';
 
+import { sanitizeErrorMessage } from '../../plugins/request-logger.js';
+
 export const errorHandler = (
   error: FastifyError | AppError | ZodError | Error,
   request: FastifyRequest,
   reply: FastifyReply
 ) => {
-  request.log.error(error);
+  // Only log unexpected 500 errors to request.log, and ensure sensitive values are redacted
+  const isOperational = error instanceof AppError || error instanceof ZodError;
+  if (!isOperational) {
+    const safeMsg = sanitizeErrorMessage(error.message);
+    if (safeMsg !== error.message) {
+      error.message = safeMsg;
+    }
+    request.log.error(error);
+  }
 
   if (error instanceof ZodError) {
     return reply.status(400).send({
@@ -53,6 +63,28 @@ export const errorHandler = (
     });
   }
 
+  // Prisma / Database connection failure or unhandled Prisma error
+  const isPrismaError =
+    error.name === 'PrismaClientInitializationError' ||
+    error.name === 'PrismaClientRustPanicError' ||
+    error.name === 'PrismaClientUnknownRequestError' ||
+    ('code' in error && (error.code === 'ECONNREFUSED' || error.code === 'P1001' || error.code === 'P1002' || error.code === 'P1008' || error.code === 'P1017')) ||
+    (typeof error.message === 'string' && (
+      error.message.includes('Invalid `prisma.') ||
+      error.message.includes("Can't reach database server") ||
+      error.message.includes('ECONNREFUSED')
+    ));
+
+  if (isPrismaError) {
+    request.log.error({ err: error }, 'Database connection error');
+    return reply.status(503).send({
+      error: {
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Database service is temporarily unavailable. Please try again shortly.'
+      }
+    });
+  }
+
   // Fastify Rate Limit or HTTP Status Errors (e.g., 429)
   if ('statusCode' in error && typeof error.statusCode === 'number') {
     const statusCode = error.statusCode;
@@ -66,10 +98,18 @@ export const errorHandler = (
 
   // Generic fallback
   const isProd = env.NODE_ENV === 'production';
+  const hasInternalLeak =
+    typeof error.message === 'string' &&
+    (error.message.includes('prisma') ||
+     error.message.includes('\\') ||
+     error.message.includes('/') ||
+     error.message.includes('SELECT ') ||
+     error.message.includes('findFirst'));
+
   return reply.status(500).send({
     error: {
       code: 'INTERNAL_SERVER_ERROR',
-      message: isProd ? 'An internal server error occurred' : error.message
+      message: isProd || hasInternalLeak ? 'An internal server error occurred. Please try again later.' : error.message
     }
   });
 };

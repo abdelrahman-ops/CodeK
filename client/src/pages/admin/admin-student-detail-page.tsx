@@ -33,6 +33,7 @@ import { Input } from '../../components/ui/input.js';
 import { Select } from '../../components/ui/select.js';
 import { ConfirmDialog } from '../../components/ui/confirm-dialog.js';
 import { StudentCredentialsModal, StudentCredentialsData } from '../../components/students/student-credentials-modal.js';
+import { EditStudentModal } from '../../components/students/edit-student-modal.js';
 import { CardSkeleton } from '../../components/ui/skeleton.js';
 import { useToast } from '../../components/ui/toast.js';
 import { localizeText, formatStatus, formatStreak, formatCurrency, formatDate } from '../../lib/i18n-helpers.js';
@@ -40,11 +41,13 @@ import { localizeText, formatStatus, formatStreak, formatCurrency, formatDate } 
 export function AdminStudentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRtl = i18n.language === 'ar';
   const toast = useToast();
   const queryClient = useQueryClient();
 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [resetMode, setResetMode] = useState<'AUTO' | 'CUSTOM'>('AUTO');
   const [customPassword, setCustomPassword] = useState('');
@@ -174,6 +177,16 @@ export function AdminStudentDetailPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setIsEditModalOpen(true)}
+            className="text-brand-600 border-brand-200 hover:bg-brand-50 dark:border-brand-800 dark:hover:bg-brand-950/40"
+          >
+            <Edit className="w-4 h-4" />
+            <span>{isRtl ? 'تعديل البيانات' : 'Edit Profile'}</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setIsResetDialogOpen(true)}
             className="text-amber-600 border-amber-200 hover:bg-amber-50 dark:border-amber-800 dark:hover:bg-amber-950/40"
           >
@@ -200,8 +213,17 @@ export function AdminStudentDetailPage() {
 
           <div className="flex-1 text-center sm:text-start space-y-2">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <h1 className="text-2xl font-black">{u.firstName} {u.lastName}</h1>
+              <h1 className="text-2xl font-bold">{u.firstName} {u.lastName}</h1>
               <Badge variant="primary" size="sm">{student.studentCode}</Badge>
+              {student.grade && (
+                <Badge variant="purple" size="sm">
+                  {student.grade === 'GRADE_1'
+                    ? (isRtl ? 'الصف الأول الثانوي (Grade 10)' : 'Grade 10 (Secondary 1)')
+                    : student.grade === 'GRADE_2'
+                    ? (isRtl ? 'الصف الثاني الثانوي (Grade 11)' : 'Grade 11 (Secondary 2)')
+                    : (isRtl ? 'الصف الثالث الثانوي (Grade 12)' : 'Grade 12 (Secondary 3)')}
+                </Badge>
+              )}
               <Badge variant="secondary" size="sm">{formatStatus(student.programmingLevel)}</Badge>
             </div>
 
@@ -232,7 +254,7 @@ export function AdminStudentDetailPage() {
         <Card className="p-4 space-y-2 border-slate-200/80 dark:border-slate-800/80">
           <div className="flex items-center justify-between text-xs">
             <span className="text-slate-500 font-bold">{t('students.programmingLevel')}</span>
-            <span className="font-black text-brand-600 dark:text-brand-400">{metrics.programming}%</span>
+            <span className="font-semibold text-brand-600 dark:text-brand-400">{metrics.programming}%</span>
           </div>
           <Progress value={metrics.programming} />
         </Card>
@@ -240,7 +262,7 @@ export function AdminStudentDetailPage() {
         <Card className="p-4 space-y-2 border-slate-200/80 dark:border-slate-800/80">
           <div className="flex items-center justify-between text-xs">
             <span className="text-slate-500 font-bold">{t('tasks.taskTypeChallenge')}</span>
-            <span className="font-black text-purple-600 dark:text-purple-400">{metrics.problemSolving}%</span>
+            <span className="font-semibold text-purple-600 dark:text-purple-400">{metrics.problemSolving}%</span>
           </div>
           <Progress value={metrics.problemSolving} />
         </Card>
@@ -248,7 +270,7 @@ export function AdminStudentDetailPage() {
         <Card className="p-4 space-y-2 border-slate-200/80 dark:border-slate-800/80">
           <div className="flex items-center justify-between text-xs">
             <span className="text-slate-500 font-bold">{t('nav.curriculum')}</span>
-            <span className="font-black text-emerald-600 dark:text-emerald-400">{metrics.curriculum}%</span>
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400">{metrics.curriculum}%</span>
           </div>
           <Progress value={metrics.curriculum} />
         </Card>
@@ -256,7 +278,7 @@ export function AdminStudentDetailPage() {
         <Card className="p-4 space-y-2 border-slate-200/80 dark:border-slate-800/80">
           <div className="flex items-center justify-between text-xs">
             <span className="text-slate-500 font-bold">{t('tasks.taskTypeProject')}</span>
-            <span className="font-black text-amber-600 dark:text-amber-400">{metrics.projects}%</span>
+            <span className="font-semibold text-amber-600 dark:text-amber-400">{metrics.projects}%</span>
           </div>
           <Progress value={metrics.projects} />
         </Card>
@@ -264,7 +286,7 @@ export function AdminStudentDetailPage() {
         <Card className="p-4 space-y-2 border-slate-200/80 dark:border-slate-800/80">
           <div className="flex items-center justify-between text-xs">
             <span className="text-slate-500 font-bold">{t('dashboard.attendance')}</span>
-            <span className="font-black text-blue-600 dark:text-blue-400">{metrics.attendance}%</span>
+            <span className="font-semibold text-blue-600 dark:text-blue-400">{metrics.attendance}%</span>
           </div>
           <Progress value={metrics.attendance} />
         </Card>
@@ -275,7 +297,7 @@ export function AdminStudentDetailPage() {
         {/* Enrollments & Class Info */}
         <Card className="p-6 space-y-4 border-slate-200/80 dark:border-slate-800/80">
           <div className="flex items-center justify-between">
-            <h3 className="font-black text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
+            <h3 className="font-semibold text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <CalendarCheck2 className="w-5 h-5 text-brand-600 dark:text-brand-400" />
               <span>{t('groups.group')}</span>
             </h3>
@@ -346,7 +368,7 @@ export function AdminStudentDetailPage() {
 
         {/* Linked Parents */}
         <Card className="p-6 space-y-4 border-slate-200/80 dark:border-slate-800/80">
-          <h3 className="font-black text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h3 className="font-semibold text-base text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <Phone className="w-5 h-5 text-brand-600 dark:text-brand-400" />
             <span>{t('parents.title')}</span>
           </h3>
@@ -499,7 +521,7 @@ export function AdminStudentDetailPage() {
           <Select
             label={t('groups.group')}
             value={selectedNewGroupId}
-            onChange={(e) => setSelectedNewGroupId(e.target.value)}
+            onChange={(e: any) => setSelectedNewGroupId(e.target.value)}
             options={[
               { value: '', label: `-- ${t('groups.selectGroup')} --` },
               ...(groups?.map((g) => {
@@ -558,6 +580,14 @@ export function AdminStudentDetailPage() {
         description={`${t('students.confirmDelete')} "${u.firstName} ${u.lastName}" (${student.studentCode})`}
         isLoading={deleteMutation.isPending}
         isDestructive={true}
+      />
+
+      {/* Edit Student Modal */}
+      <EditStudentModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        student={student}
+        groups={groups}
       />
     </div>
   );

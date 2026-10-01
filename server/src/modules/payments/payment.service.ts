@@ -41,6 +41,34 @@ export async function recordPayment(input: RecordPaymentInput, actorUserId?: str
     }
   });
 
+  if (isPaid) {
+    try {
+      const activeSub = await prisma.subscription.findFirst({
+        where: { studentId: input.studentId, status: 'ACTIVE' }
+      });
+      if (!activeSub) {
+        const canonicalPlan = await prisma.subscriptionPlan.findFirst({
+          where: { isActive: true }
+        });
+        if (canonicalPlan) {
+          const now = new Date();
+          const end = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+          await prisma.subscription.create({
+            data: {
+              studentId: input.studentId,
+              planId: canonicalPlan.id,
+              status: 'ACTIVE',
+              currentPeriodStart: now,
+              currentPeriodEnd: end
+            }
+          });
+        }
+      }
+    } catch (subErr) {
+      console.error('Failed to sync subscription in recordPayment:', subErr);
+    }
+  }
+
   await createAuditLog({
     actorUserId,
     action: isPaid ? 'PAYMENT_MARKED_PAID' : 'PAYMENT_MARKED_UNPAID',
@@ -58,8 +86,120 @@ export async function recordPayment(input: RecordPaymentInput, actorUserId?: str
   return payment;
 }
 
+/**
+ * Ensures all active students have a monthly payment ledger record for the given year/month.
+ * If student has an active subscription or paid transaction for this month, sets status to PAID.
+ * Otherwise sets status to UNPAID with the default grade/plan fee.
+ */
+async function ensureMonthlyStudentRecords(year: number, month: number, groupId?: string) {
+  try {
+    const students = await prisma.student.findMany({
+      where: {
+        user: { isActive: true },
+        ...(groupId ? {
+          enrollments: { some: { groupId, isActive: true } }
+        } : {})
+      },
+      include: {
+        user: true,
+        subscriptions: {
+          where: { status: 'ACTIVE' },
+          include: { plan: true }
+        }
+      }
+    });
+
+    if (students.length === 0) return;
+
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+
+    const plans = await prisma.subscriptionPlan.findMany({
+      where: { isActive: true }
+    });
+
+    for (const student of students) {
+      const existing = await prisma.payment.findUnique({
+        where: {
+          studentId_year_month: {
+            studentId: student.id,
+            year,
+            month
+          }
+        }
+      });
+
+      const paidTxn = await prisma.paymentTransaction.findFirst({
+        where: {
+          studentId: student.id,
+          status: 'PAID',
+          paidAt: { gte: monthStart, lte: monthEnd }
+        },
+        include: { plan: true }
+      });
+
+      const activeSub = student.subscriptions.find(s =>
+        s.currentPeriodStart <= monthEnd && s.currentPeriodEnd >= monthStart
+      );
+
+      let fee = 250;
+      if (student.grade) {
+        const gradePlan = plans.find(p => (p.features as any)?.grade === student.grade);
+        if (gradePlan) fee = gradePlan.price;
+      } else if (plans.length > 0 && plans[0]) {
+        fee = plans[0].price;
+      }
+
+      if (!existing) {
+        if (paidTxn || activeSub) {
+          await prisma.payment.create({
+            data: {
+              studentId: student.id,
+              year,
+              month,
+              amount: paidTxn?.amount || activeSub?.plan?.price || fee,
+              status: PaymentStatus.PAID,
+              paidAt: paidTxn?.paidAt || activeSub?.currentPeriodStart || new Date(),
+              notes: paidTxn ? `دفع إلكتروني (${paidTxn.provider})` : 'اشتراك مفعل'
+            }
+          });
+        } else {
+          await prisma.payment.create({
+            data: {
+              studentId: student.id,
+              year,
+              month,
+              amount: fee,
+              status: PaymentStatus.UNPAID,
+              paidAt: null,
+              notes: null
+            }
+          });
+        }
+      } else if (existing.status === PaymentStatus.UNPAID && (paidTxn || activeSub)) {
+        await prisma.payment.update({
+          where: { id: existing.id },
+          data: {
+            status: PaymentStatus.PAID,
+            amount: paidTxn?.amount || activeSub?.plan?.price || existing.amount,
+            paidAt: paidTxn?.paidAt || new Date(),
+            notes: paidTxn ? `دفع إلكتروني (${paidTxn.provider})` : 'اشتراك مفعل'
+          }
+        });
+      }
+    }
+  } catch (err) {
+    console.error('Error ensuring monthly student payment records:', err);
+  }
+}
+
 export async function listPayments(query: ListPaymentsQuery) {
   const { year, month, status, groupId, page, limit } = query;
+
+  if (year && month) {
+    await ensureMonthlyStudentRecords(year, month, groupId);
+  }
+
   const skip = (page - 1) * limit;
 
   const where = {
@@ -122,29 +262,50 @@ export async function getPaymentSummary(year?: number, month?: number) {
   const currentYear = year || now.getFullYear();
   const currentMonth = month || now.getMonth() + 1;
 
-  const payments = await prisma.payment.findMany({
+  await ensureMonthlyStudentRecords(currentYear, currentMonth);
+
+  const grouped = await prisma.payment.groupBy({
+    by: ['status'],
     where: {
       year: currentYear,
       month: currentMonth
+    },
+    _sum: {
+      amount: true
+    },
+    _count: {
+      _all: true
     }
   });
 
-  const totalCollected = payments
-    .filter((p) => p.status === PaymentStatus.PAID)
-    .reduce((sum, p) => sum + p.amount, 0);
+  let totalRecords = 0;
+  let paidCount = 0;
+  let unpaidCount = 0;
+  let totalCollectedEgp = 0;
+  let totalExpectedEgp = 0;
 
-  const totalExpected = payments.reduce((sum, p) => sum + p.amount, 0);
-  const paidCount = payments.filter((p) => p.status === PaymentStatus.PAID).length;
-  const unpaidCount = payments.filter((p) => p.status === PaymentStatus.UNPAID).length;
+  for (const g of grouped) {
+    const count = g._count._all;
+    const sum = g._sum.amount ?? 0;
+    totalRecords += count;
+    totalExpectedEgp += sum;
+
+    if (g.status === PaymentStatus.PAID) {
+      paidCount = count;
+      totalCollectedEgp = sum;
+    } else if (g.status === PaymentStatus.UNPAID) {
+      unpaidCount = count;
+    }
+  }
 
   return {
     year: currentYear,
     month: currentMonth,
-    totalRecords: payments.length,
+    totalRecords,
     paidCount,
     unpaidCount,
-    totalCollectedEgp: totalCollected,
-    totalExpectedEgp: totalExpected
+    totalCollectedEgp,
+    totalExpectedEgp
   };
 }
 
@@ -182,4 +343,34 @@ export async function getStudentPayments(
     where: { studentId },
     orderBy: [{ year: 'desc' }, { month: 'desc' }]
   });
+}
+
+export async function bulkUpdatePaymentStatus(
+  paymentIds: string[],
+  status: PaymentStatus,
+  notes?: string | null,
+  actorUserId?: string
+) {
+  const result = await prisma.payment.updateMany({
+    where: { id: { in: paymentIds } },
+    data: {
+      status,
+      paidAt: status === PaymentStatus.PAID ? new Date() : null,
+      ...(notes !== undefined ? { notes } : {})
+    }
+  });
+
+  await createAuditLog({
+    actorUserId,
+    action: `PAYMENTS_BULK_${status}`,
+    entityType: 'Payment',
+    entityId: paymentIds[0] || null,
+    metadata: { count: result.count, paymentIds, status, notes }
+  });
+
+  return {
+    success: true,
+    count: result.count,
+    paymentIds
+  };
 }

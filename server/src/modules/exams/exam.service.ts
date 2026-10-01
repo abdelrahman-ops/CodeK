@@ -10,14 +10,31 @@ import { BadRequestError, ForbiddenError, NotFoundError } from '../../common/err
 import { NotificationType, QuestionType, Role, XPSourceType } from '@prisma/client';
 import { createAuditLog } from '../audit/audit.service.js';
 import { createNotification } from '../notifications/notification.service.js';
+import { getStudentGrade, assertGradeAccess } from '../curriculum/curriculum-auth.js';
 
 export async function createExam(input: CreateExamInput, actorUserId?: string) {
+  let curriculumId = input.curriculumId || null;
+
+  if (input.lessonId) {
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: input.lessonId },
+      select: { id: true, curriculumId: true }
+    });
+    if (!lesson) throw new NotFoundError('Lesson not found');
+    if (curriculumId && curriculumId !== lesson.curriculumId) {
+      throw new BadRequestError('Conflicting curriculumId and lessonId: lesson belongs to a different curriculum');
+    }
+    curriculumId = lesson.curriculumId;
+  }
+
   const exam = await prisma.exam.create({
     data: {
       title: input.title,
       description: input.description,
-      curriculumId: input.curriculumId || null,
+      curriculumId,
       groupId: input.groupId || null,
+      lessonId: input.lessonId || null,
+      isQuiz: input.isQuiz ?? false,
       startsAt: new Date(input.startsAt),
       endsAt: new Date(input.endsAt),
       durationMinutes: input.durationMinutes,
@@ -76,14 +93,18 @@ export async function listExams(
   if (requestUser.role === Role.ADMIN) {
     const where = {
       ...(query.curriculumId ? { curriculumId: query.curriculumId } : {}),
-      ...(query.groupId ? { groupId: query.groupId } : {})
+      ...(query.groupId ? { groupId: query.groupId } : {}),
+      ...(query.lessonId ? { lessonId: query.lessonId } : {}),
+      ...(query.isQuiz !== undefined ? { isQuiz: query.isQuiz } : {}),
+      ...(query.grade ? { curriculum: { grade: query.grade } } : {})
     };
 
     return prisma.exam.findMany({
       where,
       orderBy: { startsAt: 'desc' },
       include: {
-        curriculum: { select: { id: true, title: true } },
+        curriculum: { select: { id: true, title: true, grade: true } },
+        lesson: { select: { id: true, title: true } },
         group: { select: { id: true, name: true } },
         _count: { select: { questions: true, attempts: true } }
       }
@@ -92,6 +113,11 @@ export async function listExams(
 
   // If Student
   if (requestUser.role === Role.STUDENT && requestUser.studentId) {
+    const studentGrade = await getStudentGrade(requestUser.studentId);
+    if (!studentGrade) {
+      return [];
+    }
+
     const enrollment = await prisma.groupEnrollment.findFirst({
       where: { studentId: requestUser.studentId, isActive: true }
     });
@@ -101,6 +127,10 @@ export async function listExams(
     const exams = await prisma.exam.findMany({
       where: {
         isPublished: true,
+        curriculum: { grade: studentGrade },
+        ...(query.lessonId ? { lessonId: query.lessonId } : {}),
+        ...(query.curriculumId ? { curriculumId: query.curriculumId } : {}),
+        ...(query.isQuiz !== undefined ? { isQuiz: query.isQuiz } : {}),
         OR: [
           { groupId: null }, // Open to all groups
           ...(studentGroupId ? [{ groupId: studentGroupId }] : [])
@@ -108,7 +138,8 @@ export async function listExams(
       },
       orderBy: { startsAt: 'desc' },
       include: {
-        curriculum: { select: { id: true, title: true } },
+        curriculum: { select: { id: true, title: true, grade: true } },
+        lesson: { select: { id: true, title: true } },
         _count: { select: { questions: true } },
         attempts: {
           where: { studentId: requestUser.studentId }
@@ -142,6 +173,9 @@ export async function getExamForStudent(
     where: { id: examId },
     include: {
       curriculum: true,
+      lesson: {
+        include: { curriculum: true }
+      },
       questions: {
         orderBy: { order: 'asc' }
       },
@@ -155,6 +189,16 @@ export async function getExamForStudent(
 
   if (requestUser.role === Role.ADMIN) {
     return exam;
+  }
+
+  // Student Grade Isolation: mismatch throws 404
+  if (requestUser.role === Role.STUDENT && requestUser.studentId) {
+    const studentGrade = await getStudentGrade(requestUser.studentId);
+    const examGrade = exam.curriculum?.grade || exam.lesson?.curriculum?.grade;
+    if (!examGrade) {
+      throw new NotFoundError('Exam not found');
+    }
+    assertGradeAccess(studentGrade, examGrade, 'Exam');
   }
 
   // Student Access Restrictions
@@ -177,10 +221,10 @@ export async function getExamForStudent(
     }
   }
 
-  // Timing check
+  // Timing check (exams only; quizzes are self-paced)
   const now = new Date();
   const hasAttempted = Boolean((exam as any).attempts?.[0]);
-  if (now < exam.startsAt && !hasAttempted) {
+  if (!exam.isQuiz && now < exam.startsAt && !hasAttempted) {
     throw new BadRequestError('This exam has not started yet');
   }
 
@@ -196,8 +240,11 @@ export async function getExamForStudent(
 
   return {
     id: exam.id,
+    code: exam.code,
     title: exam.title,
     description: exam.description,
+    isQuiz: exam.isQuiz,
+    authority: exam.authority,
     curriculum: exam.curriculum,
     startsAt: exam.startsAt,
     endsAt: exam.endsAt,
@@ -222,12 +269,25 @@ export async function submitExamAttempt(
 
   const exam = await prisma.exam.findUnique({
     where: { id: examId },
-    include: { questions: true }
+    include: {
+      curriculum: true,
+      lesson: {
+        include: { curriculum: true }
+      },
+      questions: true
+    }
   });
 
   if (!exam || !exam.isPublished) {
     throw new NotFoundError('Exam not found or not available');
   }
+
+  // Grade Isolation: mismatch throws 404
+  const examGrade = exam.curriculum?.grade || exam.lesson?.curriculum?.grade;
+  if (!examGrade) {
+    throw new NotFoundError('Exam not found or not available');
+  }
+  assertGradeAccess(student.grade, examGrade, 'Exam');
 
   // Group enrollment check
   if (exam.groupId) {
@@ -244,13 +304,15 @@ export async function submitExamAttempt(
     }
   }
 
-  // Timing check
+  // Timing check (exams only; quizzes are self-paced)
   const now = new Date();
-  if (now < exam.startsAt) {
-    throw new BadRequestError('This exam has not started yet');
-  }
-  if (now > exam.endsAt) {
-    throw new BadRequestError('Exam submission deadline has passed. Submissions are closed.');
+  if (!exam.isQuiz) {
+    if (now < exam.startsAt) {
+      throw new BadRequestError('This exam has not started yet');
+    }
+    if (now > exam.endsAt) {
+      throw new BadRequestError('Exam submission deadline has passed. Submissions are closed.');
+    }
   }
 
   const existingAttempt = await prisma.examAttempt.findUnique({
@@ -298,8 +360,8 @@ export async function submitExamAttempt(
         data: {
           studentId: student.id,
           amount: xpEarned,
-          reason: `Exam: ${exam.title} (${percentage}%)`,
-          sourceType: XPSourceType.EXAM,
+          reason: `${exam.isQuiz ? 'Quiz' : 'Exam'}: ${exam.title} (${percentage}%)`,
+          sourceType: exam.isQuiz ? XPSourceType.QUIZ : XPSourceType.EXAM,
           sourceId: attempt.id
         }
       });
@@ -311,6 +373,41 @@ export async function submitExamAttempt(
           lastActiveDate: new Date()
         }
       });
+    }
+
+    // Award EXAM_ACE achievement if percentage >= 90
+    if (percentage >= 90) {
+      const examAceAch = await tx.achievement.findUnique({ where: { code: 'EXAM_ACE' } });
+      if (examAceAch) {
+        const alreadyHas = await tx.studentAchievement.findUnique({
+          where: {
+            studentId_achievementId: {
+              studentId: student.id,
+              achievementId: examAceAch.id
+            }
+          }
+        });
+        if (!alreadyHas) {
+          await tx.studentAchievement.create({
+            data: { studentId: student.id, achievementId: examAceAch.id }
+          });
+          if (examAceAch.xpReward > 0) {
+            await tx.xPTransaction.create({
+              data: {
+                studentId: student.id,
+                amount: examAceAch.xpReward,
+                reason: `Achievement: ${examAceAch.name}`,
+                sourceType: XPSourceType.ACHIEVEMENT,
+                sourceId: examAceAch.id
+              }
+            });
+            await tx.student.update({
+              where: { id: student.id },
+              data: { totalXp: { increment: examAceAch.xpReward } }
+            });
+          }
+        }
+      }
     }
 
     return attempt;
@@ -348,13 +445,30 @@ export async function updateExam(
   const existing = await prisma.exam.findUnique({ where: { id: examId } });
   if (!existing) throw new NotFoundError('Exam not found');
 
+  let targetCurriculumId = input.curriculumId !== undefined ? input.curriculumId : existing.curriculumId;
+  const targetLessonId = input.lessonId !== undefined ? (input.lessonId || null) : existing.lessonId;
+
+  if (targetLessonId) {
+    const lesson = await prisma.lesson.findUnique({
+      where: { id: targetLessonId },
+      select: { id: true, curriculumId: true }
+    });
+    if (!lesson) throw new NotFoundError('Lesson not found');
+    if (targetCurriculumId && targetCurriculumId !== lesson.curriculumId) {
+      throw new BadRequestError('Conflicting curriculumId and lessonId: lesson belongs to a different curriculum');
+    }
+    targetCurriculumId = lesson.curriculumId;
+  }
+
   const updated = await prisma.exam.update({
     where: { id: examId },
     data: {
       title: input.title,
       description: input.description !== undefined ? input.description : undefined,
-      curriculumId: input.curriculumId !== undefined ? input.curriculumId : undefined,
+      curriculumId: targetCurriculumId !== undefined ? targetCurriculumId : undefined,
       groupId: input.groupId !== undefined ? input.groupId : undefined,
+      lessonId: targetLessonId !== undefined ? targetLessonId : undefined,
+      isQuiz: input.isQuiz !== undefined ? input.isQuiz : undefined,
       startsAt: input.startsAt ? new Date(input.startsAt) : undefined,
       endsAt: input.endsAt ? new Date(input.endsAt) : undefined,
       durationMinutes: input.durationMinutes,
@@ -459,5 +573,81 @@ export async function getExamAttempts(examId: string) {
       xpEarned: a.xpEarned,
       submittedAt: a.submittedAt
     }))
+  };
+}
+
+export async function bulkPublishExams(
+  ids: string[],
+  isPublished: boolean,
+  actorUserId?: string
+) {
+  const result = await prisma.exam.updateMany({
+    where: { id: { in: ids } },
+    data: { isPublished }
+  });
+
+  await createAuditLog({
+    actorUserId,
+    action: isPublished ? 'EXAMS_BULK_PUBLISHED' : 'EXAMS_BULK_UNPUBLISHED',
+    entityType: 'Exam',
+    entityId: ids[0] || null,
+    metadata: { count: result.count, ids, isPublished }
+  });
+
+  return {
+    success: true,
+    count: result.count,
+    ids
+  };
+}
+
+export async function bulkDeleteExams(
+  ids: string[],
+  actorUserId?: string
+) {
+  const successful: string[] = [];
+  const failed: Array<{ id: string; reason: string }> = [];
+
+  for (const id of ids) {
+    try {
+      const exam = await prisma.exam.findUnique({
+        where: { id },
+        include: {
+          _count: { select: { attempts: true } }
+        }
+      });
+
+      if (!exam) {
+        failed.push({ id, reason: 'Exam not found' });
+        continue;
+      }
+
+      if (exam._count.attempts > 0) {
+        failed.push({
+          id,
+          reason: `Cannot delete exam "${exam.title}" because it has ${exam._count.attempts} student attempt records. Unpublish instead.`
+        });
+        continue;
+      }
+
+      await prisma.exam.delete({ where: { id } });
+      successful.push(id);
+    } catch (err: any) {
+      failed.push({ id, reason: err.message || 'Deletion failed' });
+    }
+  }
+
+  await createAuditLog({
+    actorUserId,
+    action: 'EXAMS_BULK_DELETED',
+    entityType: 'Exam',
+    entityId: ids[0] || null,
+    metadata: { successfulCount: successful.length, failedCount: failed.length }
+  });
+
+  return {
+    success: failed.length === 0,
+    successful,
+    failed
   };
 }

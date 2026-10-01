@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api/client.js';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -23,6 +23,7 @@ import { Avatar } from '../../components/ui/avatar.js';
 import { CardSkeleton } from '../../components/ui/skeleton.js';
 import { QRCodeSVG } from 'qrcode.react';
 import { useToast } from '../../components/ui/toast.js';
+import { useBulkSelection } from '../../hooks/use-bulk-selection.js';
 import { localizeText, formatStatus } from '../../lib/i18n-helpers.js';
 
 export function AdminSessionQrPage() {
@@ -52,7 +53,7 @@ export function AdminSessionQrPage() {
       return (await api.attendance.getSessionRoster(id)).data.data;
     },
     enabled: Boolean(id),
-    refetchInterval: 4000
+    refetchInterval: session?.status === 'ACTIVE' ? 4000 : false
   });
 
   const startSessionMutation = useMutation({
@@ -108,6 +109,35 @@ export function AdminSessionQrPage() {
   const presentCount = rosterData?.presentCount || 0;
   const totalEnrolled = rosterData?.totalEnrolled || roster.length;
 
+  const selectionItems = useMemo(
+    () => roster.map((s: any) => ({ ...s, id: s.studentId })),
+    [roster]
+  );
+  const selection = useBulkSelection(selectionItems);
+
+  const bulkMarkMutation = useMutation({
+    mutationFn: async (status: 'PRESENT' | 'ABSENT') => {
+      if (!id) return;
+      return (await api.attendance.adminBulkMark({
+        sessionId: id,
+        studentIds: Array.from(selection.selectedIds),
+        status
+      })).data;
+    },
+    onSuccess: (_, status) => {
+      refetchRoster();
+      toast.success(
+        status === 'PRESENT'
+          ? (isArabic ? 'تم تسجيل حضور الطلاب المحددين' : 'Selected students marked present')
+          : (isArabic ? 'تم تسجيل غياب الطلاب المحددين' : 'Selected students marked absent')
+      );
+      selection.deselectAll();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
   const qrPayload = activeQrToken ? JSON.stringify({ sessionId: session.id, token: activeQrToken }) : '';
 
   return (
@@ -143,12 +173,12 @@ export function AdminSessionQrPage() {
         <div className="lg:col-span-7 space-y-4">
           <Card className="p-8 flex flex-col items-center justify-center text-center gap-6 bg-white dark:bg-slate-900 shadow-2xl border-slate-200/80 dark:border-slate-800">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 text-xs font-extrabold mb-2">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 text-xs font-semibold mb-2">
                 <span>{session.group?.name ? localizeText(session.group.name) : t('students.group')}</span>
                 <span>•</span>
                 <span>{t('sessions.sessionNumber')} #{session.sessionNumber}</span>
               </div>
-              <h1 className="text-2xl sm:text-4xl font-black text-slate-900 dark:text-slate-100">
+              <h1 className="text-2xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100">
                 {t('sessions.qrProjector')}
               </h1>
               <p className="text-sm text-slate-500 mt-1">
@@ -169,7 +199,7 @@ export function AdminSessionQrPage() {
                   <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">
                     {t('sessions.manualToken')}
                   </div>
-                  <div className="font-mono text-xl font-black text-slate-900 tracking-wider bg-slate-100 px-4 py-1.5 rounded-xl border border-slate-300">
+                  <div className="font-mono text-xl font-semibold text-slate-900 tracking-wider bg-slate-100 px-4 py-1.5 rounded-xl border border-slate-300">
                     {activeQrToken}
                   </div>
                 </div>
@@ -202,17 +232,17 @@ export function AdminSessionQrPage() {
             {/* Live Counter */}
             <div className="flex items-center gap-6 pt-4 border-t border-slate-100 dark:border-slate-800 w-full justify-around">
               <div>
-                <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">{presentCount}</div>
+                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{presentCount}</div>
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('attendance.present')}</div>
               </div>
               <div className="w-px h-8 bg-slate-200 dark:bg-slate-700" />
               <div>
-                <div className="text-2xl font-black text-rose-600 dark:text-rose-400">{Math.max(0, totalEnrolled - presentCount)}</div>
+                <div className="text-2xl font-bold text-rose-600 dark:text-rose-400">{Math.max(0, totalEnrolled - presentCount)}</div>
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('attendance.absent')}</div>
               </div>
               <div className="w-px h-8 bg-slate-200 dark:bg-slate-700" />
               <div>
-                <div className="text-2xl font-black text-slate-900 dark:text-slate-100">{totalEnrolled}</div>
+                <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{totalEnrolled}</div>
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">{t('groups.maxCapacity')}</div>
               </div>
             </div>
@@ -239,7 +269,7 @@ export function AdminSessionQrPage() {
             <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <Users className="w-5 h-5 text-brand-600 dark:text-brand-400" />
-                <h3 className="font-black text-base text-slate-900 dark:text-slate-100">
+                <h3 className="font-semibold text-base text-slate-900 dark:text-slate-100">
                   {t('attendance.roster')}
                 </h3>
               </div>
@@ -248,12 +278,81 @@ export function AdminSessionQrPage() {
               </span>
             </div>
 
+            {/* Select All & Summary Bar */}
+            {roster.length > 0 && (
+              <div className="flex items-center justify-between py-2 px-1 border-b border-slate-100 dark:border-slate-800 text-xs font-bold text-slate-500">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selection.isAllSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = selection.isIndeterminate;
+                    }}
+                    onChange={selection.toggleSelectAll}
+                    className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 cursor-pointer"
+                  />
+                  <span>{isArabic ? 'تحديد الكل' : 'Select All'} ({selection.selectedCount}/{roster.length})</span>
+                </label>
+                {selection.selectedCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={selection.deselectAll}
+                    className="text-xs text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    {isArabic ? 'إلغاء التحديد' : 'Clear'}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Bulk Actions Floating / Top Bar */}
+            {selection.selectedCount > 0 && (
+              <div className="p-3 bg-brand-50/70 dark:bg-brand-950/40 rounded-xl border border-brand-200/60 dark:border-brand-800/60 flex items-center justify-between gap-2">
+                <span className="text-xs font-bold text-brand-900 dark:text-brand-100">
+                  {selection.selectedCount} {isArabic ? 'محدد' : 'selected'}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    className="h-7 px-2.5 text-xs bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => bulkMarkMutation.mutate('PRESENT')}
+                    isLoading={bulkMarkMutation.isPending}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>{isArabic ? 'تسجيل حضور' : 'Mark Present'}</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2.5 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-900"
+                    onClick={() => bulkMarkMutation.mutate('ABSENT')}
+                    isLoading={bulkMarkMutation.isPending}
+                  >
+                    <XCircle className="w-3.5 h-3.5" />
+                    <span>{isArabic ? 'تسجيل غياب' : 'Mark Absent'}</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="divide-y divide-slate-100 dark:divide-slate-800/80 overflow-y-auto max-h-[480px] -mx-6 px-6">
               {roster.map((student: any) => {
                 const isPresent = student.status === 'PRESENT';
+                const isSelected = selection.isSelected(student.studentId);
                 return (
-                  <div key={student.studentId} className="py-3 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
+                  <div
+                    key={student.studentId}
+                    className={`py-3 px-2 rounded-xl flex items-center justify-between gap-3 transition ${
+                      isSelected ? 'bg-brand-50/40 dark:bg-brand-950/40' : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => selection.toggle(student.studentId)}
+                        className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 cursor-pointer shrink-0"
+                      />
                       <Avatar name={student.studentName || `${student.firstName || ''} ${student.lastName || ''}`} src={student.avatarUrl} size="sm" />
                       <div className="min-w-0">
                         <div className="font-bold text-sm text-slate-900 dark:text-slate-100 truncate">

@@ -1,7 +1,14 @@
 import { FastifyInstance } from 'fastify';
 import { authenticate } from '../../common/middleware/auth.js';
 import { requireAdmin } from '../../common/middleware/rbac.js';
-import { listStudentsQuerySchema, updateStudentSchema, resetStudentPasswordSchema } from './student.schema.js';
+import {
+  listStudentsQuerySchema,
+  updateStudentSchema,
+  resetStudentPasswordSchema,
+  bulkStudentStatusSchema,
+  bulkAssignGroupSchema,
+  bulkDeleteStudentsSchema
+} from './student.schema.js';
 import * as studentService from './student.service.js';
 import { z } from 'zod';
 
@@ -17,6 +24,39 @@ export async function studentRoutes(app: FastifyInstance) {
         data: result.items,
         meta: result.meta
       });
+    }
+  );
+
+  // Bulk update student active status (Admin only)
+  app.patch(
+    '/bulk-status',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const input = bulkStudentStatusSchema.parse(request.body || {});
+      const result = await studentService.bulkUpdateStudentStatus(input.studentIds, input.isActive, request.user!.userId);
+      return reply.send({ data: result });
+    }
+  );
+
+  // Bulk assign group to students (Admin only)
+  app.post(
+    '/bulk-assign-group',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const input = bulkAssignGroupSchema.parse(request.body || {});
+      const result = await studentService.bulkAssignGroup(input.studentIds, input.groupId, request.user!.userId);
+      return reply.send({ data: result });
+    }
+  );
+
+  // Bulk delete students (Admin only — safe checks: protects students with historical records)
+  app.delete(
+    '/bulk',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const input = bulkDeleteStudentsSchema.parse(request.body || {});
+      const result = await studentService.bulkDeleteStudents(input.studentIds, request.user!.userId);
+      return reply.send({ data: result });
     }
   );
 

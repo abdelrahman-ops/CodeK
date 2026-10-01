@@ -3,7 +3,9 @@ import {
   createPublicRegistrationSchema,
   updateRegistrationSettingsSchema,
   updateRegistrationSchema,
-  approveRegistrationSchema
+  approveRegistrationSchema,
+  bulkRegistrationStatusSchema,
+  bulkApproveRegistrationsSchema
 } from './registration.schema.js';
 import {
   getPublicRegistrationStatus,
@@ -12,7 +14,11 @@ import {
   getAdminRegistrationById,
   updateAdminRegistration,
   approveRegistrationAndCreateStudent,
-  updateRegistrationSettings
+  updateRegistrationSettings,
+  bulkUpdateRegistrationStatus,
+  bulkApproveRegistrations,
+  deleteAdminRegistration,
+  bulkDeleteAdminRegistrations
 } from './registration.service.js';
 import { authenticate } from '../../common/middleware/auth.js';
 import { requireAdmin } from '../../common/middleware/rbac.js';
@@ -105,6 +111,57 @@ export async function registrationRoutes(app: FastifyInstance) {
       });
     });
 
+    // Bulk Update Registration Status
+    adminRoutes.patch('/admin/registrations/bulk-status', async (req, reply) => {
+      const parseResult = bulkRegistrationStatusSchema.safeParse(req.body || {});
+      if (!parseResult.success) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid bulk status payload',
+            details: parseResult.error.flatten()
+          }
+        });
+      }
+
+      const result = await bulkUpdateRegistrationStatus(
+        parseResult.data.registrationIds,
+        parseResult.data.status,
+        parseResult.data.rejectionReason,
+        req.user!.userId
+      );
+      return reply.send({
+        success: true,
+        data: result
+      });
+    });
+
+    // Bulk Approve Registrations & Create Student Accounts
+    adminRoutes.post('/admin/registrations/bulk-approve', async (req, reply) => {
+      const parseResult = bulkApproveRegistrationsSchema.safeParse(req.body || {});
+      if (!parseResult.success) {
+        return reply.status(400).send({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Invalid bulk approve payload',
+            details: parseResult.error.flatten()
+          }
+        });
+      }
+
+      const result = await bulkApproveRegistrations(
+        parseResult.data.registrationIds,
+        parseResult.data.groupId,
+        req.user!.userId
+      );
+      return reply.send({
+        success: true,
+        data: result
+      });
+    });
+
     // Get Single Registration Details
     adminRoutes.get('/admin/registrations/:id', async (req, reply) => {
       const { id } = req.params as { id: string };
@@ -153,6 +210,26 @@ export async function registrationRoutes(app: FastifyInstance) {
       }
 
       const result = await approveRegistrationAndCreateStudent(id, parseResult.data, req.user!.userId);
+      return reply.send({
+        success: true,
+        data: result
+      });
+    });
+
+    // Delete Single Registration
+    adminRoutes.delete('/admin/registrations/:id', async (req, reply) => {
+      const { id } = req.params as { id: string };
+      const result = await deleteAdminRegistration(id, req.user!.userId);
+      return reply.send({
+        success: true,
+        data: result
+      });
+    });
+
+    // Bulk Delete Registrations
+    adminRoutes.post('/admin/registrations/bulk-delete', async (req, reply) => {
+      const { registrationIds } = (req.body as { registrationIds: string[] }) || {};
+      const result = await bulkDeleteAdminRegistrations(registrationIds, req.user!.userId);
       return reply.send({
         success: true,
         data: result

@@ -56,14 +56,14 @@ export function CelebrationModal({
         </div>
 
         <div>
-          <h3 className="text-xl font-black text-slate-900 dark:text-slate-100">{localizeText(title)}</h3>
+          <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">{localizeText(title)}</h3>
           {subtitle && (
             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{localizeText(subtitle)}</p>
           )}
         </div>
 
         {xpEarned !== undefined && (
-          <div className="px-4 py-2 rounded-2xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-300 font-extrabold text-lg flex items-center gap-2">
+          <div className="px-4 py-2 rounded-2xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-300 font-semibold text-lg flex items-center gap-2">
             <Star className="w-5 h-5 fill-brand-500 text-brand-500" />
             <span>+{xpEarned} XP</span>
           </div>

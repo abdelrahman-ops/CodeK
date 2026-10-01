@@ -23,12 +23,23 @@ import {
   ResetPasswordInput,
   SetupPasswordInput,
   VerifyAdminOtpInput,
-  ResendAdminOtpInput
+  ResendAdminOtpInput,
+  RegisterStudentInput,
+  VerifyEmailInput,
+  ResendVerificationInput,
+  SelectLearningModeInput
 } from './auth.schema.js';
+import {
+  generateStudentCode,
+  generateAnonymousCode
+} from '../../common/utils/code-gen.js';
 import { createAuditLog } from '../audit/audit.service.js';
 import { emailService } from '../../services/email/email.service.js';
-import { AuthTokenType, Role } from '@prisma/client';
+import { emailQueue } from '../../queues/email/email.queue.js';
+import { encryptDeliverySecret } from '../../utils/crypto-delivery.js';
+import { AuthTokenType, Difficulty, Role, SubscriptionStatus, StudentGrade } from '@prisma/client';
 import { env } from '../../config/env.js';
+import { getPlanForGrade } from '../billing/billing.service.js';
 
 function maskEmail(email?: string | null): string {
   if (!email) return 'your registered email';
@@ -39,6 +50,8 @@ function maskEmail(email?: string | null): string {
   const maskedName = name.length <= 2 ? `${name[0]}***` : `${name[0]}***${name[name.length - 1]}`;
   return `${maskedName}@${domain}`;
 }
+
+const devOtpCache = new Map<string, string>();
 
 export async function login(input: LoginInput) {
   const { loginId, password } = input;
@@ -78,12 +91,23 @@ export async function login(input: LoginInput) {
     throw new UnauthorizedError('Invalid credentials');
   }
 
-  // 1. ADMIN 2FA FLOW: If user is ADMIN, require Email OTP verification
+  // 1. Check email verification: Unverified users must verify email before normal session is issued
+  if (!user.isEmailVerified && user.role === Role.STUDENT) {
+    return {
+      requiresVerification: true,
+      requires2FA: false,
+      userId: user.id,
+      emailMasked: maskEmail(user.email)
+    };
+  }
+
+  // 2. ADMIN 2FA FLOW: If user is ADMIN, require Email OTP verification
   if (user.role === Role.ADMIN) {
     const now = new Date();
     const recipientEmail = user.email || env.ADMIN_EMAIL || 'admin@codek.local';
     const adminName = `${user.firstName} ${user.lastName}`.trim();
-    const isTest = env.NODE_ENV === 'test';
+    const isTest = env.NODE_ENV === 'test' || process.env.NODE_ENV === 'test';
+    const isDev = env.NODE_ENV === 'development' || process.env.NODE_ENV === 'development';
 
     // Execute check and challenge creation inside an interactive Prisma transaction to prevent race conditions
     const tokenResult = await prisma.$transaction(async (tx) => {
@@ -105,8 +129,8 @@ export async function login(input: LoginInput) {
         const cooldownMs = 30 * 1000;
         const timeSinceCreation = now.getTime() - existingChallenge.createdAt.getTime();
 
-        if (timeSinceCreation < cooldownMs) {
-          return { reuse: true, record: existingChallenge, rawOtp: isTest ? '123456' : undefined };
+        if (timeSinceCreation < cooldownMs && (!isTest || devOtpCache.has(existingChallenge.id))) {
+          return { reuse: true, record: existingChallenge };
         } else {
           await tx.authToken.updateMany({
             where: {
@@ -137,12 +161,15 @@ export async function login(input: LoginInput) {
         data: {
           userId: user.id,
           tokenHash: hashedOtp,
+          encryptedToken: encryptDeliverySecret(rawOtp),
           type: AuthTokenType.ADMIN_LOGIN_OTP,
           status: 'PENDING',
           expiresAt,
           attempts: 0
         }
       });
+
+      devOtpCache.set(newRecord.id, rawOtp);
 
       return { reuse: false, record: newRecord, rawOtp };
     });
@@ -161,14 +188,18 @@ export async function login(input: LoginInput) {
         requires2FA: true,
         tempToken,
         emailMasked: maskEmail(recipientEmail),
-        devOtp: isTest ? '123456' : undefined
+        devOtp: (isTest || isDev) ? devOtpCache.get(tokenResult.record.id) : undefined
       };
     }
 
     const tempToken = sign2FATempToken(user.id, user.role, tokenResult.record.id);
 
-    // Send OTP via Email Service
-    await emailService.sendAdminLoginOtp(recipientEmail, tokenResult.rawOtp!, adminName);
+    // Enqueue OTP delivery via BullMQ email queue (secret-free reference)
+    await emailQueue.enqueueAdminLoginOtp({
+      email: recipientEmail,
+      authTokenId: tokenResult.record.id,
+      adminName
+    });
 
     await createAuditLog({
       actorUserId: user.id,
@@ -190,17 +221,18 @@ export async function login(input: LoginInput) {
       requires2FA: true,
       tempToken,
       emailMasked: maskEmail(recipientEmail),
-      devOtp: isTest ? tokenResult.rawOtp : undefined
+      devOtp: (isTest || isDev) ? tokenResult.rawOtp : undefined
     };
   }
 
-  // 2. STUDENT & PARENT LOGIN FLOW (Direct Session)
+  // 3. STUDENT & PARENT LOGIN FLOW (Direct Session)
   const payload: TokenPayload = {
     userId: user.id,
     loginId: user.loginId,
     role: user.role,
     studentId: user.student?.id,
-    parentId: user.parent?.id
+    parentId: user.parent?.id,
+    isEmailVerified: user.isEmailVerified
   };
 
   const accessToken = signAccessToken(payload);
@@ -238,6 +270,7 @@ export async function login(input: LoginInput) {
       phone: user.phone,
       avatarUrl: user.avatarUrl,
       mustChangePassword: user.mustChangePassword,
+      isEmailVerified: user.isEmailVerified,
       student: user.student,
       parent: user.parent
     },
@@ -387,7 +420,8 @@ export async function verifyAdminOtp(input: VerifyAdminOtpInput) {
   const payload: TokenPayload = {
     userId: user.id,
     loginId: user.loginId,
-    role: user.role
+    role: user.role,
+    isEmailVerified: user.isEmailVerified
   };
 
   const accessToken = signAccessToken(payload);
@@ -432,6 +466,7 @@ export async function verifyAdminOtp(input: VerifyAdminOtpInput) {
       phone: user.phone,
       avatarUrl: user.avatarUrl,
       mustChangePassword: user.mustChangePassword,
+      isEmailVerified: user.isEmailVerified,
       student: user.student,
       parent: user.parent
     },
@@ -494,6 +529,7 @@ export async function resendAdminOtp(input: ResendAdminOtpInput) {
     data: {
       userId: user.id,
       tokenHash: hashedOtp,
+      encryptedToken: encryptDeliverySecret(rawOtp),
       type: AuthTokenType.ADMIN_LOGIN_OTP,
       status: 'PENDING',
       expiresAt,
@@ -501,9 +537,15 @@ export async function resendAdminOtp(input: ResendAdminOtpInput) {
     }
   });
 
+  devOtpCache.set(newRecord.id, rawOtp);
+
   const recipientEmail = user.email || env.ADMIN_EMAIL || 'admin@codek.local';
   const adminName = `${user.firstName} ${user.lastName}`.trim();
-  await emailService.sendAdminLoginOtp(recipientEmail, rawOtp, adminName);
+  await emailQueue.enqueueAdminLoginOtp({
+    email: recipientEmail,
+    authTokenId: newRecord.id,
+    adminName
+  });
 
   await createAuditLog({
     actorUserId: user.id,
@@ -522,13 +564,14 @@ export async function resendAdminOtp(input: ResendAdminOtpInput) {
   });
 
   const newTempToken = sign2FATempToken(user.id, user.role, newRecord.id);
-  const isTest = env.NODE_ENV === 'test';
+  const isTest = env.NODE_ENV === 'test' || process.env.NODE_ENV === 'test';
+  const isDev = env.NODE_ENV === 'development' || process.env.NODE_ENV === 'development';
 
   return {
     success: true,
     tempToken: newTempToken,
     emailMasked: maskEmail(recipientEmail),
-    devOtp: isTest ? rawOtp : undefined
+    devOtp: (isTest || isDev) ? rawOtp : undefined
   };
 }
 
@@ -556,6 +599,22 @@ export async function refresh(rawRefreshToken: string) {
     throw new UnauthorizedError('Refresh token expired');
   }
 
+  // Reject disabled/inactive users and revoke all refresh tokens for this user
+  if (!tokenRecord.user || !tokenRecord.user.isActive) {
+    await prisma.refreshToken.deleteMany({
+      where: { userId: tokenRecord.userId }
+    });
+    throw new UnauthorizedError('Account is disabled');
+  }
+
+  // Reject unverified users
+  if (!tokenRecord.user.isEmailVerified) {
+    await prisma.refreshToken.deleteMany({
+      where: { userId: tokenRecord.userId }
+    });
+    throw new UnauthorizedError('Account email is not verified');
+  }
+
   // Invalidate old refresh token (Strict Token Rotation)
   await prisma.refreshToken.delete({
     where: { id: tokenRecord.id }
@@ -567,7 +626,8 @@ export async function refresh(rawRefreshToken: string) {
     loginId: tokenRecord.user.loginId,
     role: tokenRecord.user.role,
     studentId: tokenRecord.user.student?.id,
-    parentId: tokenRecord.user.parent?.id
+    parentId: tokenRecord.user.parent?.id,
+    isEmailVerified: tokenRecord.user.isEmailVerified
   };
 
   const newAccessToken = signAccessToken(payload);
@@ -849,7 +909,552 @@ export async function getMe(userId: string) {
     phone: user.phone,
     avatarUrl: user.avatarUrl,
     mustChangePassword: user.mustChangePassword,
+    isEmailVerified: user.isEmailVerified,
     student: user.student,
     parent: user.parent
   };
 }
+
+// ─────────────────────────────────────────────────────────
+// SELF-SERVICE: Register Student Account
+// ─────────────────────────────────────────────────────────
+
+export async function registerStudent(input: RegisterStudentInput) {
+  // 1. Honeypot check for spam bots
+  if (input.website && input.website.trim().length > 0) {
+    throw new BadRequestError('Invalid registration submission');
+  }
+
+  const normalizedEmail = input.email.toLowerCase().trim();
+  const normalizedPhone = input.phone && input.phone.trim().length > 0 ? input.phone.trim() : null;
+
+  // 2. Pre-checks for duplicates
+  const existingEmail = await prisma.user.findFirst({
+    where: { email: normalizedEmail }
+  });
+  if (existingEmail) {
+    throw new BadRequestError('An account with this email already exists');
+  }
+
+  if (normalizedPhone) {
+    const existingPhone = await prisma.user.findFirst({
+      where: { phone: normalizedPhone }
+    });
+    if (existingPhone) {
+      throw new BadRequestError('An account with this phone number already exists');
+    }
+  }
+
+  // 3. Secure password hashing
+  const passwordHash = await hashPassword(input.password);
+
+  // 4. Atomic database creation
+  try {
+    const { user, student, rawOtp, otpId } = await prisma.$transaction(async (tx) => {
+      // Generate unique login ID (STU-XXXX)
+      let loginId = generateStudentCode();
+      while (await tx.user.findUnique({ where: { loginId } })) {
+        loginId = generateStudentCode();
+      }
+
+      // Generate unique anonymous leaderboard code (CODE-XXXX)
+      let anonymousCode = generateAnonymousCode();
+      while (await tx.student.findFirst({ where: { anonymousLeaderboardCode: anonymousCode } })) {
+        anonymousCode = generateAnonymousCode();
+      }
+
+      // Create User (Role strictly STUDENT, mustChangePassword = false, isEmailVerified = false)
+      const newUser = await tx.user.create({
+        data: {
+          loginId,
+          passwordHash,
+          mustChangePassword: false,
+          isEmailVerified: false,
+          email: normalizedEmail,
+          phone: normalizedPhone,
+          role: Role.STUDENT,
+          firstName: input.firstName.trim(),
+          lastName: input.lastName.trim(),
+          isActive: true
+        }
+      });
+
+      // Create Student (attendanceRequired = false, learningModeSelected = false, grade stored)
+      const newStudent = await tx.student.create({
+        data: {
+          userId: newUser.id,
+          studentCode: loginId,
+          anonymousLeaderboardCode: anonymousCode,
+          grade: input.grade || StudentGrade.GRADE_1,
+          programmingLevel: input.programmingLevel || Difficulty.BEGINNER,
+          attendanceRequired: false,
+          learningModeSelected: false,
+          totalXp: 0,
+          currentStreak: 0
+        }
+      });
+
+      // Generate verification OTP (6 digits, 10 min validity)
+      const rawOtp = generateNumericOtp(6);
+      const hashedOtp = hashToken(rawOtp);
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      const otpRecord = await tx.authToken.create({
+        data: {
+          userId: newUser.id,
+          tokenHash: hashedOtp,
+          encryptedToken: encryptDeliverySecret(rawOtp),
+          type: AuthTokenType.EMAIL_VERIFICATION,
+          status: 'PENDING',
+          expiresAt,
+          attempts: 0
+        }
+      });
+
+      return { user: newUser, student: newStudent, rawOtp, otpId: otpRecord.id };
+    });
+
+    devOtpCache.set(user.id, rawOtp);
+    devOtpCache.set(otpId, rawOtp);
+
+    // Enqueue verification email delivery via BullMQ email queue (secret-free reference)
+    if (user.email) {
+      await emailQueue.enqueueEmailVerification({
+        email: user.email,
+        authTokenId: otpId,
+        studentName: user.firstName
+      });
+    }
+
+    // Resolve active subscription plan & price from the selected grade (server-authoritative)
+    let assignedPlan: {
+      id: string;
+      code: string;
+      name: string;
+      price: number;
+      currency: string;
+      billingInterval: string;
+      grade?: string;
+    } | null = null;
+
+    if (input.grade) {
+      const plan = await getPlanForGrade(input.grade);
+      if (plan) {
+        assignedPlan = {
+          id: plan.id,
+          code: plan.code,
+          name: plan.name,
+          price: plan.price,
+          currency: plan.currency,
+          billingInterval: plan.billingInterval,
+          grade: input.grade
+        };
+
+        // Student registers without active subscription until payment is completed
+      }
+    }
+
+    // Audit Logs
+    await createAuditLog({
+      actorUserId: user.id,
+      action: 'STUDENT_SELF_REGISTERED',
+      entityType: 'User',
+      entityId: user.id,
+      metadata: {
+        loginId: user.loginId,
+        email: user.email,
+        studentId: student.id,
+        grade: student.grade,
+        assignedPlanCode: assignedPlan?.code,
+        assignedPrice: assignedPlan?.price,
+        programmingLevel: student.programmingLevel,
+        attendanceRequired: student.attendanceRequired,
+        learningModeSelected: student.learningModeSelected
+      }
+    });
+
+    await createAuditLog({
+      actorUserId: user.id,
+      action: 'OTP_REQUESTED',
+      entityType: 'User',
+      entityId: user.id,
+      metadata: {
+        type: 'EMAIL_VERIFICATION',
+        email: maskEmail(user.email),
+        challengeId: otpId
+      }
+    });
+
+    // Create persistent refresh token session matching login
+    const rawRefreshToken = generateRandomToken(32);
+    const hashedRefreshToken = hashToken(rawRefreshToken);
+    const refreshExpiresAt = new Date();
+    refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days persistent session
+
+    await prisma.refreshToken.create({
+      data: {
+        tokenHash: hashedRefreshToken,
+        userId: user.id,
+        expiresAt: refreshExpiresAt
+      }
+    });
+
+    const isTest = env.NODE_ENV === 'test';
+    const isDev = env.NODE_ENV === 'development';
+
+    return {
+      requiresVerification: true,
+      userId: user.id,
+      refreshToken: rawRefreshToken,
+      emailMasked: maskEmail(user.email),
+      devOtp: (isTest || isDev) ? rawOtp : undefined,
+      assignedPlan: assignedPlan || undefined,
+      user: {
+        id: user.id,
+        loginId: user.loginId,
+        role: user.role,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        phone: user.phone,
+        avatarUrl: user.avatarUrl,
+        mustChangePassword: user.mustChangePassword,
+        isEmailVerified: user.isEmailVerified,
+        student: {
+          id: student.id,
+          studentCode: student.studentCode,
+          grade: student.grade,
+          programmingLevel: student.programmingLevel,
+          attendanceRequired: student.attendanceRequired,
+          learningModeSelected: student.learningModeSelected,
+          totalXp: student.totalXp,
+          currentStreak: student.currentStreak
+        }
+      }
+    };
+  } catch (error: any) {
+    if (error?.code === 'P2002') {
+      const target = error?.meta?.target;
+      if (Array.isArray(target) && target.includes('email')) {
+        throw new BadRequestError('An account with this email already exists');
+      }
+      if (Array.isArray(target) && target.includes('loginId')) {
+        throw new BadRequestError('Account identifier conflict. Please try again.');
+      }
+      throw new BadRequestError('An account with these details already exists');
+    }
+    throw error;
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// EMAIL VERIFICATION: Verify OTP & Issue Session
+// ─────────────────────────────────────────────────────────
+
+export async function verifyEmail(input: VerifyEmailInput) {
+  const user = await prisma.user.findUnique({
+    where: { id: input.userId },
+    include: {
+      student: true,
+      parent: true
+    }
+  });
+
+  if (!user) {
+    throw new BadRequestError('Invalid or expired verification code');
+  }
+
+  if (user.isEmailVerified) {
+    throw new BadRequestError('Email is already verified. Please log in.');
+  }
+
+  const now = new Date();
+
+  // Find the latest active EMAIL_VERIFICATION challenge for this user
+  const tokenRecord = await prisma.authToken.findFirst({
+    where: {
+      userId: user.id,
+      type: AuthTokenType.EMAIL_VERIFICATION,
+      status: 'PENDING'
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  if (!tokenRecord || tokenRecord.usedAt !== null) {
+    throw new BadRequestError('Invalid or expired verification code');
+  }
+
+  // Check expiration (10 minutes)
+  if (tokenRecord.expiresAt < now) {
+    await prisma.authToken.updateMany({
+      where: { id: tokenRecord.id },
+      data: { status: 'EXPIRED' }
+    });
+    throw new BadRequestError('Verification code has expired. Please request a new code.');
+  }
+
+  // Check max attempts brute-force protection (Max 5 attempts)
+  if (tokenRecord.attempts >= 5) {
+    await prisma.authToken.updateMany({
+      where: { id: tokenRecord.id },
+      data: { status: 'INVALIDATED' }
+    });
+    throw new BadRequestError('Too many failed attempts. Verification code has been invalidated. Please request a new code.');
+  }
+
+  // Verify hashed OTP
+  const hashedInput = hashToken(input.otpCode.trim());
+  if (hashedInput !== tokenRecord.tokenHash) {
+    const attemptsCount = tokenRecord.attempts + 1;
+    await prisma.authToken.updateMany({
+      where: { id: tokenRecord.id },
+      data: {
+        attempts: { increment: 1 },
+        status: attemptsCount >= 5 ? 'INVALIDATED' : 'PENDING'
+      }
+    });
+
+    const remaining = 5 - attemptsCount;
+    throw new BadRequestError(
+      remaining > 0
+        ? `Invalid verification code. ${remaining} attempt(s) remaining.`
+        : 'Too many failed attempts. Verification code has been invalidated. Please request a new code.'
+    );
+  }
+
+  // Atomic state transition
+  const rawRefreshToken = generateRandomToken(32);
+  const hashedRefreshToken = hashToken(rawRefreshToken);
+  const refreshExpiresAt = new Date();
+  refreshExpiresAt.setDate(refreshExpiresAt.getDate() + 30); // 30 days
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Mark this token as VERIFIED and used
+    await tx.authToken.update({
+      where: { id: tokenRecord.id },
+      data: {
+        status: 'VERIFIED',
+        usedAt: now
+      }
+    });
+
+    // 2. Atomically set User.isEmailVerified = true
+    await tx.user.update({
+      where: { id: user.id },
+      data: { isEmailVerified: true }
+    });
+
+    // 3. Invalidate any other pending verification tokens for this user
+    await tx.authToken.updateMany({
+      where: {
+        userId: user.id,
+        type: AuthTokenType.EMAIL_VERIFICATION,
+        status: 'PENDING',
+        id: { not: tokenRecord.id }
+      },
+      data: { status: 'INVALIDATED' }
+    });
+
+    // 4. Create authenticated refresh token session
+    await tx.refreshToken.create({
+      data: {
+        tokenHash: hashedRefreshToken,
+        userId: user.id,
+        expiresAt: refreshExpiresAt
+      }
+    });
+  });
+
+  await createAuditLog({
+    actorUserId: user.id,
+    action: 'EMAIL_VERIFIED',
+    entityType: 'User',
+    entityId: user.id,
+    metadata: { challengeId: tokenRecord.id, email: user.email }
+  });
+
+  await createAuditLog({
+    actorUserId: user.id,
+    action: 'LOGIN_SUCCESS',
+    entityType: 'User',
+    entityId: user.id,
+    metadata: { role: user.role, loginId: user.loginId, context: 'POST_VERIFICATION' }
+  });
+
+  const payload: TokenPayload = {
+    userId: user.id,
+    loginId: user.loginId,
+    role: user.role,
+    studentId: user.student?.id,
+    parentId: user.parent?.id,
+    isEmailVerified: true
+  };
+
+  const accessToken = signAccessToken(payload);
+
+  return {
+    user: {
+      id: user.id,
+      loginId: user.loginId,
+      role: user.role,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      email: user.email,
+      phone: user.phone,
+      avatarUrl: user.avatarUrl,
+      mustChangePassword: user.mustChangePassword,
+      isEmailVerified: true,
+      student: user.student,
+      parent: user.parent
+    },
+    accessToken,
+    refreshToken: rawRefreshToken
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// EMAIL VERIFICATION: Resend OTP (60s Cooldown)
+// ─────────────────────────────────────────────────────────
+
+export async function resendVerificationOtp(input: ResendVerificationInput) {
+  const user = await prisma.user.findUnique({
+    where: { id: input.userId }
+  });
+
+  if (!user) {
+    return {
+      success: true,
+      message: 'If the account exists, a verification code has been sent.'
+    };
+  }
+
+  if (user.isEmailVerified) {
+    return {
+      success: true,
+      message: 'Email is already verified. Please log in.'
+    };
+  }
+
+  const now = new Date();
+
+  // Enforce 60-second cooldown between requests from latest creation
+  const recentToken = await prisma.authToken.findFirst({
+    where: {
+      userId: user.id,
+      type: AuthTokenType.EMAIL_VERIFICATION,
+      createdAt: { gt: new Date(now.getTime() - 60 * 1000) }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  if (recentToken) {
+    const elapsedSeconds = Math.floor((now.getTime() - recentToken.createdAt.getTime()) / 1000);
+    const remainingSeconds = Math.max(1, 60 - elapsedSeconds);
+    throw new BadRequestError(`Please wait ${remainingSeconds} second(s) before requesting another verification code`);
+  }
+
+  // Invalidate old pending verification OTPs
+  await prisma.authToken.updateMany({
+    where: {
+      userId: user.id,
+      type: AuthTokenType.EMAIL_VERIFICATION,
+      status: 'PENDING'
+    },
+    data: { status: 'INVALIDATED' }
+  });
+
+  const rawOtp = generateNumericOtp(6);
+  const hashedOtp = hashToken(rawOtp);
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  const newRecord = await prisma.authToken.create({
+    data: {
+      userId: user.id,
+      tokenHash: hashedOtp,
+      encryptedToken: encryptDeliverySecret(rawOtp),
+      type: AuthTokenType.EMAIL_VERIFICATION,
+      status: 'PENDING',
+      expiresAt,
+      attempts: 0
+    }
+  });
+
+  devOtpCache.set(user.id, rawOtp);
+  devOtpCache.set(newRecord.id, rawOtp);
+
+  if (user.email) {
+    await emailQueue.enqueueEmailVerification({
+      email: user.email,
+      authTokenId: newRecord.id,
+      studentName: user.firstName
+    });
+  }
+
+  await createAuditLog({
+    actorUserId: user.id,
+    action: 'OTP_REQUESTED',
+    entityType: 'User',
+    entityId: user.id,
+    metadata: { resend: true, type: 'EMAIL_VERIFICATION', email: maskEmail(user.email), challengeId: newRecord.id }
+  });
+
+  const isTest = env.NODE_ENV === 'test';
+  const isDev = env.NODE_ENV === 'development';
+
+  return {
+    success: true,
+    message: 'Verification code sent',
+    emailMasked: maskEmail(user.email),
+    devOtp: (isTest || isDev) ? rawOtp : undefined
+  };
+}
+
+// ─────────────────────────────────────────────────────────
+// LEARNING MODE: Select Mode (Online or Hybrid)
+// ─────────────────────────────────────────────────────────
+
+export async function selectLearningMode(userId: string, input: SelectLearningModeInput) {
+  const student = await prisma.student.findUnique({
+    where: { userId }
+  });
+
+  if (!student) {
+    throw new NotFoundError('Student profile not found');
+  }
+
+  if (student.learningModeSelected) {
+    throw new BadRequestError('Learning mode has already been selected. Please contact administration to request a change.');
+  }
+
+  const updatedStudent = await prisma.student.update({
+    where: { id: student.id },
+    data: {
+      attendanceRequired: input.mode === 'HYBRID',
+      learningModeSelected: true
+    }
+  });
+
+  await createAuditLog({
+    actorUserId: userId,
+    action: 'STUDENT_LEARNING_MODE_SELECTED',
+    entityType: 'Student',
+    entityId: student.id,
+    metadata: {
+      mode: input.mode,
+      attendanceRequired: updatedStudent.attendanceRequired
+    }
+  });
+
+  return {
+    success: true,
+    mode: input.mode,
+    learningModeSelected: updatedStudent.learningModeSelected,
+    student: {
+      id: updatedStudent.id,
+      studentCode: updatedStudent.studentCode,
+      attendanceRequired: updatedStudent.attendanceRequired,
+      learningModeSelected: updatedStudent.learningModeSelected
+    }
+  };
+}
+

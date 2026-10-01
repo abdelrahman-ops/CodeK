@@ -79,13 +79,13 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
       {isStudent && student && (
         <div className="hidden md:flex items-center gap-3">
           {/* Streak */}
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 font-extrabold text-xs">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 font-semibold text-xs">
             <Flame className="w-4 h-4 fill-amber-500 text-amber-500 animate-pulse" />
             <span>{formatStreak(student.currentStreak)}</span>
           </div>
 
           {/* XP */}
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-300 font-extrabold text-xs">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-brand-50 dark:bg-brand-950/60 border border-brand-200 dark:border-brand-800 text-brand-700 dark:text-brand-300 font-semibold text-xs">
             <Star className="w-4 h-4 fill-brand-500 text-brand-500" />
             <span>{student.totalXp} XP</span>
           </div>
@@ -147,7 +147,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           {showNotifications && (
             <div className="absolute end-0 mt-2 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-3 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
                   {t('nav.notifications')}
                 </span>
                 {notifications.length > 0 && (
@@ -171,7 +171,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
                       key={n.id}
                       className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 text-xs"
                     >
-                      <div className="font-bold text-slate-900 dark:text-slate-100">{localizeText(n.title)}</div>
+                      <div className="font-semibold text-slate-900 dark:text-slate-100">{localizeText(n.title)}</div>
                       <div className="text-slate-500 dark:text-slate-400 mt-0.5">{localizeText(n.message)}</div>
                     </div>
                   ))
@@ -188,7 +188,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
             className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition"
           >
             <Avatar name={`${user?.firstName} ${user?.lastName}`} size="sm" />
-            <span className="hidden sm:inline text-xs font-bold text-slate-800 dark:text-slate-200">
+            <span className="hidden sm:inline text-xs font-medium text-slate-800 dark:text-slate-200">
               {user?.firstName}
             </span>
           </button>
@@ -196,7 +196,7 @@ export function Topbar({ onToggleSidebar }: TopbarProps) {
           {showUserMenu && (
             <div className="absolute end-0 mt-2 w-56 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
               <div className="p-3 border-b border-slate-100 dark:border-slate-800">
-                <div className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   {user?.firstName} {user?.lastName}
                 </div>
                 <div className="text-xs text-slate-500 font-mono mt-0.5">{user?.loginId}</div>

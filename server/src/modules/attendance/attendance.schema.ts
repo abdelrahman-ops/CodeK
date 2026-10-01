@@ -17,5 +17,13 @@ export const adminMarkAttendanceSchema = z.object({
   notes: z.string().optional()
 });
 
+export const adminBulkMarkAttendanceSchema = z.object({
+  sessionId: z.string().uuid('Invalid session ID'),
+  studentIds: z.array(z.string().uuid()).min(1, 'At least one student ID is required'),
+  status: z.nativeEnum(AttendanceStatus),
+  notes: z.string().optional()
+});
+
 export type ConfirmStudentAttendanceInput = z.infer<typeof confirmStudentAttendanceSchema>;
 export type AdminMarkAttendanceInput = z.infer<typeof adminMarkAttendanceSchema>;
+export type AdminBulkMarkAttendanceInput = z.infer<typeof adminBulkMarkAttendanceSchema>;

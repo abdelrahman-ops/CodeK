@@ -10,6 +10,11 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET must be at least 16 characters'),
   JWT_REFRESH_SECRET: z.string().min(16, 'JWT_REFRESH_SECRET must be at least 16 characters'),
+  DELIVERY_ENCRYPTION_KEY: z
+    .string()
+    .min(32, 'DELIVERY_ENCRYPTION_KEY must be at least 32 characters')
+    .optional()
+    .default('dev_delivery_encryption_key_32bytes_long_secret_for_aes256'),
   JWT_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('30d'),
   CORS_ORIGIN: z.string().default('*'),
@@ -24,7 +29,161 @@ const envSchema = z.object({
   SMTP_SECURE: z.coerce.boolean().optional().default(false),
   SMTP_USER: z.string().optional().transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
   SMTP_PASS: z.string().optional().transform((v) => (v && v.trim().length > 0 ? v.trim() : undefined)),
-  SMTP_FROM: z.string().optional().default('"CodeK Academy" <no-reply@codek.local>')
+  SMTP_FROM: z.string().optional().default('"CodeK Academy" <no-reply@codek.local>'),
+  // Cookie Configuration
+  COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+  // Database Pool Configuration
+  DB_POOL_MAX: z.coerce.number().min(1).default(10),
+  DB_POOL_IDLE_TIMEOUT_MS: z.coerce.number().min(1000).default(30000),
+  DB_POOL_CONNECTION_TIMEOUT_MS: z.coerce.number().min(1000).default(5000),
+  // Redis & BullMQ Configuration
+  REDIS_URL: z.string().default('redis://localhost:6379'),
+  BULLMQ_PREFIX: z.string().optional().default('bull'),
+  WORKER_CONCURRENCY_EMAIL: z.coerce.number().min(1).default(5),
+  WORKER_CONCURRENCY_VIDEO: z.coerce.number().min(1).default(3),
+  // Video Provider Configuration
+  VIDEO_PROVIDER: z.string().optional().default(''),
+  CLOUDFLARE_STREAM_ACCOUNT_ID: z.string().optional().default(''),
+  CLOUDFLARE_STREAM_API_TOKEN: z.string().optional().default(''),
+  CLOUDFLARE_STREAM_KEY_ID: z.string().optional().default(''),
+  CLOUDFLARE_STREAM_KEY_PEM: z.string().optional().default(''),
+  MUX_TOKEN_ID: z.string().optional().default(''),
+  MUX_TOKEN_SECRET: z.string().optional().default(''),
+  MUX_SIGNING_KEY_ID: z.string().optional().default(''),
+  MUX_SIGNING_PRIVATE_KEY: z
+    .string()
+    .optional()
+    .default('')
+    .transform((val) => {
+      if (!val) return '';
+      // Support escaped literal newlines in .env files
+      let normalized = val.replace(/\\n/g, '\n');
+      // If it's a raw base64 string without PEM headers, decode it if appropriate
+      if (normalized.startsWith('-----BEGIN') || !normalized.includes('\n')) {
+        try {
+          // If it looks like pure base64 without headers, check if base64-decoded string has PEM headers
+          if (!normalized.includes('-----BEGIN')) {
+            const decoded = Buffer.from(normalized, 'base64').toString('utf8');
+            if (decoded.includes('-----BEGIN')) {
+              normalized = decoded;
+            }
+          }
+        } catch {
+          // Keep original string if base64 decoding fails
+        }
+      }
+      return normalized;
+    }),
+  MUX_WEBHOOK_SECRET: z.string().optional().default(''),
+  // Payment Provider Configuration
+  PAYMENT_PROVIDER: z.string().default('paymob'),
+  PAYMOB_SECRET_KEY: z.string().optional().default(''),
+  PAYMOB_PUBLIC_KEY: z.string().optional().default(''),
+  PAYMOB_HMAC_SECRET: z.string().optional().default(''),
+  PAYMOB_INTEGRATION_ID_CARD: z.string().optional().default(''),
+  PAYMOB_INTEGRATION_ID_WALLET: z.string().optional().default(''),
+  PAYMOB_API_BASE: z.string().default('https://accept.paymob.com'),
+  VODAFONE_CASH_NUMBER: z.string().optional().default('01017424986'),
+  INSTAPAY_ADDRESS: z.string().optional().default('abdelrahmanataa17@instapay'),
+}).superRefine((data, ctx) => {
+  if (data.NODE_ENV === 'production') {
+    // 1. In production, wildcard CORS with credentials is fundamentally insecure
+    if (data.CORS_ORIGIN === '*' || data.CORS_ORIGIN.split(',').map(s => s.trim()).includes('*')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['CORS_ORIGIN'],
+        message: 'CORS_ORIGIN cannot be wildcard (*) in production. Specify exact comma-separated domain origins.'
+      });
+    }
+
+    // 2. In production, JWT secrets must be distinct and sufficiently strong
+    if (data.JWT_SECRET === data.JWT_REFRESH_SECRET) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['JWT_REFRESH_SECRET'],
+        message: 'JWT_REFRESH_SECRET must be different from JWT_SECRET in production.'
+      });
+    }
+
+    // 3. In production, DELIVERY_ENCRYPTION_KEY must be explicitly set and distinct from JWT secrets
+    if (
+      !data.DELIVERY_ENCRYPTION_KEY ||
+      data.DELIVERY_ENCRYPTION_KEY === 'dev_delivery_encryption_key_32bytes_long_secret_for_aes256'
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DELIVERY_ENCRYPTION_KEY'],
+        message: 'DELIVERY_ENCRYPTION_KEY must be explicitly set to a production secret in production.'
+      });
+    }
+    if (
+      data.DELIVERY_ENCRYPTION_KEY === data.JWT_SECRET ||
+      data.DELIVERY_ENCRYPTION_KEY === data.JWT_REFRESH_SECRET
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['DELIVERY_ENCRYPTION_KEY'],
+        message: 'DELIVERY_ENCRYPTION_KEY must be different from JWT secrets in production.'
+      });
+    }
+
+    // 3. If Paymob is active in production, required secrets must be supplied
+    if (data.PAYMENT_PROVIDER === 'paymob') {
+      if (!data.PAYMOB_SECRET_KEY) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['PAYMOB_SECRET_KEY'],
+          message: 'PAYMOB_SECRET_KEY is required in production when PAYMENT_PROVIDER is paymob.'
+        });
+      }
+      if (!data.PAYMOB_HMAC_SECRET) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['PAYMOB_HMAC_SECRET'],
+          message: 'PAYMOB_HMAC_SECRET is required in production when PAYMENT_PROVIDER is paymob.'
+        });
+      }
+    }
+
+    // 4. If Mux is active in production, required secrets must be supplied
+    if (data.VIDEO_PROVIDER.toUpperCase().includes('MUX')) {
+      if (!data.MUX_TOKEN_ID) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MUX_TOKEN_ID'],
+          message: 'MUX_TOKEN_ID is required in production when VIDEO_PROVIDER is MUX.'
+        });
+      }
+      if (!data.MUX_TOKEN_SECRET) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MUX_TOKEN_SECRET'],
+          message: 'MUX_TOKEN_SECRET is required in production when VIDEO_PROVIDER is MUX.'
+        });
+      }
+      if (!data.MUX_SIGNING_KEY_ID) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MUX_SIGNING_KEY_ID'],
+          message: 'MUX_SIGNING_KEY_ID is required in production for secure signed playback.'
+        });
+      }
+      if (!data.MUX_SIGNING_PRIVATE_KEY) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MUX_SIGNING_PRIVATE_KEY'],
+          message: 'MUX_SIGNING_PRIVATE_KEY is required in production for secure signed playback.'
+        });
+      }
+      if (!data.MUX_WEBHOOK_SECRET) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['MUX_WEBHOOK_SECRET'],
+          message: 'MUX_WEBHOOK_SECRET is required in production to verify Mux webhooks.'
+        });
+      }
+    }
+  }
 });
 
 const parseEnv = () => {

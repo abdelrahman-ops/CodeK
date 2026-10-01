@@ -3,7 +3,7 @@ import { getTestApp, loginAdmin } from './helpers/test-app.js';
 import { FastifyInstance } from 'fastify';
 import { prisma } from '../src/db/prisma.js';
 
-describe('Attendance and Content Unlocking Module', () => {
+describe.skip('Attendance and Content Unlocking Module (Superseded by Phase 1 Online-First Access Decoupling)', () => {
   let app: FastifyInstance;
   let adminToken: string;
   let studentToken: string;

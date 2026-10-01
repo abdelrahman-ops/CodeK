@@ -5,6 +5,7 @@ import { Topbar } from '../../components/layout/topbar.js';
 import { Sidebar } from '../../components/layout/sidebar.js';
 import { MobileNav } from '../../components/layout/mobile-nav.js';
 import { Skeleton } from '../../components/ui/skeleton.js';
+import { ContentWatermark } from '../../components/shared/content-watermark.js';
 
 export function StudentLayout() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -22,6 +23,16 @@ export function StudentLayout() {
     return <Navigate to="/login" replace />;
   }
 
+  // Phase 7 Security Guard: Email verification gate
+  if (user.role === 'STUDENT' && user.isEmailVerified === false) {
+    return <Navigate to="/verify-email" replace />;
+  }
+
+  // Phase 7 Onboarding Guard: Learning mode selection gate
+  if (user.role === 'STUDENT' && user.student && user.student.learningModeSelected === false) {
+    return <Navigate to="/onboarding/learning-mode" replace />;
+  }
+
   if (user.mustChangePassword) {
     return <Navigate to="/change-password" replace />;
   }
@@ -31,7 +42,8 @@ export function StudentLayout() {
   }
 
   return (
-    <div className="h-screen bg-slate-50/70 dark:bg-slate-950 flex flex-col transition-colors duration-200 overflow-hidden">
+    <div className="h-screen bg-slate-50/70 dark:bg-slate-950 flex flex-col transition-colors duration-200 overflow-hidden relative">
+      <ContentWatermark />
       <Topbar onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
       <div className="flex-1 flex overflow-hidden">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />

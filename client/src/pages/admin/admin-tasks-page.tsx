@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../lib/api/client.js';
 import { useTranslation } from 'react-i18next';
-import { CheckSquare, Plus, Clock, Star, Send, Trash2 } from 'lucide-react';
+import { CheckSquare, Plus, Clock, Star, Send, Trash2, Check, X } from 'lucide-react';
 import { Card } from '../../components/ui/card.js';
 import { Button } from '../../components/ui/button.js';
 import { Input, Textarea } from '../../components/ui/input.js';
@@ -13,6 +13,8 @@ import { ConfirmDialog } from '../../components/ui/confirm-dialog.js';
 import { CardSkeleton } from '../../components/ui/skeleton.js';
 import { useToast } from '../../components/ui/toast.js';
 import { localizeText, formatStatus, formatDuration, formatXp } from '../../lib/i18n-helpers.js';
+import { useBulkSelection } from '../../hooks/use-bulk-selection.js';
+import { BulkSelectionBar } from '../../components/shared/bulk-selection-bar.js';
 
 export function AdminTasksPage() {
   const { t } = useTranslation();
@@ -32,6 +34,7 @@ export function AdminTasksPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
 
   const { data: groups } = useQuery({
     queryKey: ['groups'],
@@ -41,6 +44,34 @@ export function AdminTasksPage() {
   const { data: tasks, isLoading } = useQuery({
     queryKey: ['adminTasks'],
     queryFn: async () => (await api.tasks.list()).data.data
+  });
+
+  const selection = useBulkSelection(tasks || []);
+
+  const bulkPublishMutation = useMutation({
+    mutationFn: async ({ ids, isPublished }: { ids: string[]; isPublished: boolean }) =>
+      (await api.tasks.bulkPublish(ids, isPublished)).data.data,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['adminTasks'] });
+      selection.deselectAll();
+      toast.success(t('common.success'));
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: string[]) => (await api.tasks.bulkDelete(ids)).data.data,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['adminTasks'] });
+      selection.deselectAll();
+      setIsBulkDeleteOpen(false);
+      toast.success(t('common.success'));
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.error?.message || t('common.error'));
+    }
   });
 
   const createMutation = useMutation({
@@ -132,7 +163,7 @@ export function AdminTasksPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <CheckSquare className="w-7 h-7 text-brand-600 dark:text-brand-400" />
             <span>{t('tasks.title')}</span>
           </h1>
@@ -152,16 +183,70 @@ export function AdminTasksPage() {
         </Button>
       </div>
 
+      {/* Bulk Action Toolbar */}
+      <BulkSelectionBar
+        totalItems={tasks?.length || 0}
+        selectedCount={selection.selectedCount}
+        isAllSelected={selection.isAllSelected}
+        isIndeterminate={selection.isIndeterminate}
+        onToggleSelectAll={selection.toggleSelectAll}
+        onDeselectAll={selection.deselectAll}
+        onDeleteSelected={() => setIsBulkDeleteOpen(true)}
+        isLoading={bulkDeleteMutation.isPending || bulkPublishMutation.isPending}
+        actions={[
+          {
+            id: 'publish',
+            label: 'نشر المحدد',
+            icon: <Check className="w-3.5 h-3.5" />,
+            variant: 'primary',
+            onClick: () =>
+              bulkPublishMutation.mutate({
+                ids: Array.from(selection.selectedIds),
+                isPublished: true
+              })
+          },
+          {
+            id: 'unpublish',
+            label: 'إلغاء النشر (مسودة)',
+            icon: <X className="w-3.5 h-3.5" />,
+            variant: 'secondary',
+            onClick: () =>
+              bulkPublishMutation.mutate({
+                ids: Array.from(selection.selectedIds),
+                isPublished: false
+              })
+          }
+        ]}
+      />
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {tasks?.map((task) => (
-          <Card key={task.id} className="p-6 flex flex-col justify-between gap-4 border-slate-200/80 dark:border-slate-800/80 shadow-sm">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Badge variant="primary">{formatStatus(task.taskType)}</Badge>
-                <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
-                  {formatXp(task.xpReward)}
-                </span>
-              </div>
+        {tasks?.map((task) => {
+          const isSelected = selection.isSelected(task.id);
+          return (
+            <Card
+              key={task.id}
+              className={`p-6 flex flex-col justify-between gap-4 transition shadow-sm ${
+                isSelected
+                  ? 'border-brand-500 bg-brand-50/20 dark:bg-brand-950/20 ring-2 ring-brand-500/20'
+                  : 'border-slate-200/80 dark:border-slate-800/80'
+              }`}
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => selection.toggle(task.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-slate-300 dark:border-slate-600 cursor-pointer accent-brand-600"
+                    />
+                    <Badge variant="primary">{formatStatus(task.taskType)}</Badge>
+                  </div>
+                  <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                    {formatXp(task.xpReward)}
+                  </span>
+                </div>
 
               <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100">
                 {localizeText(task.title)}
@@ -193,7 +278,8 @@ export function AdminTasksPage() {
               </div>
             </div>
           </Card>
-        ))}
+          );
+        })}
       </div>
 
       {/* Create Task Modal */}
@@ -381,7 +467,7 @@ export function AdminTasksPage() {
         </form>
       </Dialog>
 
-      {/* Confirm Delete Task Dialog */}
+      {/* Delete Task Confirm Dialog */}
       <ConfirmDialog
         isOpen={Boolean(taskToDelete)}
         onClose={() => setTaskToDelete(null)}
@@ -390,9 +476,20 @@ export function AdminTasksPage() {
             deleteMutation.mutate(taskToDelete.id);
           }
         }}
-        title={t('tasks.deleteTask')}
-        description={`${t('tasks.confirmDelete')} "${taskToDelete?.title}"`}
+        title={t('common.delete')}
+        description={`${t('tasks.confirmDeleteTask')} "${taskToDelete?.title}"`}
         isLoading={deleteMutation.isPending}
+        isDestructive={true}
+      />
+
+      {/* Bulk Delete Tasks Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={isBulkDeleteOpen}
+        onClose={() => setIsBulkDeleteOpen(false)}
+        onConfirm={() => bulkDeleteMutation.mutate(Array.from(selection.selectedIds))}
+        title={`حذف ${selection.selectedCount} مهمة؟`}
+        description={`هل أنت متأكد من حذف ${selection.selectedCount} مهمة محددة؟ سيتم حذف المهام وتكليفاتها التابعة نهائياً.`}
+        isLoading={bulkDeleteMutation.isPending}
         isDestructive={true}
       />
     </div>

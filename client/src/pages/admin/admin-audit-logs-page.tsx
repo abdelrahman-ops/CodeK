@@ -23,7 +23,7 @@ export function AdminAuditLogsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
           {t('nav.auditLogs')}
         </h1>
         <p className="text-sm text-slate-500 mt-1">
@@ -54,7 +54,7 @@ export function AdminAuditLogsPage() {
                 <div className="font-bold text-slate-900 dark:text-slate-100 text-xs">
                   {log.actor ? `${log.actor.firstName} ${log.actor.lastName}` : t('auditLogs.system')}
                 </div>
-                <div className="text-[10px] text-slate-400 font-mono">
+                <div className="text-[11px] text-slate-400 font-mono">
                   {log.actor?.loginId || '-'}
                 </div>
               </TableCell>

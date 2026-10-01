@@ -145,15 +145,80 @@ export function localizeText(text: string | null | undefined): string {
     return match[currentLang];
   }
 
+  let result = text;
   // Check if text contains day names or time patterns like 16:00-17:30
   if (
     /\b(Saturday|Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|السبت|الأحد|الإثنين|الاثنين|الثلاثاء|الأربعاء|الخميس|الجمعة)\b/i.test(trimmed) ||
     /\b\d{1,2}:\d{2}\b/.test(trimmed)
   ) {
-    return formatScheduleText(trimmed, isAr);
+    result = formatScheduleText(trimmed, isAr);
   }
 
-  return text;
+  return formatMathText(result);
+}
+
+/**
+ * Formats mathematical and logical LaTeX notations (e.g. \supset, \subset, \le, \ge, \in, etc.)
+ * into clear, universally readable Unicode mathematical symbols (⊃, ⊂, ≤, ≥, ∈, →, etc.).
+ */
+export function formatMathText(text: string | null | undefined): string {
+  if (!text) return '';
+  let str = text;
+
+  // Replace common LaTeX math / set / logic notations
+  const replacements: [RegExp, string][] = [
+    // Sets
+    [/\\supset\b|\$\\supset\$/g, '⊃'],
+    [/\\subset\b|\$\\subset\$/g, '⊂'],
+    [/\\supseteq\b|\$\\supseteq\$/g, '⊇'],
+    [/\\subseteq\b|\$\\subseteq\$/g, '⊆'],
+    [/\\in\b|\$\\in\$/g, '∈'],
+    [/\\notin\b|\$\\notin\$/g, '∉'],
+    [/\\cup\b|\$\\cup\$/g, '∪'],
+    [/\\cap\b|\$\\cap\$/g, '∩'],
+    [/\\emptyset\b|\$\\emptyset\$/g, '∅'],
+
+    // Logic & Relations
+    [/\\land\b|\$\\land\$/g, '∧'],
+    [/\\lor\b|\$\\lor\$/g, '∨'],
+    [/\\neg\b|\$\\neg\$/g, '¬'],
+    [/\\neq\b|\$\\neq\$/g, '≠'],
+    [/\\approx\b|\$\\approx\$/g, '≈'],
+    [/\\equiv\b|\$\\equiv\$/g, '≡'],
+    [/\\le\b|\\leq\b|\$\\le\$|\$\\leq\$/g, '≤'],
+    [/\\ge\b|\\geq\b|\$\\ge\$|\$\\geq\$/g, '≥'],
+    [/\\times\b|\$\\times\$/g, '×'],
+    [/\\div\b|\$\\div\$/g, '÷'],
+    [/\\pm\b|\$\\pm\$/g, '±'],
+    [/\\mp\b|\$\\mp\$/g, '∓'],
+    [/\\cdot\b|\$\\cdot\$/g, '·'],
+
+    // Arrows
+    [/\\rightarrow\b|\\to\b|\$\\rightarrow\$|\$\\to\$/g, '→'],
+    [/\\leftarrow\b|\$\\leftarrow\$/g, '←'],
+    [/\\Rightarrow\b|\$\\Rightarrow\$/g, '⇒'],
+    [/\\Leftarrow\b|\$\\Leftarrow\$/g, '⇐'],
+    [/\\Leftrightarrow\b|\$\\Leftrightarrow\$/g, '⇔'],
+    [/\\mapsto\b|\$\\mapsto\$/g, '↦'],
+
+    // Quantifiers & Symbols
+    [/\\infty\b|\$\\infty\$/g, '∞'],
+    [/\\forall\b|\$\\forall\$/g, '∀'],
+    [/\\exists\b|\$\\exists\$/g, '∃'],
+    [/\\nexists\b|\$\\nexists\$/g, '∄'],
+    [/\\nabla\b|\$\\nabla\$/g, '∇'],
+    [/\\partial\b|\$\\partial\$/g, '∂'],
+    [/\\sqrt\b|\$\\sqrt\$/g, '√']
+  ];
+
+  for (const [regex, rep] of replacements) {
+    str = str.replace(regex, rep);
+  }
+
+  // Strip standalone $ delimiters around single words or expressions (e.g. $x$ -> x)
+  str = str.replace(/\$([^\$]+)\$/g, '$1');
+
+  return str;
 }
 
 /**

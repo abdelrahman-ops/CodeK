@@ -4,7 +4,8 @@ import { requireAdmin } from '../../common/middleware/rbac.js';
 import {
   listPaymentsQuerySchema,
   recordPaymentSchema,
-  updatePaymentSchema
+  updatePaymentSchema,
+  bulkPaymentStatusSchema
 } from './payment.schema.js';
 import * as paymentService from './payment.service.js';
 import { z } from 'zod';
@@ -18,6 +19,22 @@ export async function paymentRoutes(app: FastifyInstance) {
       const input = recordPaymentSchema.parse(request.body);
       const payment = await paymentService.recordPayment(input, request.user!.userId);
       return reply.status(201).send({ data: payment });
+    }
+  );
+
+  // Bulk update payment status (Admin only)
+  app.patch(
+    '/bulk-status',
+    { preHandler: [authenticate, requireAdmin] },
+    async (request, reply) => {
+      const input = bulkPaymentStatusSchema.parse(request.body || {});
+      const result = await paymentService.bulkUpdatePaymentStatus(
+        input.paymentIds,
+        input.status,
+        input.notes,
+        request.user!.userId
+      );
+      return reply.send({ data: result });
     }
   );
 

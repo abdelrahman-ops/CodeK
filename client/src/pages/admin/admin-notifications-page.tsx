@@ -24,7 +24,8 @@ export function AdminNotificationsPage() {
 
   const { data: users } = useQuery({
     queryKey: ['allUsersList'],
-    queryFn: async () => (await api.users.list()).data.data
+    queryFn: async () => (await api.users.list()).data.data,
+    enabled: isSendModalOpen
   });
 
   const { data: notifications, isLoading } = useQuery({
@@ -61,7 +62,7 @@ export function AdminNotificationsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">
             {t('nav.notifications')}
           </h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -85,7 +86,7 @@ export function AdminNotificationsPage() {
               <div>
                 <h4 className="font-bold text-sm text-slate-900 dark:text-slate-100">{localizeText(n.title)}</h4>
                 <p className="text-xs text-slate-500 mt-0.5">{localizeText(n.message)}</p>
-                <span className="text-[10px] text-slate-400 mt-1 inline-block">
+                <span className="text-[11px] text-slate-400 mt-1 inline-block">
                   {formatDate(n.createdAt)}
                 </span>
               </div>
