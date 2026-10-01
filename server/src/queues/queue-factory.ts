@@ -1,5 +1,5 @@
 import { Queue, QueueOptions, DefaultJobOptions } from 'bullmq';
-import { createRedisClient, getRedisConnection } from '../infrastructure/redis/redis.js';
+import { createRedisClient, getRedisConnection, isRedisConfigured } from '../infrastructure/redis/redis.js';
 import { QueueName } from './queue-names.js';
 import { env } from '../config/env.js';
 
@@ -23,11 +23,16 @@ const queueRegistry = new Map<string, Queue>();
 
 /**
  * Creates or retrieves a cached BullMQ Queue instance.
+ * Returns null if Redis is not configured (e.g. Vercel serverless without hosted Redis).
  */
 export function getOrCreateQueue<T = any>(
   queueName: QueueName,
   customOptions?: Partial<QueueOptions>
-): Queue<T> {
+): Queue<T> | null {
+  if (!isRedisConfigured()) {
+    return null;
+  }
+
   if (queueRegistry.has(queueName)) {
     return queueRegistry.get(queueName)! as Queue<T>;
   }

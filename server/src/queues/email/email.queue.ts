@@ -24,7 +24,7 @@ export class QueueServiceUnavailableError extends Error {
 }
 
 export class EmailQueue {
-  private queue: Queue<EmailJobData>;
+  private queue: Queue<EmailJobData> | null = null;
 
   constructor() {
     this.queue = getOrCreateQueue<EmailJobData>(EMAIL_QUEUE);
@@ -39,6 +39,11 @@ export class EmailQueue {
     authTokenId: string;
     studentName: string;
   }): Promise<string | null> {
+    if (!this.queue) {
+      await this.executeDirectVerificationFallback(payload);
+      return 'fallback_direct';
+    }
+
     const jobData: EmailVerificationJobData = {
       type: EmailJobType.EMAIL_VERIFICATION,
       email: payload.email,
@@ -56,14 +61,14 @@ export class EmailQueue {
       });
       return job.id || null;
     } catch (err: any) {
-      if (env.NODE_ENV === 'production') {
-        // Strict production rule: never silently hide infrastructure failures
+      if (env.NODE_ENV === 'production' && !process.env.VERCEL) {
+        // Strict production rule for persistent servers: never silently hide infrastructure failures
         console.error(`[EmailQueue] Production Redis failure enqueueing verification email:`, err.message);
         throw new QueueServiceUnavailableError('Queue service unavailable: failed to enqueue verification email');
       }
 
-      // Development/test isolated fallback
-      console.warn(`[EmailQueue] (DEV/TEST ONLY) Redis unavailable, delivering verification email directly:`, err.message);
+      // Serverless (Vercel) or Development/test isolated fallback
+      console.warn(`[EmailQueue] Redis unavailable, delivering verification email directly:`, err.message);
       await this.executeDirectVerificationFallback(payload);
       return 'fallback_direct';
     }
@@ -77,6 +82,11 @@ export class EmailQueue {
     authTokenId: string;
     adminName: string;
   }): Promise<string | null> {
+    if (!this.queue) {
+      await this.executeDirectAdminOtpFallback(payload);
+      return 'fallback_direct';
+    }
+
     const jobData: AdminLoginOtpJobData = {
       type: EmailJobType.ADMIN_LOGIN_OTP,
       email: payload.email,
@@ -92,12 +102,12 @@ export class EmailQueue {
       });
       return job.id || null;
     } catch (err: any) {
-      if (env.NODE_ENV === 'production') {
+      if (env.NODE_ENV === 'production' && !process.env.VERCEL) {
         console.error(`[EmailQueue] Production Redis failure enqueueing admin OTP:`, err.message);
         throw new QueueServiceUnavailableError('Queue service unavailable: failed to enqueue admin OTP');
       }
 
-      console.warn(`[EmailQueue] (DEV/TEST ONLY) Redis unavailable, delivering admin OTP directly:`, err.message);
+      console.warn(`[EmailQueue] Redis unavailable, delivering admin OTP directly:`, err.message);
       await this.executeDirectAdminOtpFallback(payload);
       return 'fallback_direct';
     }
@@ -111,6 +121,11 @@ export class EmailQueue {
     authTokenId: string;
     userName: string;
   }): Promise<string | null> {
+    if (!this.queue) {
+      await this.executeDirectPasswordResetFallback(payload);
+      return 'fallback_direct';
+    }
+
     const jobData: PasswordResetJobData = {
       type: EmailJobType.PASSWORD_RESET,
       email: payload.email,
@@ -126,12 +141,12 @@ export class EmailQueue {
       });
       return job.id || null;
     } catch (err: any) {
-      if (env.NODE_ENV === 'production') {
+      if (env.NODE_ENV === 'production' && !process.env.VERCEL) {
         console.error(`[EmailQueue] Production Redis failure enqueueing password reset:`, err.message);
         throw new QueueServiceUnavailableError('Queue service unavailable: failed to enqueue password reset');
       }
 
-      console.warn(`[EmailQueue] (DEV/TEST ONLY) Redis unavailable, delivering password reset directly:`, err.message);
+      console.warn(`[EmailQueue] Redis unavailable, delivering password reset directly:`, err.message);
       await this.executeDirectPasswordResetFallback(payload);
       return 'fallback_direct';
     }
@@ -141,6 +156,11 @@ export class EmailQueue {
    * Enqueues a generic transactional email job (non-secret announcements).
    */
   async enqueueCustomMail(payload: SendEmailOptions): Promise<string | null> {
+    if (!this.queue) {
+      await emailService.sendMail(payload);
+      return 'fallback_direct';
+    }
+
     const jobData: CustomMailJobData = {
       ...payload,
       type: EmailJobType.CUSTOM_MAIL,
@@ -150,19 +170,19 @@ export class EmailQueue {
       const job = await this.queue.add(EmailJobType.CUSTOM_MAIL, jobData);
       return job.id || null;
     } catch (err: any) {
-      if (env.NODE_ENV === 'production') {
+      if (env.NODE_ENV === 'production' && !process.env.VERCEL) {
         console.error(`[EmailQueue] Production Redis failure enqueueing custom mail:`, err.message);
         throw new QueueServiceUnavailableError('Queue service unavailable: failed to enqueue custom mail');
       }
 
-      console.warn(`[EmailQueue] (DEV/TEST ONLY) Redis unavailable, delivering custom mail directly:`, err.message);
+      console.warn(`[EmailQueue] Redis unavailable, delivering custom mail directly:`, err.message);
       await emailService.sendMail(payload);
       return 'fallback_direct';
     }
   }
 
   getRawQueue(): Queue<EmailJobData> {
-    return this.queue;
+    return this.queue!;
   }
 
   // ==========================================

@@ -12,6 +12,7 @@ ALTER TABLE "Curriculum" ADD COLUMN IF NOT EXISTS "grade" "StudentGrade";
 -- 3. Safely backfill known curricula
 UPDATE "Curriculum" SET "grade" = 'GRADE_2' WHERE "code" = 'G11-T1-EB-2026';
 UPDATE "Curriculum" SET "grade" = 'GRADE_2' WHERE "title" LIKE 'Payment Test Course%' AND "grade" IS NULL;
+UPDATE "Curriculum" SET "grade" = 'GRADE_2' WHERE "grade" IS NULL;
 
 -- 4. Fail loudly if any Curriculum remains with NULL or ambiguous grade
 DO $$
